@@ -8,4 +8,4 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 .ipynb_checkpoints/
-DATA/RAW/
+DATA_PIPELINE/DATA/RAW/
