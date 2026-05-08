@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+
+html, body, #__next {
+  height: 100%;
+}
+
+body {
+  background: #fafafa;
+  color: #09090b;
+  font-family: "Geist Sans", Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  font-size: 14px;
+}
+
+.card {
+  @apply bg-white border border-zinc-200 rounded-lg p-4;
+}
+
+.stat-card { @apply bg-white border border-zinc-200 rounded-lg p-4 border-l-[3px] }
+.stat-title { @apply text-xs text-zinc-500 font-normal }
+.stat-value { @apply text-2xl font-semibold tabular-nums text-zinc-950 }
+
+.chip { @apply inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium }
+.chip.pass { @apply bg-green-50 text-green-700 }
+.chip.fail { @apply bg-red-50 text-red-700 }
+.chip.fast { @apply bg-blue-50 text-blue-700 }
+
+.cni-critical { @apply bg-red-50 text-red-700 }
+.cni-moderate { @apply bg-amber-50 text-amber-700 }
+.cni-ontrack { @apply bg-green-50 text-green-700 }
+

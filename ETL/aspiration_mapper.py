@@ -148,7 +148,7 @@ def process_directory(engine, dir_path: Path, is_rural: bool):
 
     table_name = 'fact_rural_aspirations' if is_rural else 'fact_urban_aspirations'
 
-    with engine.begin() as conn:
+    with engine.connect() as conn:
         metadata = MetaData()
         table = Table(table_name, metadata, autoload_with=conn)
         dimension_cache = load_dimension_cache(conn, is_rural=is_rural)
@@ -213,8 +213,10 @@ def process_directory(engine, dir_path: Path, is_rural: bool):
 
             try:
                 out_df.to_sql(table_name, con=conn, if_exists='append', index=False, method='multi')
+                conn.commit()
                 print(f"Appended {len(out_df)} rows to {table_name} from {f.name}")
             except Exception as e:
+                conn.rollback()
                 print(f"Failed to append {f.name} to {table_name}: {e}")
 
 
