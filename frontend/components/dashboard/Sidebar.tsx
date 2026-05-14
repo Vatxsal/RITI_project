@@ -5,16 +5,45 @@ import { usePathname } from 'next/navigation';
 import { SECTORS } from '@/lib/data';
 import { useAuth } from '@/components/AuthProvider';
 
-export default function Sidebar() {
+export default function Sidebar({ isMobileOpen, onMobileClose }: { isMobileOpen?: boolean; onMobileClose?: () => void }) {
   const pathname = usePathname();
   const { user } = useAuth();
 
   const isActive = (path: string) => pathname === path;
 
   const isAdmin = !!user && user.user_type === 'admin';
+  
+  // Close sidebar on mobile when navigating
+  const handleLinkClick = () => {
+    if (isMobileOpen && onMobileClose) {
+      onMobileClose();
+    }
+  };
 
   return (
-    <div id="sb" className="h-full flex flex-col flex-shrink-0 overflow-y-auto border-r border-var(--bd)">
+    <>
+      {/* MOBILE OVERLAY */}
+      {isMobileOpen && (
+        <div 
+          className="mobile-sidebar-overlay"
+          onClick={onMobileClose}
+          role="presentation"
+        ></div>
+      )}
+      
+      <div 
+        id="sb" 
+        className={`h-full flex flex-col flex-shrink-0 overflow-y-auto border-r border-var(--bd) ${isMobileOpen ? 'mobile-open' : ''}`}
+      >
+        {/* CLOSE BUTTON FOR MOBILE */}
+        <button
+          className="mobile-close-btn"
+          onClick={onMobileClose}
+          aria-label="Close menu"
+        >
+          ✕
+        </button>
+      
       {/* Brand */}
       <div className="sb-brand">
         <div className="sb-logo">
@@ -34,6 +63,7 @@ export default function Sidebar() {
           <Link 
             href="/"
             className={`si ${isActive('/') ? 'on' : ''}`}
+            onClick={handleLinkClick}
           >
             <span className="ic">◻</span>
             <span>Command Center</span>
@@ -45,6 +75,7 @@ export default function Sidebar() {
               key={sector.v}
               href={`/sector/${sector.v}`}
               className={`si ${pathname === `/sector/${sector.v}` ? 'on' : ''}`}
+              onClick={handleLinkClick}
             >
               <span className="ic">{sector.icon}</span>
               <span>{sector.label}</span>
@@ -55,6 +86,7 @@ export default function Sidebar() {
           <Link 
             href="/districts"
             className={`si ${isActive('/districts') ? 'on' : ''}`}
+            onClick={handleLinkClick}
           >
             <span className="ic">◻</span>
             <span>All Districts</span>
@@ -63,6 +95,7 @@ export default function Sidebar() {
           <Link 
             href="/gis-map"
             className={`si ${isActive('/gis-map') ? 'on' : ''}`}
+            onClick={handleLinkClick}
           >
             <span className="ic">◯</span>
             <span>GIS Map</span>
@@ -72,6 +105,7 @@ export default function Sidebar() {
           <Link 
             href="/reports"
             className={`si ${isActive('/reports') ? 'on' : ''}`}
+            onClick={handleLinkClick}
           >
             <span className="ic">◼</span>
             <span>Report Library</span>
@@ -79,6 +113,7 @@ export default function Sidebar() {
           <Link 
             href="/ai-chat"
             className={`si ${isActive('/ai-chat') ? 'on' : ''}`}
+            onClick={handleLinkClick}
           >
             <span className="ic">◯</span>
             <span>Talk to Data</span>
@@ -87,6 +122,7 @@ export default function Sidebar() {
       ) : (
         <div className="p-4 text-sm opacity-80">Sign in as admin to view the dashboard</div>
       )}
-    </div>
+      </div>
+    </>
   );
 }

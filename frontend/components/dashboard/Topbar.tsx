@@ -12,6 +12,7 @@ interface TopBarProps {
   
   onUrbanFilterChange: (filter: 'all' | 'rural' | 'urban') => void;
   onPanelOpen: () => void;
+  onMobileMenuClick?: () => void;
 }
 
 export default function TopBar({
@@ -19,7 +20,8 @@ export default function TopBar({
   urbanFilter,
   onDistrictChange,
   onUrbanFilterChange,
-  onPanelOpen
+  onPanelOpen,
+  onMobileMenuClick
 }: TopBarProps) {
   const { user, logout, sessionExpiresAt } = useAuth();
   const router = useRouter();
@@ -59,6 +61,16 @@ export default function TopBar({
 
   return (
     <div id="fbar" className="bg-var(--nv2) border-b border-var(--bd) px-4 h-12 flex items-center gap-2 flex-shrink-0">
+      {/* MOBILE HAMBURGER MENU */}
+      <button 
+        className="mobile-menu-btn"
+        onClick={onMobileMenuClick}
+        aria-label="Toggle menu"
+        title="Menu"
+      >
+        ☰
+      </button>
+      
       <span className="fsl">District:</span>
       
       <select 

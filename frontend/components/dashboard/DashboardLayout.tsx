@@ -11,6 +11,7 @@ import { FilterProvider, useFilter } from '@/components/FilterContext';
 function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const { selectedDistrict, setSelectedDistrict, urbanFilter, setUrbanFilter } = useFilter();
   const [isPanelOpen, setIsPanelOpen] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const { user, isInitializing } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
@@ -48,7 +49,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
 
   return (
     <div id="app" className="flex h-screen bg-var(--bg) overflow-hidden">
-      <Sidebar />
+      <Sidebar isMobileOpen={isMobileSidebarOpen} onMobileClose={() => setIsMobileSidebarOpen(false)} />
       
       <div id="mn" className="flex flex-col flex-1 overflow-hidden">
         <TopBar 
@@ -57,6 +58,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
           onDistrictChange={setSelectedDistrict}
           onUrbanFilterChange={setUrbanFilter}
           onPanelOpen={() => setIsPanelOpen(true)}
+          onMobileMenuClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
         />
         
         <div id="ct" className="flex-1 overflow-y-auto p-4">

@@ -1222,4 +1222,101 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
   }
 }
 
+/* ============================================================================= */
+/* MOBILE SIDEBAR & HAMBURGER MENU                                             */
+/* ============================================================================= */
+
+.mobile-menu-btn {
+  display: none;
+  background: transparent;
+  border: none;
+  color: var(--t1);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 6px;
+  transition: all .15s;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.mobile-menu-btn:hover {
+  background: rgba(255,255,255,.08);
+  color: var(--or);
+}
+
+.mobile-close-btn {
+  display: none;
+  background: transparent;
+  border: none;
+  color: var(--t1);
+  font-size: 22px;
+  cursor: pointer;
+  padding: 8px 10px;
+  border-radius: 6px;
+  transition: all .15s;
+  align-self: flex-end;
+  margin: 8px 8px 0 0;
+  flex-shrink: 0;
+}
+
+.mobile-close-btn:hover {
+  background: rgba(255,255,255,.08);
+  color: var(--or);
+}
+
+.mobile-sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.6);
+  z-index: 40;
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+#sb {
+  transition: transform .3s cubic-bezier(.4,0,.2,1);
+}
+
+/* MOBILE SIDEBAR — DRAWER MODE */
+@media (max-width: 768px) {
+  .mobile-menu-btn {
+    display: flex;
+  }
+  
+  .mobile-close-btn {
+    display: flex;
+  }
+  
+  #sb {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 50;
+    transform: translateX(-100%);
+    background: var(--nv2);
+    width: 228px;
+    max-width: 85vw;
+    box-shadow: 4px 0 20px rgba(0,0,0,.5);
+    border-radius: 0;
+  }
+  
+  #sb.mobile-open {
+    transform: translateX(0);
+  }
+  
+  .mobile-sidebar-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.6);
+    z-index: 40;
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+  }
+}
+
 
