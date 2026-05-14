@@ -1,5 +1,5 @@
 CREATE TABLE dim_urban_wards (
-    ward_id SERIAL PRIMARY KEY,
+    ward_id INTEGER PRIMARY KEY,
     district TEXT NOT NULL,
     ulb TEXT NOT NULL, -- Urban Local Body (Nagar Nigam/Parishad/Palika)
     ward TEXT NOT NULL,
@@ -206,3 +206,9 @@ CREATE TABLE IF NOT EXISTS fact_urban_governance (
     dist_police_station_km NUMERIC,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- fact_urban_environment: several old columns absent in new Excel — keep them nullable
+-- No new columns needed for Urban based on current mapping.
+
+-- fact_urban_education: add snp column if moving from health
+ALTER TABLE fact_urban_education ADD COLUMN IF NOT EXISTS snp_recipients_6_72_months NUMERIC;

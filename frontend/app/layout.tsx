@@ -1,26 +1,20 @@
 import './globals.css'
 import React from 'react'
-import Sidebar from '../components/layout/Sidebar'
-import TopBar from '../components/layout/TopBar'
+import DashboardLayout from '@/components/dashboard/DashboardLayout'
+import AuthProvider from '@/components/AuthProvider'
 
 export const metadata = {
-  title: 'Manthaan OS',
-  description: 'Planning intelligence for Viksit Rajasthan 2047'
+  title: 'Manthaan OS — RITI Planning Intelligence',
+  description: 'Viksit Rajasthan 2047 Planning Intelligence Dashboard'
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>
-        <div className="min-h-screen flex">
-          <Sidebar />
-          <div className="flex-1 flex flex-col">
-            <TopBar />
-            <main className="flex-1 bg-[#FAFAFA] px-6 py-5">
-              {children}
-            </main>
-          </div>
-        </div>
+      <body style={{ margin: 0, padding: 0, background: 'var(--bg)', color: 'var(--t1)' }}>
+        <AuthProvider>
+          <DashboardLayout>{children}</DashboardLayout>
+        </AuthProvider>
       </body>
     </html>
   )

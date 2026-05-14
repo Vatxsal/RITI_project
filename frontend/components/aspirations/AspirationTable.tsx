@@ -89,7 +89,7 @@ export default function AspirationTable() {
               {virtualItems.map(vi => {
                 const r = rows[vi.index]
                 const res = results[vi.index]
-                const hasGIS = r.lat && r.lng && r.lat !== '' && r.lng !== ''
+                const hasGIS = Number.isFinite(Number(r.lat)) && Number.isFinite(Number(r.lng))
                 return (
                   <tr key={vi.key} style={{ position: 'absolute', top: vi.start, left: 0, width: '100%' }} className="border-b border-zinc-100 hover:bg-zinc-50/60 transition-none">
                     <td className="px-3 py-2.5 text-xs text-zinc-900">{r.rajdhara_ref || '-'}</td>

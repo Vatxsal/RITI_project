@@ -1,12 +1,30 @@
 "use client"
-import React, { useMemo } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useAspStore } from '../../store/aspirationStore'
 import StatCard from '../../components/StatCard'
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { fetchDashboardKpis, getEmptyDashboardPayload, AreaType } from '@/lib/dashboard-kpis'
 
 export default function OverviewPage() {
   const rows = useAspStore(s => s.aspirationData)
   const results = useAspStore(s => s.ruleResults)
+  const [areaType, setAreaType] = useState<AreaType>('all')
+  const [dashboard, setDashboard] = useState(getEmptyDashboardPayload())
+
+  useEffect(() => {
+    let alive = true
+    fetchDashboardKpis({ areaType })
+      .then((payload) => {
+        if (alive && payload) setDashboard(payload)
+      })
+      .catch(() => {
+        if (alive) setDashboard(getEmptyDashboardPayload())
+      })
+
+    return () => {
+      alive = false
+    }
+  }, [areaType])
 
   const stats = useMemo(() => {
     const total = rows.length
@@ -41,11 +59,45 @@ export default function OverviewPage() {
     <div className="space-y-6">
       <div className="text-xl font-semibold tracking-tight text-zinc-950">Overview</div>
 
+      {/* Area Type Filter */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => setAreaType('all')}
+          className={`px-4 py-2 rounded-lg font-medium transition-all ${
+            areaType === 'all'
+              ? 'bg-blue-600 text-white shadow-lg'
+              : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+          }`}
+        >
+          ALL (Rural + Urban)
+        </button>
+        <button
+          onClick={() => setAreaType('rural')}
+          className={`px-4 py-2 rounded-lg font-medium transition-all ${
+            areaType === 'rural'
+              ? 'bg-green-600 text-white shadow-lg'
+              : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+          }`}
+        >
+          Rural Only
+        </button>
+        <button
+          onClick={() => setAreaType('urban')}
+          className={`px-4 py-2 rounded-lg font-medium transition-all ${
+            areaType === 'urban'
+              ? 'bg-orange-600 text-white shadow-lg'
+              : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+          }`}
+        >
+          Urban Only
+        </button>
+      </div>
+
       <div className="bg-white border border-zinc-200 rounded-lg p-4">
         <div className="grid grid-cols-6 gap-4 text-center">
           <div>
             <div className="text-xs text-zinc-500 font-normal uppercase tracking-wider">DISTRICTS</div>
-            <div className="text-2xl font-semibold tabular-nums text-zinc-950">41</div>
+            <div className="text-2xl font-semibold tabular-nums text-zinc-950">{dashboard.districtScores.length}</div>
             <div className="text-xs text-zinc-400">Rajasthan</div>
           </div>
           <div>
@@ -55,7 +107,7 @@ export default function OverviewPage() {
           </div>
           <div>
             <div className="text-xs text-zinc-500 font-normal uppercase tracking-wider">GP BASELINE</div>
-            <div className="text-2xl font-semibold tabular-nums text-zinc-950">12,323</div>
+            <div className="text-2xl font-semibold tabular-nums text-zinc-950">{dashboard.dataCoverage[0][1]}</div>
             <div className="text-xs text-zinc-400">Post 2026</div>
           </div>
           <div>

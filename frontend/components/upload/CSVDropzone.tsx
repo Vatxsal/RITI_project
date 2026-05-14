@@ -30,6 +30,8 @@ export default function CSVDropzone() {
   const baselineMap = useAspStore(s=>s.baselineCache)
   const complianceNorms = useAspStore(s=>s.complianceNorms)
 
+  type ParseResult = { data: Array<Record<string, string>> }
+
   function mapRow(row:any) {
     const mapped:any = {}
     Object.entries(row).forEach(([k,v])=>{
@@ -56,8 +58,8 @@ export default function CSVDropzone() {
       header: true,
       skipEmptyLines: true,
       worker: true,
-      complete: (res) => {
-        const rows = (res.data as any[]).map(mapRow)
+      complete: (res: ParseResult) => {
+        const rows = res.data.map(mapRow)
         setAsp(rows)
         const baselineFetch = (key: string) => {
           const base = baselineMap[key]

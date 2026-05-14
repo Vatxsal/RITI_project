@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { supabase } from '../../../lib/supabase'
+import { supabase, fetchAll } from '../../../lib/supabase'
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
@@ -16,13 +16,20 @@ export async function GET(req: Request) {
 
   const results: Record<string, any> = {}
   for (const t of factTables) {
-    const { data, error } = await supabase.from(t).select('*').eq(idColumn, id).limit(1)
-    if (error) return NextResponse.json({ error: 'db_error', table: t }, { status: 500 })
-    results[t] = (data && data[0]) || null
+    try {
+      const rows = await fetchAll(t, { [idColumn]: id })
+      console.log('DEBUG:', t, 'rows', rows.length, rows[0])
+      results[t] = (rows && rows[0]) || null
+    } catch (e) {
+      return NextResponse.json({ error: 'db_error', table: t }, { status: 500 })
+    }
   }
 
-  const { data: dim, error } = await supabase.from(dimTable).select('*').eq(idColumn, id).limit(1)
-  if (error) return NextResponse.json({ error: 'db_error', table: dimTable }, { status: 500 })
-
-  return NextResponse.json({ type: locationType, record: dim?.[0] || null, facts: results })
+  try {
+    const dimRows = await fetchAll(dimTable, { [idColumn]: id })
+    console.log('DEBUG: dim', dimTable, dimRows.length, dimRows[0])
+    return NextResponse.json({ type: locationType, record: dimRows?.[0] || null, facts: results })
+  } catch (e) {
+    return NextResponse.json({ error: 'db_error', table: dimTable }, { status: 500 })
+  }
 }

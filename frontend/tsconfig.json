@@ -18,6 +18,10 @@
     "noEmit": true,
     "incremental": true,
     "esModuleInterop": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"]
+    },
     "plugins": [
       {
         "name": "next"
@@ -27,6 +31,7 @@
   "include": [
     "app",
     "src",
+    "types",
     "next-env.d.ts",
     ".next/types/**/*.ts"
   ],

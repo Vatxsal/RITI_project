@@ -1,30 +1,12 @@
 import { NextResponse } from 'next/server'
-import { supabase } from '../../../lib/supabase'
+import { supabase, fetchAll } from '../../../lib/supabase'
 
 export async function GET() {
   try {
-    // Try to fetch from dim_rural_gps table directly
-    const { data, error } = await supabase.from('dim_rural_gps').select('district, block', { count: 'exact' })
-    
-    if (error) {
-      // Fallback to hardcoded defaults if query fails
-      return NextResponse.json({
-        data: [{
-          districts: 41,
-          blocks: 457,
-          gps: 14404
-        }]
-      })
-    }
-
+    // Fetch all dim_rural_gps rows (paginated)
+    const data = await fetchAll('dim_rural_gps', {}, 'district, block')
     if (!data || data.length === 0) {
-      return NextResponse.json({
-        data: [{
-          districts: 41,
-          blocks: 457,
-          gps: 14404
-        }]
-      })
+      return NextResponse.json({ data: [{ districts: 41, blocks: 457, gps: 14404 }] })
     }
 
     // Calculate distinct counts from the data

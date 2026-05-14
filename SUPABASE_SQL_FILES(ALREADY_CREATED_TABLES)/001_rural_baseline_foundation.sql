@@ -1,6 +1,6 @@
 -- 1. MASTER REGISTRY
 CREATE TABLE IF NOT EXISTS dim_rural_gps (
-    gp_id SERIAL PRIMARY KEY,
+    gp_id INTEGER PRIMARY KEY,
     district TEXT NOT NULL,
     block TEXT NOT NULL,
     gram_panchayat TEXT NOT NULL,
@@ -161,6 +161,8 @@ CREATE TABLE IF NOT EXISTS fact_rural_health (
     health_center_beds NUMERIC,
     working_health_staff NUMERIC,
     sanctioned_health_staff NUMERIC,
+    phc_dist_km NUMERIC,
+    chc_dist_km NUMERIC,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -187,6 +189,7 @@ CREATE TABLE IF NOT EXISTS fact_rural_infra (
     solar_installed_houses NUMERIC,
     solar_installed_public_buildings NUMERIC,
     solar_street_lights NUMERIC,
+    public_toilets NUMERIC,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -238,6 +241,8 @@ CREATE TABLE IF NOT EXISTS fact_rural_water (
     tanker_only_supply_houses NUMERIC,
     groundwater_depth_meters NUMERIC,
     agri_water_sources_count NUMERIC,
+    drinking_water_sources NUMERIC,
+    ro_facilities NUMERIC,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -296,3 +301,11 @@ CREATE TABLE IF NOT EXISTS fact_rural_governance (
     dist_police_station_km NUMERIC,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- fact_rural_health: new distance columns
+ALTER TABLE fact_rural_health ADD COLUMN IF NOT EXISTS phc_dist_km NUMERIC;
+ALTER TABLE fact_rural_health ADD COLUMN IF NOT EXISTS chc_dist_km NUMERIC;
+
+-- fact_rural_water: new columns
+ALTER TABLE fact_rural_water ADD COLUMN IF NOT EXISTS drinking_water_sources NUMERIC;
+ALTER TABLE fact_rural_water ADD COLUMN IF NOT EXISTS ro_facilities NUMERIC;

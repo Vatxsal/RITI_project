@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { AspirationRow, RuleResult } from '../lib/types'
-import { supabase } from '../lib/supabase'
+import { supabase, fetchAll } from '../lib/supabase'
 
 type State = {
   aspirationData: AspirationRow[]
@@ -21,23 +21,32 @@ export const useAspStore = create<State>((set, get) => ({
   setAspirationData: (rows) => set({ aspirationData: rows }),
   setRuleResults: (r) => set({ ruleResults: r }),
   loadBaselineCache: async () => {
-    // fetch dim_rural_gps + minimal facts for join
-    const { data, error } = await supabase.from('dim_rural_gps').select('gp_id, district, block, gram_panchayat, is_desert, is_tribal')
-    if (error) return
-    const map: Record<string, any> = {}
-    (data||[]).forEach((d:any)=>{
-      const key = `${(d.district||'').toLowerCase()}||${(d.block||'').toLowerCase()}||${(d.gram_panchayat||'').toLowerCase()}`
-      map[key] = d
-    })
-    set({ baselineCache: map })
+    // fetch dim_rural_gps + minimal facts for join (paginated)
+    try {
+      const rows = await fetchAll('dim_rural_gps', {}, 'gp_id, district, block, gram_panchayat, is_desert, is_tribal')
+      console.log('DEBUG: baseline rows', rows.length, rows[0])
+      const map: Record<string, any> = {}
+      ;(rows ?? []).forEach((d:any)=>{
+        const key = `${(d.district||'').toLowerCase()}||${(d.block||'').toLowerCase()}||${(d.gram_panchayat||'').toLowerCase()}`
+        map[key] = d
+      })
+      set({ baselineCache: map })
+    } catch (e) {
+      console.error('Failed to load baseline cache', e)
+    }
   },
   loadComplianceNorms: async () => {
-    const { data } = await supabase.from('compliance_norms').select('*')
-    const map: Record<string, any> = {}
-    (data||[]).forEach((d:any)=>{
-      const key = `${d.category_en}||${d.asset_type}`
-      map[key] = d
-    })
-    set({ complianceNorms: map })
+    try {
+      const rows = await fetchAll('compliance_norms')
+      console.log('DEBUG: compliance rows', rows.length, rows[0])
+      const map: Record<string, any> = {}
+      ;(rows ?? []).forEach((d:any)=>{
+        const key = `${d.category_en}||${d.asset_type}`
+        map[key] = d
+      })
+      set({ complianceNorms: map })
+    } catch (e) {
+      console.error('Failed to load compliance norms', e)
+    }
   }
 }))
