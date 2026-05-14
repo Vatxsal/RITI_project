@@ -1268,21 +1268,29 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 }
 
 .mobile-sidebar-overlay {
-  display: none;
   position: fixed;
   inset: 0;
   background: rgba(0,0,0,.6);
-  z-index: 40;
+  z-index: 49;
   backdrop-filter: blur(2px);
   -webkit-backdrop-filter: blur(2px);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.25s ease, visibility 0.25s ease;
 }
 
-#sb {
-  transition: transform .3s cubic-bezier(.4,0,.2,1);
+.mobile-sidebar-overlay.open {
+  opacity: 1;
+  visibility: visible;
 }
 
-/* MOBILE SIDEBAR — DRAWER MODE */
-@media (max-width: 768px) {
+.sidebar {
+  position: relative;
+  transition: transform 0.25s ease;
+}
+
+/* MOBILE SIDEBAR — DRAWER MODE (< 768px) */
+@media (max-width: 767px) {
   .mobile-menu-btn {
     display: flex;
   }
@@ -1291,31 +1299,230 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
     display: flex;
   }
   
-  #sb {
+  .sidebar {
     position: fixed;
     left: 0;
     top: 0;
     bottom: 0;
     z-index: 50;
+    width: 260px;
+    max-width: 85vw;
+    height: 100vh;
     transform: translateX(-100%);
     background: var(--nv2);
-    width: 228px;
-    max-width: 85vw;
     box-shadow: 4px 0 20px rgba(0,0,0,.5);
     border-radius: 0;
+    border-right: 1px solid var(--bd);
   }
   
-  #sb.mobile-open {
+  .sidebar.open {
     transform: translateX(0);
   }
+}
+
+/* ============================================================================= */
+/* HEADER BAR MOBILE FIX                                                       */
+/* ============================================================================= */
+
+.header-bar {
+  height: auto !important;
+  min-height: 48px;
+  flex-wrap: wrap;
+  padding: 8px 12px !important;
+}
+
+.header-desktop-only {
+  display: flex !important;
+}
+
+.mobile-district-selector {
+  display: none;
+  gap: 8px;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.mobile-district-selector select,
+.mobile-district-selector .btn {
+  flex: 1;
+  min-height: 36px;
+}
+
+.btn-ask-ai .desktop-text {
+  display: inline;
+}
+
+.btn-ask-ai .mobile-text {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  #fbar {
+    height: auto !important;
+    min-height: 56px;
+    flex-wrap: wrap;
+    padding: 8px 12px !important;
+    gap: 8px;
+  }
   
-  .mobile-sidebar-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,.6);
-    z-index: 40;
-    backdrop-filter: blur(2px);
-    -webkit-backdrop-filter: blur(2px);
+  .header-bar {
+    min-height: 56px;
+  }
+  
+  .header-desktop-only {
+    display: none !important;
+  }
+  
+  .mobile-district-selector {
+    display: flex !important;
+    flex-direction: column;
+    width: 100%;
+  }
+  
+  .mobile-district-selector select,
+  .mobile-district-selector .btn {
+    flex: 1;
+    min-height: 36px;
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+  
+  .header-right {
+    width: 100%;
+    justify-content: flex-end;
+    gap: 6px !important;
+  }
+  
+  .btn-ask-ai {
+    white-space: nowrap;
+    padding: 6px 10px !important;
+    font-size: 11px;
+  }
+  
+  .btn-ask-ai .desktop-text {
+    display: none;
+  }
+  
+  .btn-ask-ai .mobile-text {
+    display: inline;
+  }
+  
+  .chip {
+    padding: 4px 8px !important;
+    font-size: 10px !important;
+  }
+}
+
+/* ============================================================================= */
+/* MAIN CONTENT MOBILE FIX                                                     */
+/* ============================================================================= */
+
+#ct {
+  overflow-x: hidden !important;
+}
+
+.kstrip {
+  min-width: unset !important;
+}
+
+.kpi {
+  min-width: unset !important;
+}
+
+@media (max-width: 767px) {
+  #ct {
+    padding: 12px !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+  }
+  
+  .pg-t {
+    font-size: 1.25rem !important;
+    margin-bottom: 8px !important;
+  }
+  
+  .pg-s {
+    font-size: 11px !important;
+    margin-bottom: 12px !important;
+  }
+  
+  /* KPI GRID — SINGLE COLUMN */
+  .kstrip {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    margin-bottom: 12px !important;
+    min-width: unset !important;
+  }
+  
+  .kpi {
+    display: grid !important;
+    grid-template-columns: 1fr auto !important;
+    grid-template-rows: auto auto auto !important;
+    gap: 8px !important;
+    width: 100% !important;
+    min-width: unset !important;
+    padding: 14px !important;
+  }
+  
+  .kpi-lbl {
+    grid-column: 1 / -1;
+    font-size: 8px !important;
+    margin-bottom: 0 !important;
+  }
+  
+  .kpi-v {
+    font-size: 20px !important;
+    margin-bottom: 0 !important;
+  }
+  
+  .kpi-s {
+    font-size: 9px !important;
+    margin-bottom: 0 !important;
+  }
+  
+  .kpi-bar {
+    grid-column: 1 / -1;
+    margin-top: 6px !important;
+  }
+  
+  .kpi-vs {
+    grid-column: 1 / -1;
+    font-size: 8px !important;
+    margin-top: 4px !important;
+  }
+  
+  /* TOGGLE BUTTONS */
+  .ftog {
+    width: 100% !important;
+    display: flex !important;
+    gap: 0 !important;
+    padding: 0 !important;
+  }
+  
+  .ftog button {
+    flex: 1 !important;
+    padding: 8px !important;
+    font-size: 10px !important;
+    border-radius: 0 !important;
+  }
+  
+  .ftog button:first-child {
+    border-radius: 6px 0 0 6px !important;
+  }
+  
+  .ftog button:last-child {
+    border-radius: 0 6px 6px 0 !important;
+  }
+  
+  /* CARDS */
+  .card {
+    width: 100% !important;
+    min-width: unset !important;
+  }
+  
+  .g2 {
+    grid-template-columns: 1fr !important;
   }
 }
 

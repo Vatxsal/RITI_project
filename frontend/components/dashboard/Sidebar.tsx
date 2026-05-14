@@ -22,18 +22,16 @@ export default function Sidebar({ isMobileOpen, onMobileClose }: { isMobileOpen?
 
   return (
     <>
-      {/* MOBILE OVERLAY */}
-      {isMobileOpen && (
-        <div 
-          className="mobile-sidebar-overlay"
-          onClick={onMobileClose}
-          role="presentation"
-        ></div>
-      )}
+      {/* MOBILE OVERLAY — ALWAYS RENDERED */}
+      <div 
+        className={`mobile-sidebar-overlay ${isMobileOpen ? 'open' : ''}`}
+        onClick={onMobileClose}
+        role="presentation"
+      ></div>
       
       <div 
         id="sb" 
-        className={`h-full flex flex-col flex-shrink-0 overflow-y-auto border-r border-var(--bd) ${isMobileOpen ? 'mobile-open' : ''}`}
+        className={`h-full flex flex-col flex-shrink-0 overflow-y-auto border-r border-var(--bd) sidebar ${isMobileOpen ? 'open' : ''}`}
       >
         {/* CLOSE BUTTON FOR MOBILE */}
         <button

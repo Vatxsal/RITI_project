@@ -60,7 +60,7 @@ export default function TopBar({
     : 'Session active';
 
   return (
-    <div id="fbar" className="bg-var(--nv2) border-b border-var(--bd) px-4 h-12 flex items-center gap-2 flex-shrink-0">
+    <div id="fbar" className="bg-var(--nv2) border-b border-var(--bd) px-4 flex items-center gap-2 flex-shrink-0 header-bar">
       {/* MOBILE HAMBURGER MENU */}
       <button 
         className="mobile-menu-btn"
@@ -71,30 +71,47 @@ export default function TopBar({
         ☰
       </button>
       
-      <span className="fsl">District:</span>
-      
-      <select 
-        className="fs"
-        value={selectedDistrict || ''}
-        onChange={(e) => onDistrictChange(e.target.value || null)}
-      >
-        <option value="">All Rajasthan</option>
-        {districtNames.map((district) => (
-          <option key={district} value={district}>{district}</option>
-        ))}
-      </select>
+      {/* DESKTOP: District selector row */}
+      <div className="header-desktop-only flex items-center gap-2 flex-1">
+        <span className="fsl">District:</span>
+        <select 
+          className="fs"
+          value={selectedDistrict || ''}
+          onChange={(e) => onDistrictChange(e.target.value || null)}
+        >
+          <option value="">All Rajasthan</option>
+          {districtNames.map((district) => (
+            <option key={district} value={district}>{district}</option>
+          ))}
+        </select>
+        <button className="btn btn-o" onClick={() => onDistrictChange(null)} style={{ padding: '5px 9px', fontSize: 11 }}>Reset</button>
+      </div>
 
-      <button className="btn btn-o" onClick={() => onDistrictChange(null)} style={{ padding: '5px 9px', fontSize: 11 }}>Reset</button>
+      {/* MOBILE: District selector — stacked below */}
+      <div className="mobile-district-selector">
+        <select 
+          className="fs"
+          value={selectedDistrict || ''}
+          onChange={(e) => onDistrictChange(e.target.value || null)}
+        >
+          <option value="">All Rajasthan</option>
+          {districtNames.map((district) => (
+            <option key={district} value={district}>{district}</option>
+          ))}
+        </select>
+        <button className="btn btn-o" onClick={() => onDistrictChange(null)} style={{ padding: '5px 9px', fontSize: 11 }}>Reset</button>
+      </div>
 
-      <div className="fbr">
-        <span className="chip">{user?.username || 'admin'}</span>
-        <span className="chip">{sessionLabel}</span>
+      <div className="fbr header-right">
+        <span className="chip header-desktop-only">{user?.username || 'admin'}</span>
+        <span className="chip header-desktop-only">{sessionLabel}</span>
         <span className="chip hi">{selectedDistrict ? '1 loaded' : districtCount}</span>
-        <span className="chip">{populationLabel}</span>
-        <button className="btn btn-ai" onClick={() => router.push('/ai-chat')}>
-          ◻ Ask Planning Intelligence
+        <span className="chip header-desktop-only">{populationLabel}</span>
+        <button className="btn btn-ai btn-ask-ai" onClick={() => router.push('/ai-chat')}>
+          <span className="desktop-text">◻ Ask Planning Intelligence</span>
+          <span className="mobile-text">Ask AI</span>
         </button>
-        <button className="btn btn-ghost" onClick={handleLogout}>
+        <button className="btn btn-ghost header-desktop-only" onClick={handleLogout}>
           Sign out
         </button>
       </div>
