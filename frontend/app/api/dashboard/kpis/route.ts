@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabase, fetchAll } from '@/lib/supabase';
 import { DashboardKpiPayload, formatCrore, formatLakh, formatPct, getEmptyDashboardPayload } from '@/lib/dashboard-kpis';
 
@@ -460,9 +460,9 @@ function districtsToRadar(districts: Array<any>) {
   return Object.fromEntries(Object.entries(scores).map(([key, value]) => [key, Math.round((value as number) / count)])) as Record<string, number>;
 }
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   try {
-    const { searchParams } = new URL(req.url);
+    const { searchParams } = req.nextUrl;
     const districtFilter = searchParams.get('district');
     const areaType = (searchParams.get('areaType') ?? 'all') as 'all' | 'rural' | 'urban';
 

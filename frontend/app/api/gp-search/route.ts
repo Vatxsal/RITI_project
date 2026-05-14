@@ -1,8 +1,8 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '../../../lib/supabase'
 
-export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url)
+export async function GET(req: NextRequest) {
+  const { searchParams } = req.nextUrl
   const q = (searchParams.get('q') || '').trim()
   const locationType = (searchParams.get('type') || 'rural').toLowerCase()
 

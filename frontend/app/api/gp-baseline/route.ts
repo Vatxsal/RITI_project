@@ -1,8 +1,8 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { supabase, fetchAll } from '../../../lib/supabase'
 
-export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url)
+export async function GET(req: NextRequest) {
+  const { searchParams } = req.nextUrl
   const locationType = (searchParams.get('type') || 'rural').toLowerCase()
   const id = searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'missing_id' }, { status: 400 })
