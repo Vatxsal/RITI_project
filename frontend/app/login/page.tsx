@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 
-export default function LoginPage() {
+function LoginContent() {
   const [username, setUsername] = useState('sakshamaasvaa');
   const [password, setPassword] = useState('');
   const [userType, setUserType] = useState('admin');
@@ -97,5 +97,20 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="auth-shell">
+        <div className="auth-card">
+          <div className="auth-brand">RITI Planning Intelligence</div>
+          <h2 className="auth-title">Loading...</h2>
+        </div>
+      </div>
+    }>
+      <LoginContent />
+    </Suspense>
   );
 }

@@ -2,9 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
-@import url('https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css');
-
 /* Copied/adapted exact styles from original RITI HTML to preserve look */
 :root{
   --nv:#060D1F;--nv2:#0C1829;--nv3:#112236;--nv4:#1A2F4A;
