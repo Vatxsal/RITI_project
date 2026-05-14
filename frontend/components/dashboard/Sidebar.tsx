@@ -31,7 +31,7 @@ export default function Sidebar({ isMobileOpen, onMobileClose }: { isMobileOpen?
       
       <div 
         id="sb" 
-        className={`h-full flex flex-col flex-shrink-0 overflow-y-auto border-r border-var(--bd) sidebar ${isMobileOpen ? 'open' : ''}`}
+        className={`h-full flex flex-col flex-shrink-0 overflow-y-auto border-r border-var(--bd) ${isMobileOpen ? 'open' : ''}`}
       >
         {/* CLOSE BUTTON FOR MOBILE */}
         <button

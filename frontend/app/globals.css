@@ -1284,12 +1284,6 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
   visibility: visible;
 }
 
-.sidebar {
-  position: relative;
-  transition: transform 0.25s ease;
-}
-
-/* MOBILE SIDEBAR — DRAWER MODE (< 768px) */
 @media (max-width: 767px) {
   .mobile-menu-btn {
     display: flex;
@@ -1299,24 +1293,49 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
     display: flex;
   }
   
-  .sidebar {
-    position: fixed;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    z-index: 50;
-    width: 260px;
-    max-width: 85vw;
-    height: 100vh;
-    transform: translateX(-100%);
-    background: var(--nv2);
-    box-shadow: 4px 0 20px rgba(0,0,0,.5);
-    border-radius: 0;
-    border-right: 1px solid var(--bd);
+  /* MOBILE OVERLAY — PROPER POSITIONING */
+  .mobile-sidebar-overlay {
+    position: fixed !important;
+    inset: 0 !important;
+    background: rgba(0,0,0,.6) !important;
+    z-index: 49 !important;
+    backdrop-filter: blur(2px) !important;
+    -webkit-backdrop-filter: blur(2px) !important;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.25s ease, visibility 0.25s ease;
   }
   
-  .sidebar.open {
-    transform: translateX(0);
+  .mobile-sidebar-overlay.open {
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+  
+  /* SIDEBAR DRAWER — USE ID SELECTOR FOR HIGHER SPECIFICITY */
+  #sb {
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    z-index: 50 !important;
+    width: 260px !important;
+    max-width: 85vw !important;
+    height: 100vh !important;
+    transform: translateX(-100%) !important;
+    background: var(--nv2) !important;
+    box-shadow: 4px 0 20px rgba(0,0,0,.5) !important;
+    border-radius: 0 !important;
+    border-right: 1px solid var(--bd) !important;
+    border-left: none !important;
+    flex-shrink: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    transition: transform 0.25s ease !important;
+    overflow-y: auto !important;
+  }
+  
+  #sb.open {
+    transform: translateX(0) !important;
   }
 }
 
