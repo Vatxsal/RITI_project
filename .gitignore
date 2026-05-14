@@ -35,6 +35,11 @@ frontend/out/
 frontend/.turbo/
 frontend/dist/
 
+# Legacy/Old files
+frontend/middleware_old.ts
+frontend/.env.example
+frontend/.env.local
+
 # IDE / Editor
 .vscode/settings.json
 .vscode/launch.json

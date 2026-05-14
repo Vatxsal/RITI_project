@@ -220,7 +220,7 @@ URBAN_CONFIGS = [
     {
         "sheet": "01_Population",
         "table": "fact_urban_admin",
-        "key": {"जिला": "district", "ULB": "ulb", "वार्ड": "ward"},
+        "key": {"district": "district", "ulb": "ulb", "ward": "ward"},
         "cols": {
             "वार्ड ID": "ward_id",
             "कुल जनसंख्या (Census 2011)": "pop_2011",
@@ -240,7 +240,7 @@ URBAN_CONFIGS = [
     {
         "sheet": "02_Health",
         "table": "fact_urban_health",
-        "key": {"जिला": "district", "ULB": "ulb", "वार्ड": "ward"},
+        "key": {"district": "district", "ulb": "ulb", "ward": "ward"},
         "cols": {
             "वार्ड ID": "ward_id",
             "एलोपैथिक स्वास्थ्य केन्द्र / हॉस्पिटल की संख्या": "allopathic_centers",
@@ -260,7 +260,7 @@ URBAN_CONFIGS = [
     {
         "sheet": "03_Anganwadi_ICDS",
         "table": "fact_urban_education",
-        "key": {"जिला": "district", "ULB": "ulb", "वार्ड": "ward"},
+        "key": {"district": "district", "ulb": "ulb", "ward": "ward"},
         "cols": {
             "वार्ड ID": "ward_id",
             "आंगनवाड़ी / मिनी आंगनवाड़ी केंद्रों की संख्या": "anganwadi_centers",
@@ -274,7 +274,7 @@ URBAN_CONFIGS = [
     {
         "sheet": "04_Education",
         "table": "fact_urban_education",
-        "key": {"जिला": "district", "ULB": "ulb", "वार्ड": "ward"},
+        "key": {"district": "district", "ulb": "ulb", "ward": "ward"},
         "cols": {
             "वार्ड ID": "ward_id",
             "कुल राजकीय विद्यालयों की संख्या": "govt_schools_count",
@@ -292,7 +292,7 @@ URBAN_CONFIGS = [
     {
         "sheet": "05_Social_Welfare",
         "table": "fact_urban_social",
-        "key": {"जिला": "district", "ULB": "ulb", "वार्ड": "ward"},
+        "key": {"district": "district", "ulb": "ulb", "ward": "ward"},
         "cols": {
             "वार्ड ID": "ward_id",
             "पीएम उज्ज्वला योजना के लाभार्थी (संख्या)": "pm_ujjwala_beneficiaries",
@@ -305,7 +305,7 @@ URBAN_CONFIGS = [
     {
         "sheet": "05_Social_Welfare",
         "table": "fact_urban_economy",
-        "key": {"जिला": "district", "ULB": "ulb", "वार्ड": "ward"},
+        "key": {"district": "district", "ulb": "ulb", "ward": "ward"},
         "cols": {
             "वार्ड ID": "ward_id",
             "कुल कार्यरत स्वयं सहायता समूह (संख्या)": "active_shg_count",
@@ -317,7 +317,7 @@ URBAN_CONFIGS = [
     {
         "sheet": "06_Infrastructure",
         "table": "fact_urban_infra",
-        "key": {"जिला": "district", "ULB": "ulb", "वार्ड": "ward"},
+        "key": {"district": "district", "ulb": "ulb", "ward": "ward"},
         "cols": {
             "वार्ड ID": "ward_id",
             "कुल सरकारी बैंक (संख्या)": "govt_banks_count",
@@ -334,7 +334,7 @@ URBAN_CONFIGS = [
     {
         "sheet": "06_Infrastructure",
         "table": "fact_urban_governance",
-        "key": {"जिला": "district", "ULB": "ulb", "वार्ड": "ward"},
+        "key": {"district": "district", "ulb": "ulb", "ward": "ward"},
         "cols": {
             "वार्ड ID": "ward_id",
             "निकटतम पुलिस स्टेशन की  दूरी(कि.मी.)": "dist_police_station_km",
@@ -344,7 +344,7 @@ URBAN_CONFIGS = [
     {
         "sheet": "07_Water",
         "table": "fact_urban_water",
-        "key": {"जिला": "district", "ULB": "ulb", "वार्ड": "ward"},
+        "key": {"district": "district", "ulb": "ulb", "ward": "ward"},
         "cols": {
             "वार्ड ID": "ward_id",
             "घरों में नल का चालू कनेक्शन (FHTC) (प्रतिशत में)": "tap_connection_pct",
@@ -359,7 +359,7 @@ URBAN_CONFIGS = [
     {
         "sheet": "08_Environment",
         "table": "fact_urban_environment",
-        "key": {"जिला": "district", "ULB": "ulb", "वार्ड": "ward"},
+        "key": {"district": "district", "ulb": "ulb", "ward": "ward"},
         "cols": {
             "वार्ड ID": "ward_id",
             "शोचालय से वंचित कुल घरों की संख्या": "houses_without_toilets",
@@ -371,7 +371,7 @@ URBAN_CONFIGS = [
     {
         "sheet": "09_Tourism",
         "table": "fact_urban_tourism",
-        "key": {"जिला": "district", "ULB": "ulb", "वार्ड": "ward"},
+        "key": {"district": "district", "ulb": "ulb", "ward": "ward"},
         "cols": {
             "वार्ड ID": "ward_id",
             "प्रमुख मेलों में औसत फुटफॉल(प्रति दिवस)": "avg_fair_footfall_daily",
@@ -434,12 +434,12 @@ def export_dim_tables(rural_sheets: dict, urban_sheets: dict):
     # dim_urban_wards from 01_Population
     if "01_Population" in urban_sheets:
         urban_pop = urban_sheets["01_Population"]
-        dim_urban = urban_pop[["वार्ड ID", "जिला", "ULB", "वार्ड"]].copy()
+        dim_urban = urban_pop[["वार्ड ID", "district", "ulb", "ward"]].copy()
         dim_urban = dim_urban.rename(columns={
             "वार्ड ID": "ward_id",
-            "जिला": "district",
-            "ULB": "ulb",
-            "वार्ड": "ward"
+            "district": "district",
+            "ulb": "ulb",
+            "ward": "ward"
         })
         dim_urban = dim_urban.dropna(subset=["ward_id"])
         dim_urban = dim_urban.drop_duplicates(subset=["ward_id"])

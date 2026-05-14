@@ -521,8 +521,10 @@ async function seed() {
     });
 
     urbanDims.forEach((row) => {
-      addRows(groups, row.district, 'wards', row);
-      const group = groups.get(row.district);
+      const urbanDistrict = row.district;
+      if (!urbanDistrict) return;
+      addRows(groups, urbanDistrict, 'wards', row);
+      const group = groups.get(urbanDistrict);
       const id = row.ward_id;
       if (!id) return;
       const admin = urbanAdminMap.get(id);
@@ -534,15 +536,15 @@ async function seed() {
       const water = urbanWaterMap.get(id);
       const env = urbanEnvMap.get(id);
       const tour = urbanTourMap.get(id);
-      if (admin) group.urbanAdmin.push({ ...admin, n: row.ward, d: row.district });
-      if (edu) group.urbanEdu.push({ ...edu, n: row.ward, d: row.district });
-      if (health) group.urbanHealth.push({ ...health, n: row.ward, d: row.district });
-      if (eco) group.urbanEconomy.push({ ...eco, n: row.ward, d: row.district });
-      if (social) group.urbanSocial.push({ ...social, n: row.ward, d: row.district });
-      if (infra) group.urbanInfra.push({ ...infra, n: row.ward, d: row.district });
-      if (water) group.urbanWater.push({ ...water, n: row.ward, d: row.district });
-      if (env) group.urbanEnv.push({ ...env, n: row.ward, d: row.district });
-      if (tour) group.urbanTourism.push({ ...tour, n: row.ward, d: row.district });
+      if (admin) group.urbanAdmin.push({ ...admin, n: row.ward, d: urbanDistrict });
+      if (edu) group.urbanEdu.push({ ...edu, n: row.ward, d: urbanDistrict });
+      if (health) group.urbanHealth.push({ ...health, n: row.ward, d: urbanDistrict });
+      if (eco) group.urbanEconomy.push({ ...eco, n: row.ward, d: urbanDistrict });
+      if (social) group.urbanSocial.push({ ...social, n: row.ward, d: urbanDistrict });
+      if (infra) group.urbanInfra.push({ ...infra, n: row.ward, d: urbanDistrict });
+      if (water) group.urbanWater.push({ ...water, n: row.ward, d: urbanDistrict });
+      if (env) group.urbanEnv.push({ ...env, n: row.ward, d: urbanDistrict });
+      if (tour) group.urbanTourism.push({ ...tour, n: row.ward, d: urbanDistrict });
     });
 
     console.log(`Processing ${groups.size} district groups...`);

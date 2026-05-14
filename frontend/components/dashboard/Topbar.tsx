@@ -5,6 +5,16 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { fetchDashboardKpis } from '@/lib/dashboard-kpis';
 
+const DISTRICTS_EN = [
+  'Ajmer','Alwar','Balotara','Banswara','Baran','Barmer','Beawar',
+  'Bharatpur','Bhilwara','Bikaner','Bundi','Chittorgarh','Churu',
+  'Dausa','Deeg','Dholpur','Didwana-Kuchaman','Dungarpur','Hanumangarh',
+  'Jaipur','Jaisalmer','Jalore','Jhalawar','Jhunjhunu','Jodhpur',
+  'Karauli','Khairthal-Tijara','Kota','Kotputli-Behror','Nagaur',
+  'Pali','Phalodi','Pratapgarh','Rajsamand','Salumbar','Sawai Madhopur',
+  'Sikar','Sirohi','Sri Ganganagar','Tonk','Udaipur'
+];
+
 interface TopBarProps {
   selectedDistrict: string | null;
   urbanFilter: 'all' | 'rural' | 'urban';
@@ -30,18 +40,17 @@ export default function TopBar({
   const [populationLabel, setPopulationLabel] = useState<string>('-');
 
   useEffect(() => {
+    setDistrictNames(DISTRICTS_EN);
+    setDistrictCount(`${DISTRICTS_EN.length} loaded`);
+
     let alive = true;
     fetchDashboardKpis()
       .then((payload) => {
         if (!alive) return;
-        setDistrictNames(payload?.districtScores?.map((district) => district.n) ?? []);
-        setDistrictCount(payload?.dataCoverage?.find(([label]) => label === 'Districts')?.[1] ?? '-');
         setPopulationLabel(payload?.dataCoverage?.find(([label]) => label === 'Rural pop')?.[1] ?? '-');
       })
       .catch(() => {
         if (!alive) return;
-        setDistrictNames([]);
-        setDistrictCount('-');
         setPopulationLabel('-');
       });
 
@@ -105,7 +114,7 @@ export default function TopBar({
       <div className="fbr header-right">
         <span className="chip header-desktop-only">{user?.username || 'admin'}</span>
         <span className="chip header-desktop-only">{sessionLabel}</span>
-        <span className="chip hi">{selectedDistrict ? '1 loaded' : districtCount}</span>
+        <span className="chip hi">{districtCount}</span>
         <span className="chip header-desktop-only">{populationLabel}</span>
         <button className="btn btn-ai btn-ask-ai" onClick={() => router.push('/ai-chat')}>
           <span className="desktop-text">◻ Ask Planning Intelligence</span>
