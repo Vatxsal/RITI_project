@@ -56,6 +56,25 @@ export default function CommandCenterPage() {
   ];
 
   const dataCoverage = dashboard.dataCoverage;
+  const popLabel = urbanFilter === 'all'
+    ? 'Total population'
+    : urbanFilter === 'rural'
+    ? 'Rural population'
+    : 'Urban population';
+  const femalePopLabel = urbanFilter === 'all'
+    ? 'Female population'
+    : urbanFilter === 'rural'
+    ? 'Female population (rural)'
+    : 'Female population (urban)';
+  const coverageRows = dataCoverage.filter(([label]) => {
+    if (urbanFilter === 'rural') return label !== 'Urban wards';
+    if (urbanFilter === 'urban') return label !== 'Rural GPs';
+    return true;
+  }).map(([label, value]) => {
+    if (label === 'Rural pop') return [popLabel, value] as const;
+    if (label === 'Female pop') return [femalePopLabel, value] as const;
+    return [label, value] as const;
+  });
 
   return (
     <div className="space-y-4">
@@ -132,7 +151,7 @@ export default function CommandCenterPage() {
           <div className="card">
             <div className="ct">Data coverage & validation</div>
             <div style={{ fontSize: 11 }}>
-              {dataCoverage.map(([label, value]) => (
+              {coverageRows.map(([label, value]) => (
                 <div
                   key={label}
                   style={{
