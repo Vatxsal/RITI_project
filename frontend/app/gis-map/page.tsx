@@ -9,7 +9,7 @@ export default function GISPage() {
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 3 }}>
           <div className="pg-t">GIS Planning Map — All Districts</div>
         </div>
-        <div className="pg-s">Circle size = rural population · colour = composite score (green 55+, amber 45-54, red below 45) · click marker for 11-sector detail</div>
+        <div className="pg-s">41 districts from the live dashboard cache · circle size = population · colour = composite score (green 55+, amber 45-54, red below 45) · click marker for 11-sector detail</div>
       </div>
 
       <div className="card">
