@@ -261,7 +261,24 @@ export default function ReportsPage() {
   // STEP 3 — Gemini narrative generation
   async function generateNarrative(data: any) {
     const d = data;
-    const prompt = `You are Manthaan AI, planning intelligence engine for Viksit Rajasthan @ 2047 by Aasvaa Innovation Labs.
+    const prompt = `LANGUAGE INSTRUCTION (MOST IMPORTANT — follow strictly):
+  Write this entire report in Hinglish — a natural mix of Hindi and English that senior government officials and district-level officers in Rajasthan use daily. 
+  Rules:
+  - All headings, labels, section names stay in English (they are standard terms)
+  - All narrative paragraphs, findings, descriptions, recommendations: write in Hinglish
+  - Hinglish means: Hindi sentence structure with English technical/scheme terms mixed in naturally
+  - Example of correct Hinglish: "Ajmer district mein irrigation rate 41.5% hai, jo state average se kaafi behtar hai. KCC penetration abhi 38% par hai, isme sudhaar ki zarurat hai. PMKSY scheme ke through sinchai coverage 2 saal mein 60% tak le jaana possible hai."
+  - Example of WRONG style: full English paragraphs, or full Hindi with no English terms
+  - Scheme names, KPI names, department names always in English: JJM, PMKSY, KCC, RCDF, SARAS, NHM, POSHAN, SRLM etc.
+  - Numbers always in English digits
+  - Keep sentences short and clear — these reports will be read by Collectors, BDOs, and senior officers
+  - executiveSummary: Hinglish
+  - findings[].finding: Hinglish | findings[].currentPosition: English metrics ok | findings[].opportunity: Hinglish
+  - All sectorNarratives: Hinglish
+  - priorityActions[].description: Hinglish
+  - closingQuote: Hinglish — make it inspiring and grounded
+
+  You are Manthaan AI, planning intelligence engine for Viksit Rajasthan @ 2047 by Aasvaa Innovation Labs.
 
 Generate a district planning intelligence brief for ${d.meta.district} district using ONLY the numbers below. Do not invent figures. Do not include Vision 2047 targets or aspiration data — this is a baseline-only report.
 
@@ -445,17 +462,99 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
   body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; color: #1a1a2e; line-height: 1.6; }
 
   /* COVER */
-  .cover { background: #1B3A6B; color: white; min-height: 100vh; padding: 4rem; display: flex; flex-direction: column; justify-content: flex-end; position: relative; }
-  .cover-eyebrow { font-size: 0.65rem; letter-spacing: 0.25em; color: #64748b; margin-bottom: 4rem; text-transform: uppercase; }
-  .cover-title { font-size: 5rem; font-weight: 900; line-height: 0.95; color: white; }
-  .cover-title-sub { font-size: 4rem; font-weight: 900; color: #E8620A; margin-bottom: 1.5rem; }
-  .cover-desc { color: #94a3b8; font-size: 1rem; max-width: 580px; line-height: 1.7; margin-bottom: 1.5rem; }
-  .cover-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 3rem; }
-  .chip { border: 1px solid #334155; padding: 0.3rem 0.85rem; border-radius: 20px; font-size: 0.72rem; color: #94a3b8; }
-  .cover-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2.5rem; padding-top: 2rem; border-top: 1px solid #1e3a5f; }
-  .cs-value { font-size: 2.8rem; font-weight: 800; color: white; line-height: 1; }
-  .cs-label { font-size: 0.65rem; letter-spacing: 0.12em; color: #64748b; margin-top: 0.4rem; text-transform: uppercase; }
-  .cover-footer { margin-top: 3rem; font-size: 0.65rem; color: #334155; letter-spacing: 0.05em; }
+  .cover { 
+    background: #1B3A6B; 
+    color: white; 
+    min-height: 100vh; 
+    display: flex; 
+    flex-direction: column; 
+    padding: 0;
+  }
+  .cover-inner {
+    max-width: 960px;
+    margin: 0 auto;
+    width: 100%;
+    padding: 5rem 4rem 4rem;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    justify-content: space-between;
+  }
+  .cover-eyebrow { 
+    font-size: 0.65rem; 
+    letter-spacing: 0.3em; 
+    color: #93c5fd;
+    text-transform: uppercase;
+    margin-bottom: 0;
+  }
+  .cover-title { 
+    font-size: 5.5rem; 
+    font-weight: 900; 
+    line-height: 0.9; 
+    color: #ffffff;
+    margin-top: 3rem;
+  }
+  .cover-title-sub { 
+    font-size: 4.5rem; 
+    font-weight: 900; 
+    color: #E8620A; 
+    margin-bottom: 2rem;
+    line-height: 1;
+  }
+  .cover-desc { 
+    color: #e2e8f0;
+    font-size: 1rem; 
+    max-width: 600px; 
+    line-height: 1.75; 
+    margin-bottom: 2rem;
+  }
+  .cover-chips { 
+    display: flex; 
+    flex-wrap: wrap; 
+    gap: 0.5rem; 
+    margin-bottom: 0;
+  }
+  .chip { 
+    border: 1px solid #4b6fa8;
+    background: rgba(255,255,255,0.07);
+    padding: 0.35rem 0.9rem; 
+    border-radius: 20px; 
+    font-size: 0.75rem; 
+    color: #e2e8f0;
+  }
+  .cover-stats { 
+    display: grid; 
+    grid-template-columns: repeat(4, 1fr); 
+    gap: 2rem; 
+    padding-top: 2.5rem; 
+    border-top: 1px solid #2d5a9e;
+    margin-top: 3rem;
+  }
+  .cs-value { 
+    font-size: 2rem;
+    font-weight: 800; 
+    color: #ffffff;
+    line-height: 1.15;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .cs-label { 
+    font-size: 0.62rem; 
+    letter-spacing: 0.1em; 
+    color: #93c5fd;
+    margin-top: 0.4rem; 
+    text-transform: uppercase;
+    line-height: 1.4;
+  }
+  .cover-footer { 
+    font-size: 0.65rem; 
+    color: #64748b; 
+    letter-spacing: 0.05em;
+    padding-top: 2rem;
+    border-top: 1px solid #1e3a5f;
+    margin-top: 2rem;
+  }
 
   /* LAYOUT */
   .page { padding: 4rem; max-width: 960px; margin: 0 auto; }
@@ -518,10 +617,34 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
   .ac-scheme { font-size: 0.7rem; color: #E8620A; font-weight: 600; letter-spacing: 0.05em; }
 
   /* CLOSING */
-  .closing { background: #1B3A6B; padding: 5rem 4rem; text-align: center; }
-  .closing-quote { font-size: 1.3rem; color: #cbd5e1; line-height: 1.75; max-width: 680px; margin: 0 auto 2.5rem; font-style: italic; }
-  .closing-divider { width: 60px; height: 2px; background: #E8620A; margin: 0 auto 1.5rem; }
-  .closing-meta { font-size: 0.65rem; color: #475569; letter-spacing: 0.15em; text-transform: uppercase; }
+  .closing { 
+    background: #1B3A6B; 
+    padding: 5rem 4rem; 
+    text-align: center; 
+  }
+  .closing-inner {
+    max-width: 700px;
+    margin: 0 auto;
+  }
+  .closing-quote { 
+    font-size: 1.2rem; 
+    color: #e2e8f0;
+    line-height: 1.8; 
+    font-style: italic; 
+    margin-bottom: 2rem;
+  }
+  .closing-divider { 
+    width: 48px; 
+    height: 2px; 
+    background: #E8620A; 
+    margin: 0 auto 2rem; 
+  }
+  .closing-meta { 
+    font-size: 0.65rem; 
+    color: #4b6fa8;
+    letter-spacing: 0.15em; 
+    text-transform: uppercase; 
+  }
 
   @media print {
     .cover { min-height: 100vh; page-break-after: always; }
@@ -534,44 +657,47 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
 
 <!-- ═══════════════ COVER PAGE ═══════════════ -->
 <div class="cover">
-  <div class="cover-eyebrow">Manthaan OS · Planning Intelligence Brief · CDO Validated Data</div>
-  <div>
-    <div class="cover-title">${district}</div>
-    <div class="cover-title-sub">District</div>
-    <div class="cover-desc">
-      A district-wide planning intelligence brief built from verified administrative data across 
-      ${d.meta.gpCount} Gram Panchayats and ${d.meta.wardCount} urban wards — spanning 
-      ${d.meta.blockCount} blocks and ${d.meta.ulbCount} ULBs across 11 development sectors.
+  <div class="cover-inner">
+    <div class="cover-eyebrow">Manthaan OS · Planning Intelligence Brief · CDO Validated Data</div>
+    <div style="width: 48px; height: 2px; background: #E8620A; margin: 1.5rem 0;"></div>
+    <div>
+      <div class="cover-title">${district}</div>
+      <div class="cover-title-sub">District</div>
+      <div class="cover-desc">
+        A district-wide planning intelligence brief built from verified administrative data across 
+        ${d.meta.gpCount} Gram Panchayats and ${d.meta.wardCount} urban wards — spanning 
+        ${d.meta.blockCount} blocks and ${d.meta.ulbCount} ULBs across 11 development sectors.
+      </div>
+      <div class="cover-chips">
+        <span class="chip">${d.meta.blockCount} Blocks · ${d.meta.gpCount} GPs</span>
+        <span class="chip">${d.meta.ulbCount} ULBs · ${d.meta.wardCount} Wards</span>
+        <span class="chip">Rs ${d.dairy.annualDairyValueCr} Cr Dairy Economy</span>
+        <span class="chip">${totalWidow} Widow Pensions</span>
+        <span class="chip">Data Confidence · CDO Validated</span>
+      </div>
+      <div class="cover-stats">
+        <div>
+          <div class="cs-value">~${Math.round((d.population.total + d.population.urbanPop)/100000)}L</div>
+          <div class="cs-label">Total Population (Rural + Urban)</div>
+        </div>
+        <div>
+          <div class="cs-value">${d.agriculture.irrigationPct}%</div>
+          <div class="cs-label">Irrigation Rate</div>
+        </div>
+        <div>
+          <div class="cs-value">₹${d.dairy.annualDairyValueCr}Cr</div>
+          <div class="cs-label">Annual Dairy Economy</div>
+        </div>
+        <div>
+          <div class="cs-value">${Math.round((d.social.widowPensioners + d.social.urbanWidow)/100000 * 10)/10}L</div>
+          <div class="cs-label">Widow Pension Recipients</div>
+        </div>
+      </div>
     </div>
-    <div class="cover-chips">
-      <span class="chip">${d.meta.blockCount} Blocks · ${d.meta.gpCount} GPs</span>
-      <span class="chip">${d.meta.ulbCount} ULBs · ${d.meta.wardCount} Wards</span>
-      <span class="chip">Rs ${d.dairy.annualDairyValueCr} Cr Dairy Economy</span>
-      <span class="chip">${totalWidow} Widow Pensions</span>
-      <span class="chip">Data Confidence · CDO Validated</span>
+    <div class="cover-footer">
+      Manthaan OS · Aasvaa Innovation Labs · Jaipur, Rajasthan &nbsp;|&nbsp; 
+      CONFIDENTIAL — Official Planning Use · Viksit Rajasthan @ 2047 · May 2026
     </div>
-    <div class="cover-stats">
-      <div>
-        <div class="cs-value">~${Math.round((d.population.total + d.population.urbanPop)/100000)}L</div>
-        <div class="cs-label">Total Population (Rural + Urban)</div>
-      </div>
-      <div>
-        <div class="cs-value">${d.agriculture.irrigationPct}%</div>
-        <div class="cs-label">Irrigation Rate</div>
-      </div>
-      <div>
-        <div class="cs-value">Rs ${d.dairy.annualDairyValueCr} Cr</div>
-        <div class="cs-label">Annual Dairy Economy</div>
-      </div>
-      <div>
-        <div class="cs-value">${Math.round((d.social.widowPensioners + d.social.urbanWidow)/100000 * 10)/10}L</div>
-        <div class="cs-label">Widow Pension Recipients</div>
-      </div>
-    </div>
-  </div>
-  <div class="cover-footer">
-    Manthaan OS · Aasvaa Innovation Labs · Jaipur, Rajasthan &nbsp;|&nbsp; 
-    CONFIDENTIAL — Official Planning Use · Viksit Rajasthan @ 2047 · May 2026
   </div>
 </div>
 
@@ -877,10 +1003,12 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
 
 <!-- ═══════════════ CLOSING ═══════════════ -->
 <div class="closing">
-  <div class="closing-divider"></div>
-  <div class="closing-quote">"${n.closingQuote}"</div>
-  <div class="closing-meta">
-    Manthaan OS · Aasvaa Innovation Labs · ${district.toUpperCase()} District · Viksit Rajasthan @ 2047 · May 2026
+  <div class="closing-inner">
+    <div class="closing-divider"></div>
+    <div class="closing-quote">"${n.closingQuote}"</div>
+    <div class="closing-meta">
+      Manthaan OS · Aasvaa Innovation Labs · ${district.toUpperCase()} District · Viksit Rajasthan @ 2047 · May 2026
+    </div>
   </div>
 </div>
 
