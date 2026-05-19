@@ -16,6 +16,7 @@ const routeViewMap: Record<string, string> = {
   'ai-chat': 'ai'
 }
 
-export default function ViewPage({ params }: { params: { view: string } }) {
-  return <DashboardFrame initialView={routeViewMap[params.view.toLowerCase()] || 'cmd'} />
+export default async function ViewPage({ params }: { params: Promise<{ view: string }> }) {
+  const resolvedParams = await params
+  return <DashboardFrame initialView={routeViewMap[resolvedParams.view.toLowerCase()] || 'cmd'} />
 }
