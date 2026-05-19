@@ -1530,13 +1530,50 @@
         let loadedByYear = {};
         
         let baselineMap = null;
+        let baselineMapPromise = null;
         let isBaselineLoading = false;
         const SUPABASE_URL = "https://snumetzplgwbwovbpkaj.supabase.co";
         const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNudW1ldHpwbGd3YndvdmJwa2FqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyNjAyNTgsImV4cCI6MjA5MjgzNjI1OH0.Zo2oM1ddUI8XyfMvhDP3ixmLP2RlYjjCRgD-fnhvo2o";
+        const BASELINE_CACHE_KEY = 'backend_baseline_map_v1';
 
         function normalizeStr(str) {
             if (!str) return '';
             return str.toString().trim().toLowerCase().replace(/\s+/g, ' ');
+        }
+
+        function getStorageCandidates() {
+            const stores = [];
+            try {
+                if (window.sessionStorage) stores.push(window.sessionStorage);
+            } catch (err) {}
+            try {
+                if (window.localStorage) stores.push(window.localStorage);
+            } catch (err) {}
+            return stores;
+        }
+
+        function readBaselineMapCache() {
+            for (const storage of getStorageCandidates()) {
+                try {
+                    const raw = storage.getItem(BASELINE_CACHE_KEY);
+                    if (!raw) continue;
+                    const parsed = JSON.parse(raw);
+                    if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
+                        return parsed;
+                    }
+                } catch (err) {}
+            }
+            return null;
+        }
+
+        function writeBaselineMapCache(map) {
+            if (!map || typeof map !== 'object') return;
+            const payload = JSON.stringify(map);
+            for (const storage of getStorageCandidates()) {
+                try {
+                    storage.setItem(BASELINE_CACHE_KEY, payload);
+                } catch (err) {}
+            }
         }
 
         function getZone(districtName) {
@@ -1602,32 +1639,71 @@
             return all;
         }
 
-        async function initBaselineMap() {
-            if (baselineMap || isBaselineLoading) return;
-            isBaselineLoading = true;
-            try {
-                const dims = await fetchAllSupabase('dim_rural_gps', 'gp_id,district,block,gram_panchayat');
-                const facts = await fetchAllSupabase('fact_rural_admin', 'gp_id,pop_2026_est');
-                
-                const popMap = {};
-                for (let i = 0; i < facts.length; i++) {
-                    popMap[facts[i].gp_id] = facts[i].pop_2026_est;
-                }
-                
-                baselineMap = {};
-                for (let i = 0; i < dims.length; i++) {
-                    const d = dims[i];
-                    const key = normalizeStr(`${d.district}||${d.block}||${d.gram_panchayat}`);
-                    baselineMap[key] = {
-                        population: popMap[d.gp_id] || 0
-                    };
-                }
-                console.log("Loaded baseline data for " + Object.keys(baselineMap).length + " GPs");
-            } catch (err) {
-                console.error("Failed to load baseline map:", err);
-            } finally {
-                isBaselineLoading = false;
+        function buildBaselineMap(dims, facts) {
+            const popMap = {};
+            for (let i = 0; i < facts.length; i++) {
+                popMap[facts[i].gp_id] = facts[i].pop_2026_est;
             }
+
+            const map = {};
+            for (let i = 0; i < dims.length; i++) {
+                const d = dims[i];
+                const key = normalizeStr(`${d.district}||${d.block}||${d.gram_panchayat}`);
+                map[key] = {
+                    population: popMap[d.gp_id] || 0
+                };
+            }
+
+            return map;
+        }
+
+        async function initBaselineMap() {
+            if (baselineMap) return baselineMap;
+            if (baselineMapPromise) return baselineMapPromise;
+
+            const cached = readBaselineMapCache();
+            if (cached) {
+                baselineMap = cached;
+                console.log('Loaded baseline data from cache for ' + Object.keys(baselineMap).length + ' GPs');
+                return baselineMap;
+            }
+
+            if (isBaselineLoading) return baselineMapPromise;
+
+            isBaselineLoading = true;
+            baselineMapPromise = (async () => {
+                try {
+                    const [dims, facts] = await Promise.all([
+                        fetchAllSupabase('dim_rural_gps', 'gp_id,district,block,gram_panchayat'),
+                        fetchAllSupabase('fact_rural_admin', 'gp_id,pop_2026_est')
+                    ]);
+
+                    const map = buildBaselineMap(dims, facts);
+                    if (Object.keys(map).length > 0) {
+                        baselineMap = map;
+                        writeBaselineMapCache(map);
+                        console.log('Loaded baseline data for ' + Object.keys(baselineMap).length + ' GPs');
+                        return baselineMap;
+                    }
+
+                    throw new Error('Baseline fetch returned no rows');
+                } catch (err) {
+                    console.error('Failed to load baseline map:', err);
+                    const fallback = readBaselineMapCache();
+                    if (fallback) {
+                        baselineMap = fallback;
+                        console.log('Loaded baseline data from cache fallback for ' + Object.keys(baselineMap).length + ' GPs');
+                        return baselineMap;
+                    }
+                    baselineMap = null;
+                    return null;
+                } finally {
+                    isBaselineLoading = false;
+                    baselineMapPromise = null;
+                }
+            })();
+
+            return baselineMapPromise;
         }
         const PAGE_SIZE = 200;
         const FAST_XLSX_OPTIONS = {
@@ -1737,7 +1813,8 @@
             if (cardEl) cardEl.classList.add('loaded');
 
             parseFile(file, year)
-                .then((records) => {
+                .then(async (records) => {
+                    await initBaselineMap();
                     loadedByYear[year] = records;
                     DATA = Object.values(loadedByYear).flat();
 
