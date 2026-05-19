@@ -1534,7 +1534,7 @@
         let isBaselineLoading = false;
         const SUPABASE_URL = "https://snumetzplgwbwovbpkaj.supabase.co";
         const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNudW1ldHpwbGd3YndvdmJwa2FqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyNjAyNTgsImV4cCI6MjA5MjgzNjI1OH0.Zo2oM1ddUI8XyfMvhDP3ixmLP2RlYjjCRgD-fnhvo2o";
-        const BASELINE_CACHE_KEY = 'backend_baseline_map_v1';
+        const BASELINE_CACHE_KEY = 'backend_baseline_map_v2';
 
         function normalizeStr(str) {
             if (!str) return '';
@@ -1639,22 +1639,63 @@
             return all;
         }
 
-        function buildBaselineMap(dims, facts) {
+        function getLocationKeyCandidates(row) {
+            const district = row?.district || '';
+            const middles = [row?.block, row?.ulb, row?.city].filter(Boolean);
+            const leaves = [row?.gp, row?.ward, row?.village, row?.city, row?.block, row?.ulb].filter(Boolean);
+            const keys = [];
+            const seen = new Set();
+
+            for (let i = 0; i < middles.length; i++) {
+                for (let j = 0; j < leaves.length; j++) {
+                    const key = normalizeStr(`${district}||${middles[i]}||${leaves[j]}`);
+                    if (key && !seen.has(key)) {
+                        seen.add(key);
+                        keys.push(key);
+                    }
+                }
+            }
+
+            return keys;
+        }
+
+        function buildBaselineMap(dimRows, factRows, idColumn) {
             const popMap = {};
-            for (let i = 0; i < facts.length; i++) {
-                popMap[facts[i].gp_id] = facts[i].pop_2026_est;
+            for (let i = 0; i < factRows.length; i++) {
+                const row = factRows[i] || {};
+                popMap[row[idColumn]] = row.pop_2026_est;
             }
 
             const map = {};
-            for (let i = 0; i < dims.length; i++) {
-                const d = dims[i];
-                const key = normalizeStr(`${d.district}||${d.block}||${d.gram_panchayat}`);
-                map[key] = {
-                    population: popMap[d.gp_id] || 0
-                };
+            for (let i = 0; i < dimRows.length; i++) {
+                const row = dimRows[i] || {};
+                const population = popMap[row[idColumn]] || 0;
+                const keys = getLocationKeyCandidates({
+                    district: row.district,
+                    block: row.block,
+                    ulb: row.ulb,
+                    city: row.city,
+                    gp: row.gram_panchayat,
+                    ward: row.ward,
+                    village: row.village
+                });
+
+                for (let j = 0; j < keys.length; j++) {
+                    map[keys[j]] = { population };
+                }
             }
 
             return map;
+        }
+
+        function findBaselineEntry(record) {
+            if (!baselineMap) return null;
+            const candidates = getLocationKeyCandidates(record);
+            for (let i = 0; i < candidates.length; i++) {
+                const entry = baselineMap[candidates[i]];
+                if (entry) return entry;
+            }
+            return null;
         }
 
         async function initBaselineMap() {
@@ -1673,16 +1714,21 @@
             isBaselineLoading = true;
             baselineMapPromise = (async () => {
                 try {
-                    const [dims, facts] = await Promise.all([
+                    const [ruralDims, ruralFacts, urbanDims, urbanFacts] = await Promise.all([
                         fetchAllSupabase('dim_rural_gps', 'gp_id,district,block,gram_panchayat'),
-                        fetchAllSupabase('fact_rural_admin', 'gp_id,pop_2026_est')
+                        fetchAllSupabase('fact_rural_admin', 'gp_id,pop_2026_est'),
+                        fetchAllSupabase('dim_urban_wards', 'ward_id,district,ulb,ward'),
+                        fetchAllSupabase('fact_urban_admin', 'ward_id,pop_2026_est')
                     ]);
 
-                    const map = buildBaselineMap(dims, facts);
+                    const map = {
+                        ...buildBaselineMap(ruralDims, ruralFacts, 'gp_id'),
+                        ...buildBaselineMap(urbanDims, urbanFacts, 'ward_id')
+                    };
                     if (Object.keys(map).length > 0) {
                         baselineMap = map;
                         writeBaselineMapCache(map);
-                        console.log('Loaded baseline data for ' + Object.keys(baselineMap).length + ' GPs');
+                        console.log('Loaded baseline data for ' + Object.keys(baselineMap).length + ' rural/urban locations');
                         return baselineMap;
                     }
 
@@ -1918,6 +1964,8 @@
             'GP_ENG': 'gp',
             'VILLAGE_ENG': 'village',
             'CITY_ENG': 'city',
+            'ULB': 'ulb',
+            'ULB_ENG': 'ulb',
             'WARD_ENG': 'ward',
             'Address_ENG': 'address_eng',
             'Address_ENG1': 'address_hi',
@@ -2024,6 +2072,10 @@
                 record.block = record.city;
             }
 
+            if (!record.block && record.ulb) {
+                record.block = record.ulb;
+            }
+
             return record;
         }
 
@@ -2116,17 +2168,6 @@
         const UNIT_COST_ENTRIES = Object.entries(UNIT_COSTS)
             .filter(([key]) => key !== 'DEFAULT')
             .map(([key, cost]) => [key.toLowerCase(), cost]);
-
-        function getUnitCost(itemName) {
-            const lower = (itemName || '').toLowerCase();
-            for (let i = 0; i < UNIT_COST_ENTRIES.length; i++) {
-                const [key, cost] = UNIT_COST_ENTRIES[i];
-                if (lower.includes(key)) {
-                    return cost;
-                }
-            }
-            return UNIT_COSTS['DEFAULT'];
-        }
 
         // ==================== RULES ENGINE ====================
         function runRulesEngine() {
@@ -2222,20 +2263,21 @@
             }
 
             // R3 — Population Norm
-            const locKey = normalizeStr(`${record.district}||${record.block || record.city || ''}||${record.gp || record.ward || record.village || ''}`);
+            const baselineEntry = findBaselineEntry(record);
+            const locKey = getLocationKeyCandidates(record)[0] || normalizeStr(`${record.district}||${record.block || record.city || record.ulb || ''}||${record.gp || record.ward || record.village || ''}`);
             const zone = getZone(record.district);
 
             if (!baselineMap) {
                 statusCodes.push('R3-NODATA');
                 reasons.push('Population norm check skipped — baseline data not yet loaded. | आधारभूत डेटा अभी लोड नहीं हुआ है।');
-            } else if (!baselineMap[locKey]) {
+            } else if (!baselineEntry) {
                 statusCodes.push('R3-NODATA');
                 reasons.push('Population norm check skipped — baseline data not found for this GP/Ward. | इस ग्राम पंचायत/वार्ड के लिए आधारभूत डेटा नहीं मिला।');
             } else {
                 const normConfig = getPopulationNormConfig(record.item, zone);
                 if (normConfig) {
                     const normValue = normConfig.normValue;
-                    const baselinePop = baselineMap[locKey].population || 0;
+                    const baselinePop = baselineEntry.population || 0;
                     const maxAllowed = Math.floor(baselinePop / normValue);
                     const totalQty = (qty2030 || 0) + (qty2035 || 0) + (qty2047 || 0);
                     
@@ -2263,19 +2305,6 @@
                 reasons.push('Priority level is 0 (Low) but 2030 target is set. Likely data entry error — upgrade priority to 2 if genuinely needed by 2030. | प्राथमिकता स्तर 0 (न्यूनतम) है लेकिन 2030 का लक्ष्य निर्धारित है।');
             }
 
-            // R6 — Budget Ceiling
-            const unitCost = getUnitCost(record.item);
-            const totalBudget = (qty2030 + qty2035 + qty2047) * unitCost;
-            record.budget_2030 = qty2030 * unitCost;
-            record.budget_2035 = qty2035 * unitCost;
-            record.budget_2047 = qty2047 * unitCost;
-            record.total_budget = totalBudget;
-
-            if (totalBudget > 500000000) {
-                statusCodes.push('R6-BIGBGT');
-                reasons.push('Estimated budget exceeds Rs 50 Crore — must be escalated to District Planning Committee (DPC). | अनुमानित बजट ₹50 करोड़ से अधिक है, DPC को भेजें।');
-            }
-
             // R7 — Duplicate Detection (Exact 1-1 Match across all provided fields)
             const dupObj = {
                 district: record.district, block: record.block, gp: record.gp, city: record.city, ward: record.ward, village: record.village,
@@ -2289,8 +2318,11 @@
             const dupKey = JSON.stringify(dupObj);
             
             if (seenSet.has(dupKey)) {
+                // Exact duplicate -> explicit REJECT
+                record.status = 'REJECT';
                 statusCodes.push('R7-DUPL');
                 reasons.push('Exact Duplicate entry — all fields (including department, priority, and quantities) match an existing record for this GP. | यह बिल्कुल समान आकांक्षा (मात्रा, विभाग आदि सहित) पहले ही दर्ज हो चुकी है।');
+                return;
             } else {
                 seenSet.add(dupKey);
             }
@@ -2304,26 +2336,23 @@
                 reasons.push('⚡ Fast-tracked: Critical sector (Water/Health/Sanitation) — accepted regardless of baseline documentation. | महत्वपूर्ण क्षेत्र (जल/स्वास्थ्य/स्वच्छता) — फास्ट-ट्रैक स्वीकृत।');
             }
 
-            // R9 — GIS-only Failure rejection logic
-            if (statusCodes.includes('R2-NOGIS')) {
-                if (!statusCodes.includes('R7-DUPL') && !statusCodes.includes('R3-NODATA')) {
-                    record.status = 'REJECT';
-                }
+            // R9 — GIS-only rows are acceptable when GIS is the only issue.
+            if (statusCodes.length === 1 && statusCodes[0] === 'R2-NOGIS' && record.status !== 'REJECT') {
+                record.status = 'ACCEPT';
             }
 
             // Final status assignment
             if (record.status !== 'REJECT') {
-                if (statusCodes.length > 0) {
+                if (!(statusCodes.length === 1 && statusCodes[0] === 'R2-NOGIS') && statusCodes.length > 0) {
                     record.status = 'REVIEW';
                 }
-                if (record.status === 'ACCEPT' && record.funded === 'YES' && record.scheme) {
+                if (record.status === 'ACCEPT' && record.funded === 'YES' && record.scheme && !(statusCodes.length === 1 && statusCodes[0] === 'R2-NOGIS')) {
                     record.status = 'FUNDED';
                 }
 
                 // Generate end-to-end detailed verification audit log for ACCEPT / FUNDED records
                 if (record.status === 'ACCEPT' || record.status === 'FUNDED') {
-                    const isFunded = record.status === 'FUNDED';
-                    const gpPop = (baselineMap && baselineMap[locKey]) ? (baselineMap[locKey].population || 0) : 0;
+                    const gpPop = baselineEntry ? (baselineEntry.population || 0) : 0;
                     const normConfig = getPopulationNormConfig(record.item, zone);
                     let normStr = '';
                     if (normConfig) {
@@ -2336,10 +2365,9 @@
                     const successReason = `✅ VERIFIED ACCEPTABLE (स्वचालित सत्यापन पूर्ण):\n` +
                         `- District Zone: Mapped to "${zone}" Geographic Zone (special relaxed criteria applied where applicable).\n` +
                         `- GIS: Coordinates (${record.lat || 'N/A'}, ${record.lng || 'N/A'}) verified and correctly located within Rajasthan's boundaries.\n` +
-                        `- Cost & Budget: Total estimated cost is ₹${(record.total_budget || 0).toLocaleString('en-IN')} (Calculated as ${qty2030 + qty2035 + qty2047} unit(s) x ₹${(unitCost || 0).toLocaleString('en-IN')} unit cost).\n` +
                         `- ${normStr}\n` +
                         `- Duplication Check: Full 1-to-1 unique record check completed. No matching entry found.\n` +
-                        `${isFunded ? `- Budget Funding: Officially approved under existing scheme "${record.scheme}".` : '- General Aspiration: Registered for future scheme alignment.'}`;
+                        `${record.status === 'FUNDED' ? `- Scheme Funding: Officially approved under existing scheme "${record.scheme}".` : '- General Aspiration: Registered for future scheme alignment.'}`;
                     
                     reasons.length = 0;
                     reasons.push(successReason);
@@ -2617,109 +2645,30 @@
         }
 
         function renderBudgetSummary() {
-            const acceptedRecords = [];
-            for (let i = 0; i < DATA.length; i++) {
-                const record = DATA[i];
-                if (record.status === 'ACCEPT' || record.status === 'FUNDED') {
-                    acceptedRecords.push(record);
-                }
-            }
-
-            let totalBudget = 0;
-            let fundedBudget = 0;
-            const districtBudgets = new Map();
-
-            for (let i = 0; i < acceptedRecords.length; i++) {
-                const record = acceptedRecords[i];
-                totalBudget += record.total_budget || 0;
-                if (record.status === 'FUNDED') {
-                    fundedBudget += record.total_budget || 0;
-                }
-
-                let districtData = districtBudgets.get(record.district);
-                if (!districtData) {
-                    districtData = {
-                        gps: new Set(),
-                        count: 0,
-                        budget_2030: 0,
-                        budget_2035: 0,
-                        budget_2047: 0,
-                        funded: 0
-                    };
-                    districtBudgets.set(record.district, districtData);
-                }
-
-                districtData.gps.add(record.gp || record.ward || record.village || record.city || '');
-                districtData.count++;
-                districtData.budget_2030 += record.budget_2030 || 0;
-                districtData.budget_2035 += record.budget_2035 || 0;
-                districtData.budget_2047 += record.budget_2047 || 0;
-                if (record.status === 'FUNDED') {
-                    districtData.funded += record.total_budget || 0;
-                }
-            }
-
-            const budgetGap = totalBudget - fundedBudget;
-            const fundedPercent = totalBudget > 0 ? ((fundedBudget / totalBudget) * 100).toFixed(1) : '0.0';
-
-            document.getElementById('totalBudget').textContent = formatCurrency(totalBudget);
-            document.getElementById('fundedBudget').textContent = formatCurrency(fundedBudget);
-            document.getElementById('budgetGap').textContent = formatCurrency(budgetGap);
-            document.getElementById('fundedPercent2').textContent = fundedPercent + '%';
-
             budgetRowsCache = [];
-            for (const [district, data] of districtBudgets.entries()) {
-                const totalDist = data.budget_2030 + data.budget_2035 + data.budget_2047;
-                const gapDist = totalDist - data.funded;
-                budgetRowsCache.push({
-                    district,
-                    gPs: data.gps.size,
-                    count: data.count,
-                    budget_2030: data.budget_2030,
-                    budget_2035: data.budget_2035,
-                    budget_2047: data.budget_2047,
-                    totalDist,
-                    funded: data.funded,
-                    gapDist
-                });
+            const tbody = document.getElementById('budgetTableBody');
+            if (tbody) {
+                tbody.innerHTML = '<tr><td colspan="9" class="no-data">Budget summary has been removed from this portal</td></tr>';
             }
 
-            renderBudgetPage();
+            const totalBudgetEl = document.getElementById('totalBudget');
+            const fundedBudgetEl = document.getElementById('fundedBudget');
+            const budgetGapEl = document.getElementById('budgetGap');
+            const fundedPercentEl = document.getElementById('fundedPercent2');
+            if (totalBudgetEl) totalBudgetEl.textContent = '—';
+            if (fundedBudgetEl) fundedBudgetEl.textContent = '—';
+            if (budgetGapEl) budgetGapEl.textContent = '—';
+            if (fundedPercentEl) fundedPercentEl.textContent = '—';
+
+            renderPagination('budget', 0);
         }
 
         function renderBudgetPage() {
             const tbody = document.getElementById('budgetTableBody');
-            const totalRows = budgetRowsCache.length;
-
-            if (totalRows === 0) {
-                tbody.innerHTML = '<tr><td colspan="9" class="no-data">No budget rows available</td></tr>';
-                renderPagination('budget', 0);
-                return;
+            if (tbody) {
+                tbody.innerHTML = '<tr><td colspan="9" class="no-data">Budget summary has been removed from this portal</td></tr>';
             }
-
-            const start = currentPages.budget * PAGE_SIZE;
-            const end = Math.min(start + PAGE_SIZE, totalRows);
-            let html = '';
-
-            for (let i = start; i < end; i++) {
-                const row = budgetRowsCache[i];
-                html += `
-                    <tr>
-                        <td>${escapeHtml(row.district || '-')}</td>
-                        <td>${row.gPs}</td>
-                        <td>${row.count}</td>
-                        <td>${formatCurrency(row.budget_2030)}</td>
-                        <td>${formatCurrency(row.budget_2035)}</td>
-                        <td>${formatCurrency(row.budget_2047)}</td>
-                        <td><strong>${formatCurrency(row.totalDist)}</strong></td>
-                        <td>${formatCurrency(row.funded)}</td>
-                        <td>${formatCurrency(row.gapDist)}</td>
-                    </tr>
-                `;
-            }
-
-            tbody.innerHTML = html;
-            renderPagination('budget', totalRows);
+            renderPagination('budget', 0);
         }
 
         // ==================== UTILITIES ====================
