@@ -1,41 +1,86 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5.0, user-scalable=yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Manthaan OS">
-    <meta name="theme-color" content="#0f172a">
-    <title>Manthaan OS — Rules Engine & CNI Ranking Portal</title>
+    <meta name="theme-color" content="#0a0f1e">
+    <title>Manthaan OS | Backend Portal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
+        :root {
+            --bg-base: #0a0f1e;
+            --bg-card: #111827;
+            --bg-elevated: #1a2236;
+            --border: #1f2d45;
+            --border-bright: #2d3f5c;
+            --accent: #3b82f6;
+            --accent-glow: rgba(59, 130, 246, 0.15);
+            --orange: #f97316;
+            --green: #10b981;
+            --amber: #f59e0b;
+            --red: #ef4444;
+            --purple: #8b5cf6;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #475569;
+            --radius-sm: 6px;
+            --radius-md: 10px;
+            --radius-lg: 16px;
+        }
+
         * {
-            margin: 0;
-            padding: 0;
             box-sizing: border-box;
         }
 
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #0f172a 0%, #1a1f3a 100%);
-            min-height: 100vh;
-            color: #e2e8f0;
+        html, body {
+            margin: 0;
+            min-height: 100%;
         }
 
-        /* LOGIN SCREEN */
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background:
+                radial-gradient(circle at top left, rgba(249, 115, 22, 0.12), transparent 28%),
+                radial-gradient(circle at top right, rgba(59, 130, 246, 0.12), transparent 24%),
+                linear-gradient(180deg, #07101f 0%, #0a0f1e 42%, #09101c 100%);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            background-image: linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+            background-size: 48px 48px;
+            mask-image: linear-gradient(180deg, rgba(0,0,0,0.45), transparent 85%);
+            opacity: 0.35;
+        }
+
+        button, input {
+            font: inherit;
+        }
+
+        button {
+            cursor: pointer;
+        }
+
         .login-container {
             position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
+            inset: 0;
             display: flex;
             align-items: center;
             justify-content: center;
-            background: rgba(15, 23, 42, 0.95);
-            z-index: 1000;
-            padding: 1rem;
+            padding: 24px;
+            background: rgba(10, 15, 30, 0.96);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            z-index: 9999;
         }
 
         .login-container.hidden {
@@ -43,91 +88,129 @@
         }
 
         .login-card {
-            background: #1e293b;
-            padding: 2rem;
-            border-radius: 12px;
-            border: 1px solid #334155;
-            width: 100%;
-            max-width: 380px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-            max-height: 90vh;
-            overflow-y: auto;
+            width: min(100%, 400px);
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 0 0 1px rgba(249, 115, 22, 0.06), 0 0 40px rgba(249, 115, 22, 0.08), 0 24px 90px rgba(0, 0, 0, 0.5);
         }
 
         .login-header {
             text-align: center;
-            margin-bottom: 2rem;
+            margin-bottom: 24px;
+        }
+
+        .login-brand {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .login-brand-mark {
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            display: grid;
+            place-items: center;
+            background: rgba(249, 115, 22, 0.12);
+            color: #fdba74;
+            box-shadow: inset 0 0 0 1px rgba(249, 115, 22, 0.12);
+        }
+
+        .login-kicker {
+            color: var(--orange);
+            text-transform: uppercase;
+            letter-spacing: 0.22em;
+            font-size: 11px;
+            font-weight: 800;
         }
 
         .login-header h1 {
-            font-size: 1.8rem;
-            color: #3b82f6;
-            margin-bottom: 0.5rem;
+            margin: 0;
+            font-size: 20px;
+            line-height: 1.3;
+            color: var(--text-primary);
         }
 
-        .login-header p {
-            color: #94a3b8;
-            font-size: 0.9rem;
+        .login-divider {
+            width: 100%;
+            height: 1px;
+            margin: 20px 0 24px;
+            background: linear-gradient(90deg, transparent, rgba(249, 115, 22, 0.8), transparent);
         }
 
         .form-group {
-            margin-bottom: 1.5rem;
+            margin-bottom: 16px;
         }
 
         .form-group label {
             display: block;
-            margin-bottom: 0.5rem;
-            color: #cbd5e1;
-            font-weight: 500;
-            font-size: 0.95rem;
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+            font-size: 12px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            font-weight: 700;
         }
 
         .form-group input {
             width: 100%;
-            padding: 0.75rem;
-            background: #0f172a;
-            border: 1px solid #334155;
-            border-radius: 6px;
-            color: #e2e8f0;
-            font-size: 16px;
+            border: 1px solid var(--border);
+            background: var(--bg-base);
+            color: var(--text-primary);
+            border-radius: 10px;
+            padding: 14px 16px;
+            outline: none;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+        }
+
+        .form-group input::placeholder {
+            color: var(--text-muted);
         }
 
         .form-group input:focus {
-            outline: none;
-            border-color: #3b82f6;
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+            border-color: var(--accent);
+            box-shadow: 0 0 0 4px var(--accent-glow);
+            transform: translateY(-1px);
         }
 
         .login-btn {
             width: 100%;
-            padding: 0.75rem;
-            background: #3b82f6;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            font-weight: 600;
-            cursor: pointer;
-            font-size: 1rem;
-            transition: background 0.2s;
+            min-height: 48px;
+            margin-top: 8px;
+            border: 0;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #3b82f6, #4f46e5);
+            color: #fff;
+            font-size: 15px;
+            font-weight: 800;
+            letter-spacing: 0.01em;
+            box-shadow: 0 12px 26px rgba(59, 130, 246, 0.22);
+            transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
         }
 
         .login-btn:hover {
-            background: #2563eb;
+            transform: translateY(-2px);
+            box-shadow: 0 16px 30px rgba(59, 130, 246, 0.28);
+            filter: brightness(1.03);
         }
 
         .login-error {
-            color: #ef4444;
-            font-size: 0.9rem;
+            min-height: 18px;
+            margin-top: 12px;
             text-align: center;
-            margin-top: 1rem;
-            display: none;
+            color: #fca5a5;
+            font-size: 12px;
+            font-weight: 600;
         }
 
-        /* MAIN PORTAL */
         .main-container {
             display: none;
             min-height: 100vh;
             flex-direction: column;
+            width: 100%;
         }
 
         .main-container.visible {
@@ -135,956 +218,1137 @@
         }
 
         .header {
-            background: #1e293b;
-            border-bottom: 1px solid #334155;
-            padding: 1rem 2rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            background: rgba(17, 24, 39, 0.96);
+            border-bottom: 1px solid var(--border);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
         }
 
-        .header-title {
-            font-size: 1.5rem;
+        .header::before {
+            content: '';
+            display: block;
+            height: 3px;
+            background: linear-gradient(90deg, var(--orange), var(--accent));
+        }
+
+        .header-inner {
+            height: 56px;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 32px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .header-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 0;
+        }
+
+        .header-brand-mark {
+            width: 34px;
+            height: 34px;
+            display: grid;
+            place-items: center;
+            border-radius: 10px;
+            background: rgba(59, 130, 246, 0.14);
+            border: 1px solid rgba(59, 130, 246, 0.18);
+            flex: 0 0 auto;
+        }
+
+        .header-brand-text {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        .header-brand-title {
+            color: #fff;
+            font-size: 15px;
+            font-weight: 800;
+            line-height: 1.1;
+        }
+
+        .header-brand-subtitle {
+            color: var(--text-secondary);
+            font-size: 12px;
+            line-height: 1.2;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .user-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            border-radius: 999px;
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-bright);
+            color: var(--text-primary);
+            font-size: 12px;
             font-weight: 700;
-            color: #3b82f6;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            white-space: nowrap;
         }
 
         .logout-btn {
-            padding: 0.5rem 1rem;
-            background: #dc2626;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: 500;
+            min-height: 32px;
+            padding: 0 14px;
+            border-radius: 8px;
+            border: 1px solid rgba(239, 68, 68, 0.7);
+            background: transparent;
+            color: #fca5a5;
+            font-size: 12px;
+            font-weight: 700;
+            transition: transform 0.2s ease, background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
         }
 
         .logout-btn:hover {
-            background: #b91c1c;
+            background: rgba(239, 68, 68, 0.12);
+            color: #fff;
+            transform: translateY(-1px);
+            border-color: #ef4444;
         }
 
         .content {
+            width: 100%;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px 32px 40px;
             flex: 1;
-            padding: 2rem;
-            overflow-y: auto;
         }
 
-        /* UPLOAD SECTION */
-        .upload-section {
-            background: #1e293b;
-            border: 2px dashed #475569;
+        .content-shell {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .section-head {
+            margin-bottom: 16px;
+        }
+
+        .section-title {
+            margin: 0;
+            font-size: 22px;
+            line-height: 1.25;
+            color: var(--text-primary);
+            font-weight: 800;
+        }
+
+        .section-subtitle {
+            margin-top: 6px;
+            color: var(--text-secondary);
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .section-panel {
+            background: rgba(17, 24, 39, 0.9);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+            box-shadow: 0 12px 38px rgba(0, 0, 0, 0.16);
+        }
+
+        .upload-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 16px;
+        }
+
+        .upload-card {
+            background: var(--bg-card);
+            border: 1.5px dashed var(--border-bright);
             border-radius: 12px;
-            padding: 2rem;
+            padding: 28px 20px;
             text-align: center;
-            margin-bottom: 2rem;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.2s ease;
+            min-height: 230px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            position: relative;
+            overflow: hidden;
         }
 
-        .upload-section:hover {
-            border-color: #3b82f6;
-            background: rgba(59, 130, 246, 0.05);
+        .upload-card::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at top, rgba(255,255,255,0.06), transparent 60%);
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            pointer-events: none;
         }
 
-        .upload-section input[type="file"] {
-            display: none;
+        .upload-card:hover {
+            border-style: solid;
+            transform: translateY(-2px);
+            background: var(--bg-elevated);
         }
+
+        .upload-card:hover::after {
+            opacity: 1;
+        }
+
+        .upload-card.loaded {
+            border: 1.5px solid var(--green);
+            background: rgba(16, 185, 129, 0.06);
+            box-shadow: inset 0 0 0 1px rgba(16, 185, 129, 0.08);
+        }
+
+        .upload-year-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 62px;
+            padding: 6px 12px;
+            border-radius: 999px;
+            color: #fff;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+        }
+
+        .year-2030 { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+        .year-2035 { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
+        .year-2047 { background: linear-gradient(135deg, #f97316, #ea580c); }
 
         .upload-icon {
             font-size: 2rem;
-            margin-bottom: 1rem;
+            line-height: 1;
         }
 
-        .upload-text h3 {
-            color: #e2e8f0;
-            margin-bottom: 0.5rem;
+        .upload-card p {
+            margin: 0;
         }
 
-        .upload-text p {
-            color: #94a3b8;
-            font-size: 0.9rem;
+        .upload-card p:nth-of-type(2) {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-primary);
         }
 
-        /* SUMMARY CARDS */
+        .upload-status {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .upload-status.loaded {
+            color: #4ade80;
+            font-weight: 700;
+        }
+
+        .upload-filename {
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .upload-card input[type="file"] {
+            display: none;
+        }
+
+        .process-btn {
+            width: 100%;
+            min-height: 52px;
+            margin-top: 16px;
+            border: 0;
+            border-radius: 10px;
+            background: #1f2d45;
+            color: var(--text-secondary);
+            font-size: 16px;
+            font-weight: 800;
+            cursor: not-allowed;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, color 0.2s ease;
+        }
+
+        .process-btn.enabled {
+            background: linear-gradient(135deg, #3b82f6, #6366f1);
+            color: #fff;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(59, 130, 246, 0.3);
+        }
+
+        .process-btn.enabled:hover {
+            transform: scale(1.01);
+        }
+
         .summary-cards {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 1rem;
-            margin-bottom: 2rem;
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            gap: 12px;
+            margin: 24px 0;
+            animation: fadeInUp 0.35s ease both;
         }
 
         .summary-card {
-            background: #1e293b;
-            border: 1px solid #334155;
-            border-radius: 8px;
-            padding: 1.5rem;
-            text-align: center;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-top-width: 3px;
+            border-top-style: solid;
+            border-radius: 10px;
+            padding: 20px;
+            transition: background 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
         }
 
-        .summary-card.total {
-            border-color: #475569;
+        .summary-card:hover {
+            background: var(--bg-elevated);
+            transform: translateY(-1px);
         }
 
-        .summary-card.accept {
-            border-left: 4px solid #16a34a;
-        }
-
-        .summary-card.funded {
-            border-left: 4px solid #3b82f6;
-        }
-
-        .summary-card.review {
-            border-left: 4px solid #d97706;
-        }
-
-        .summary-card.reject {
-            border-left: 4px solid #dc2626;
-        }
+        .summary-card.total { border-top-color: #64748b; }
+        .summary-card.accept { border-top-color: var(--green); }
+        .summary-card.funded { border-top-color: var(--accent); }
+        .summary-card.review { border-top-color: var(--amber); }
+        .summary-card.reject { border-top-color: var(--red); }
 
         .summary-label {
-            color: #94a3b8;
-            font-size: 0.85rem;
-            margin-bottom: 0.5rem;
+            color: var(--text-secondary);
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.14em;
+            margin-bottom: 10px;
         }
 
         .summary-value {
-            font-size: 1.75rem;
-            font-weight: 700;
-            color: #e2e8f0;
+            font-size: 32px;
+            line-height: 1;
+            font-weight: 800;
+            color: #fff;
         }
 
         .summary-percent {
-            color: #64748b;
-            font-size: 0.8rem;
-            margin-top: 0.25rem;
+            min-height: 16px;
+            margin-top: 8px;
+            color: var(--text-secondary);
+            font-size: 13px;
         }
 
-        /* TABS */
+        .processing {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+            padding: 18px 20px;
+            margin: 24px 0;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            color: var(--text-secondary);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+        }
+
+        .spinner {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            border: 3px solid rgba(59, 130, 246, 0.18);
+            border-top-color: var(--accent);
+            animation: spin 0.8s linear infinite;
+            flex: 0 0 auto;
+        }
+
+        .processing span {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
         .tabs {
             display: flex;
-            gap: 1rem;
-            margin-bottom: 1.5rem;
-            border-bottom: 1px solid #334155;
+            gap: 0;
+            border-bottom: 1px solid var(--border);
+            overflow-x: auto;
+            scrollbar-width: thin;
         }
 
         .tab-btn {
-            padding: 0.75rem 1.5rem;
+            appearance: none;
+            border: 0;
             background: transparent;
-            border: none;
-            color: #94a3b8;
-            cursor: pointer;
+            padding: 12px 20px;
+            color: var(--text-secondary);
+            font-size: 14px;
             font-weight: 500;
-            border-bottom: 3px solid transparent;
-            transition: all 0.2s;
-        }
-
-        .tab-btn.active {
-            color: #3b82f6;
-            border-bottom-color: #3b82f6;
+            border-bottom: 2px solid transparent;
+            white-space: nowrap;
+            transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
         }
 
         .tab-btn:hover {
-            color: #cbd5e1;
+            color: #fff;
+        }
+
+        .tab-btn.active {
+            color: #fff;
+            border-bottom-color: var(--accent);
         }
 
         .tab-content {
             display: none;
+            padding-top: 20px;
         }
 
         .tab-content.active {
             display: block;
         }
 
-        /* TABLE */
+        .filter-buttons {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+
+        .filter-btn {
+            border: 1px solid var(--border-bright);
+            background: var(--bg-elevated);
+            color: var(--text-secondary);
+            border-radius: 999px;
+            padding: 6px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .filter-btn:hover {
+            border-color: var(--accent);
+            color: #fff;
+        }
+
+        .filter-btn.active {
+            background: var(--accent);
+            color: #fff;
+            border-color: var(--accent);
+        }
+
         .table-wrapper {
-            background: #1e293b;
-            border: 1px solid #334155;
-            border-radius: 8px;
             overflow-x: auto;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            box-shadow: 0 10px 26px rgba(0, 0, 0, 0.16);
         }
 
         table {
             width: 100%;
-            border-collapse: collapse;
+            border-collapse: separate;
+            border-spacing: 0;
+            min-width: 980px;
         }
 
-        th {
-            background: #0f172a;
-            padding: 1rem;
+        thead {
+            position: sticky;
+            top: 0;
+            z-index: 3;
+        }
+
+        thead th {
+            background: var(--bg-base);
+            color: var(--text-secondary);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
             text-align: left;
-            font-weight: 600;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        tbody td {
             color: #cbd5e1;
-            border-bottom: 1px solid #334155;
-            font-size: 0.9rem;
+            padding: 12px 16px;
+            font-size: 13px;
+            border-bottom: 1px solid #1a2236;
+            vertical-align: top;
         }
 
-        td {
-            padding: 0.75rem 1rem;
-            border-bottom: 1px solid #334155;
-            color: #e2e8f0;
+        tbody tr:hover td {
+            background: var(--bg-elevated);
         }
 
-        tr:hover {
-            background: rgba(59, 130, 246, 0.05);
-        }
-
-        /* STATUS BADGES */
         .badge {
-            display: inline-block;
-            padding: 0.35rem 0.75rem;
-            border-radius: 4px;
-            font-weight: 600;
-            font-size: 0.8rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            white-space: nowrap;
         }
 
-        .badge.accept {
-            background: rgba(22, 163, 74, 0.2);
-            color: #86efac;
+        .badge.accept { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+        .badge.funded { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+        .badge.review { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+        .badge.reject { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+
+        .year-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 54px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
         }
 
-        .badge.funded {
-            background: rgba(59, 130, 246, 0.2);
-            color: #93c5fd;
+        .year-pill.y2030 { background: rgba(59, 130, 246, 0.15); color: #93c5fd; }
+        .year-pill.y2035 { background: rgba(139, 92, 246, 0.16); color: #c4b5fd; }
+        .year-pill.y2047 { background: rgba(249, 115, 22, 0.16); color: #fdba74; }
+
+        .reason-cell {
+            max-width: 300px;
         }
 
-        .badge.review {
-            background: rgba(217, 119, 6, 0.2);
-            color: #fcd34d;
-        }
-
-        .badge.reject {
-            background: rgba(220, 38, 38, 0.2);
-            color: #fca5a5;
-        }
-
-        /* FILTERS */
-        .filter-buttons {
-            display: flex;
-            gap: 0.5rem;
-            margin-bottom: 1.5rem;
-            flex-wrap: wrap;
-        }
-
-        .filter-btn {
-            padding: 0.5rem 1rem;
-            background: #334155;
-            color: #cbd5e1;
-            border: 1px solid #475569;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: 500;
-            transition: all 0.2s;
-        }
-
-        .filter-btn.active {
-            background: #3b82f6;
-            border-color: #3b82f6;
-            color: white;
-        }
-
-        .filter-btn:hover {
-            border-color: #3b82f6;
-        }
-
-        /* TOAST */
-        .toast {
-            position: fixed;
-            bottom: 2rem;
-            right: 2rem;
-            background: #16a34a;
-            color: white;
-            padding: 1rem 1.5rem;
-            border-radius: 6px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-            animation: slideIn 0.3s ease;
-            z-index: 100;
-        }
-
-        .toast.error {
-            background: #dc2626;
-        }
-
-        @keyframes slideIn {
-            from {
-                transform: translateX(400px);
-                opacity: 0;
-            }
-            to {
-                transform: translateX(0);
-                opacity: 1;
-            }
-        }
-
-        /* REASON TEXT */
         .reason-text {
-            font-size: 0.85rem;
-            color: #cbd5e1;
-            max-width: 400px;
-            word-wrap: break-word;
+            display: block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 300px;
+            color: var(--text-secondary);
+            font-size: 12px;
         }
 
-        /* CNI BANDS */
-        .cni-critical {
-            color: #dc2626;
-        }
-
-        .cni-moderate {
-            color: #d97706;
-        }
-
-        .cni-ontrack {
-            color: #16a34a;
-        }
-
-        .cni-value {
-            font-size: 1.5rem;
-            font-weight: 700;
-        }
-
-        /* EXPORT BUTTONS */
         .export-btn {
-            padding: 0.5rem 1rem;
-            background: #3b82f6;
-            color: white;
-            border: none;
+            margin-top: 16px;
+            margin-left: auto;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            border: 1px solid var(--border-bright);
+            background: transparent;
+            color: var(--text-secondary);
+            padding: 8px 16px;
             border-radius: 6px;
-            cursor: pointer;
-            font-weight: 500;
-            margin-top: 1rem;
+            font-size: 13px;
+            font-weight: 600;
+            transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
         }
 
         .export-btn:hover {
-            background: #2563eb;
+            border-color: var(--accent);
+            color: #fff;
+            background: rgba(59, 130, 246, 0.08);
         }
 
-        .spinner {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid #475569;
-            border-top-color: #3b82f6;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            margin-right: 0.5rem;
+        .pagination-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 12px 0 0;
+            color: var(--text-secondary);
+            font-size: 13px;
         }
 
-        @keyframes spin {
-            to {
-                transform: rotate(360deg);
-            }
+        .pagination-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
         }
 
-        .processing {
-            text-align: center;
-            color: #94a3b8;
-            padding: 2rem;
+        .pagination-btn {
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border-bright);
+            background: var(--bg-elevated);
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 700;
+            transition: all 0.2s ease;
+        }
+
+        .pagination-btn:hover:not(:disabled) {
+            border-color: var(--accent);
+            color: #fff;
+        }
+
+        .pagination-btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
+        .pagination-count {
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: var(--bg-base);
+            color: var(--text-secondary);
+            font-size: 12px;
+        }
+
+        .budget-section,
+        .section-panel + .section-panel {
+            margin-top: 0;
+        }
+
+        .budget-overview {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .budget-item {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-top: 3px solid var(--accent);
+            border-radius: 10px;
+            padding: 18px 20px;
+        }
+
+        .budget-item:nth-child(1) { border-top-color: var(--accent); }
+        .budget-item:nth-child(2) { border-top-color: var(--green); }
+        .budget-item:nth-child(3) { border-top-color: var(--red); }
+        .budget-item:nth-child(4) { border-top-color: var(--purple); }
+
+        .budget-label {
+            color: var(--text-secondary);
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.14em;
+            margin-bottom: 8px;
+        }
+
+        .budget-amount {
+            color: #fff;
+            font-size: 30px;
+            font-weight: 800;
+            line-height: 1;
+        }
+
+        .budget-supporting {
+            margin-top: 8px;
+            color: var(--text-secondary);
+            font-size: 12px;
+        }
+
+        #cniBandSummary {
+            margin-bottom: 16px !important;
+            padding: 16px !important;
+            background: var(--bg-card) !important;
+            border: 1px solid var(--border) !important;
+            border-radius: 10px !important;
+            color: var(--text-primary);
+            line-height: 1.5;
+        }
+
+        #cniBandSummary strong {
+            display: block;
+            margin-bottom: 12px;
+            color: #fff;
         }
 
         .no-data {
             text-align: center;
-            color: #64748b;
-            padding: 2rem;
+            color: var(--text-secondary);
+            padding: 28px 16px;
         }
 
-        .budget-section {
-            background: #1e293b;
-            border: 1px solid #334155;
+        .toast {
+            position: fixed;
+            right: 24px;
+            bottom: 24px;
+            min-width: 280px;
+            max-width: min(420px, calc(100vw - 48px));
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-left: 4px solid var(--green);
+            color: var(--text-primary);
             border-radius: 8px;
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
+            padding: 12px 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            z-index: 10000;
+            animation: toastIn 0.24s ease both;
         }
 
-        .budget-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1rem;
-            margin-bottom: 1rem;
+        .toast.error {
+            border-left-color: var(--red);
         }
 
-        .budget-item {
-            background: #0f172a;
-            padding: 1rem;
-            border-radius: 6px;
-            border-left: 4px solid #3b82f6;
+        @keyframes toastIn {
+            from { opacity: 0; transform: translateX(16px); }
+            to { opacity: 1; transform: translateX(0); }
         }
 
-        .budget-label {
-            color: #94a3b8;
-            font-size: 0.85rem;
-            margin-bottom: 0.25rem;
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
-        .budget-amount {
-            font-size: 1.25rem;
-            font-weight: 700;
-            color: #3b82f6;
+        @keyframes spin {
+            to { transform: rotate(360deg); }
         }
 
-        /* RESPONSIVE — TABLET */
+        @media (max-width: 1100px) {
+            .upload-grid,
+            .summary-cards {
+                grid-template-columns: 1fr;
+            }
+
+            .budget-overview {
+                grid-template-columns: 1fr;
+            }
+        }
+
         @media (max-width: 768px) {
-            .summary-cards {
-                grid-template-columns: repeat(2, 1fr);
-                gap: 0.75rem;
-            }
-
+            .header-inner,
             .content {
-                padding: 1rem;
+                padding-left: 16px;
+                padding-right: 16px;
             }
 
-            .header {
+            .header-inner {
+                height: auto;
+                padding-top: 12px;
+                padding-bottom: 12px;
+                align-items: flex-start;
                 flex-direction: column;
-                gap: 1rem;
-                padding: 0.75rem 1rem;
             }
 
-            .header-title {
-                font-size: 1.2rem;
-            }
-
-            .tabs {
-                flex-wrap: wrap;
-                gap: 0.5rem;
-            }
-
-            .tab-btn {
-                padding: 0.6rem 1rem;
-                font-size: 0.9rem;
-            }
-
-            .budget-row {
-                grid-template-columns: 1fr;
-            }
-
-            .login-card {
-                width: 95%;
-                padding: 1.5rem;
-            }
-
-            .upload-section {
-                padding: 1.5rem;
-            }
-
-            th, td {
-                padding: 0.6rem 0.75rem;
-                font-size: 0.85rem;
-            }
-
-            .reason-text {
-                max-width: 250px;
-            }
-
-            .filter-buttons {
-                gap: 0.35rem;
-            }
-
-            .filter-btn {
-                padding: 0.4rem 0.8rem;
-                font-size: 0.85rem;
-            }
-
-            .export-btn {
+            .header-right {
                 width: 100%;
-            }
-        }
-
-        /* RESPONSIVE — MOBILE */
-        @media (max-width: 480px) {
-            * {
-                -webkit-tap-highlight-color: transparent;
+                justify-content: space-between;
             }
 
-            body {
-                font-size: 14px;
-            }
-
-            .login-card {
-                width: 100%;
-                padding: 1.25rem;
-                border-radius: 8px;
-            }
-
-            .login-header h1 {
-                font-size: 1.5rem;
-            }
-
-            .login-header p {
-                font-size: 0.85rem;
-            }
-
-            .form-group input {
-                padding: 0.6rem;
-                font-size: 16px;
-            }
-
-            .login-btn {
-                padding: 0.6rem;
-                font-size: 0.95rem;
-            }
-
-            .header {
-                flex-direction: column;
-                gap: 0.75rem;
-                padding: 0.75rem;
-            }
-
-            .header-title {
-                font-size: 1rem;
-                text-align: center;
-            }
-
-            .logout-btn {
-                width: 100%;
-                padding: 0.55rem;
-            }
-
-            .content {
-                padding: 0.75rem;
-                overflow-x: hidden;
-            }
-
-            .upload-section {
-                padding: 1rem;
-                border-radius: 8px;
-            }
-
-            .upload-icon {
-                font-size: 1.5rem;
-                margin-bottom: 0.75rem;
-            }
-
-            .upload-text h3 {
-                font-size: 1rem;
-            }
-
-            .upload-text p {
-                font-size: 0.8rem;
-            }
-
-            /* SUMMARY CARDS — STACK ON SMALL SCREENS */
             .summary-cards {
-                grid-template-columns: 1fr;
-                gap: 0.6rem;
-                margin-bottom: 1rem;
-            }
-
-            .summary-card {
-                padding: 1rem;
-            }
-
-            .summary-label {
-                font-size: 0.75rem;
-            }
-
-            .summary-value {
-                font-size: 1.4rem;
-            }
-
-            .summary-percent {
-                font-size: 0.7rem;
-            }
-
-            /* TABS — SCROLLABLE ON MOBILE */
-            .tabs {
-                display: flex;
-                gap: 0.25rem;
-                overflow-x: auto;
-                padding-bottom: 0.5rem;
-                border-bottom: 1px solid #334155;
-                -webkit-overflow-scrolling: touch;
-            }
-
-            .tabs::-webkit-scrollbar {
-                height: 4px;
-            }
-
-            .tabs::-webkit-scrollbar-track {
-                background: transparent;
-            }
-
-            .tabs::-webkit-scrollbar-thumb {
-                background: #475569;
-                border-radius: 2px;
-            }
-
-            .tab-btn {
-                padding: 0.5rem 0.75rem;
-                font-size: 0.8rem;
-                white-space: nowrap;
-                flex-shrink: 0;
-                min-touch-target: 44px;
-            }
-
-            /* TABLE — HORIZONTAL SCROLL ON MOBILE */
-            .table-wrapper {
-                overflow-x: auto;
-                -webkit-overflow-scrolling: touch;
-                border-radius: 6px;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
             }
 
             table {
-                min-width: 100%;
+                min-width: 840px;
             }
 
-            th {
-                padding: 0.5rem;
-                font-size: 0.75rem;
-                font-weight: 600;
-            }
-
-            td {
-                padding: 0.5rem;
-                font-size: 0.8rem;
-            }
-
-            .badge {
-                padding: 0.25rem 0.5rem;
-                font-size: 0.7rem;
-            }
-
-            .reason-text {
-                max-width: 180px;
-                font-size: 0.75rem;
-            }
-
-            /* FILTERS — SCROLLABLE */
-            .filter-buttons {
-                display: flex;
-                gap: 0.3rem;
-                overflow-x: auto;
-                margin-bottom: 1rem;
-                -webkit-overflow-scrolling: touch;
-                padding-bottom: 0.5rem;
-            }
-
-            .filter-buttons::-webkit-scrollbar {
-                height: 3px;
-            }
-
-            .filter-buttons::-webkit-scrollbar-thumb {
-                background: #475569;
-            }
-
-            .filter-btn {
-                padding: 0.4rem 0.7rem;
-                font-size: 0.75rem;
-                flex-shrink: 0;
-                white-space: nowrap;
-            }
-
-            /* BUDGET SECTION */
-            .budget-section {
-                padding: 1rem;
-                margin-bottom: 1rem;
-            }
-
-            .budget-section h3 {
-                font-size: 1rem;
-                margin-bottom: 0.75rem;
-            }
-
-            .budget-row {
-                grid-template-columns: 1fr;
-                gap: 0.75rem;
-                margin-bottom: 0.75rem;
-            }
-
-            .budget-item {
-                padding: 0.75rem;
-            }
-
-            .budget-label {
-                font-size: 0.75rem;
-                margin-bottom: 0.2rem;
-            }
-
-            .budget-amount {
-                font-size: 1.1rem;
-            }
-
-            /* BUTTONS */
-            .export-btn {
-                width: 100%;
-                padding: 0.55rem;
-                font-size: 0.9rem;
-                border-radius: 6px;
-            }
-
-            /* CNI BAND SUMMARY */
-            #cniBandSummary {
-                padding: 0.75rem;
-                font-size: 0.8rem;
-                line-height: 1.4;
-                margin-bottom: 1rem;
-            }
-
-            /* NO DATA MESSAGE */
-            .no-data {
-                padding: 1rem;
-                font-size: 0.85rem;
-            }
-
-            .processing {
-                padding: 1.5rem;
-            }
-
-            .spinner {
-                width: 18px;
-                height: 18px;
-            }
-
-            /* TOUCH IMPROVEMENTS */
-            input, button, a {
-                min-height: 44px;
-                display: flex;
-                align-items: center;
-            }
-
-            .login-btn,
-            .logout-btn,
-            .export-btn,
-            .filter-btn,
-            .tab-btn {
-                min-height: 44px;
-                padding: 0.5rem 0.75rem;
-            }
-
-            /* TOAST */
-            .toast {
-                bottom: 1rem;
-                right: 1rem;
-                left: 1rem;
-                margin: 0 auto;
-                max-width: calc(100% - 2rem);
-                padding: 0.75rem 1rem;
-                font-size: 0.9rem;
-            }
-
-            /* SAFE AREAS FOR NOTCH/SAFE ZONES */
-            body {
-                padding-left: max(0px, env(safe-area-inset-left));
-                padding-right: max(0px, env(safe-area-inset-right));
-                padding-top: max(0px, env(safe-area-inset-top));
-                padding-bottom: max(0px, env(safe-area-inset-bottom));
+            .section-panel {
+                padding: 18px;
             }
         }
 
-        /* VERY SMALL PHONES (< 380px) */
-        @media (max-width: 379px) {
+        @media (max-width: 640px) {
+            .login-card {
+                padding: 28px 22px;
+            }
+
+            .login-header h1 {
+                font-size: 18px;
+            }
+
+            .section-title {
+                font-size: 18px;
+            }
+
             .summary-cards {
                 grid-template-columns: 1fr;
             }
 
-            .summary-value {
-                font-size: 1.2rem;
+            .tab-btn {
+                padding: 12px 14px;
             }
 
-            .header-title {
-                font-size: 0.9rem;
+            .filter-buttons {
+                gap: 6px;
+            }
+
+            .filter-btn {
+                padding: 6px 12px;
+                font-size: 12px;
+            }
+        }
+
+        @media (max-width: 379px) {
+            .upload-card {
+                padding: 24px 16px;
             }
 
             th, td {
-                padding: 0.4rem;
-                font-size: 0.75rem;
+                padding: 10px 12px;
+                font-size: 12px;
             }
         }
     </style>
-</head>
 <body>
-    <!-- LOGIN SCREEN -->
-    <div class="login-container" id="loginContainer">
-        <div class="login-card">
-            <div class="login-header">
-                <h1>🌏 Manthaan OS</h1>
-                <p>Rules Engine & CNI Ranking</p>
-            </div>
-            <form id="loginForm" onsubmit="handleLogin(event)">
-                <div class="form-group">
-                    <label>Username</label>
-                    <input type="text" id="username" required>
-                </div>
-                <div class="form-group">
-                    <label>Password</label>
-                    <input type="password" id="password" required>
-                </div>
-                <button type="submit" class="login-btn">Login</button>
-                <div class="login-error" id="loginError"></div>
-            </form>
-        </div>
-    </div>
-
-    <!-- MAIN PORTAL -->
-    <div class="main-container" id="mainContainer">
-        <div class="header">
-            <div class="header-title">🌏 Manthaan OS — Rules Engine & CNI Ranking</div>
-            <button class="logout-btn" onclick="handleLogout()">Logout</button>
-        </div>
-
-        <div class="content">
-            <!-- UPLOAD SECTION -->
-            <div class="upload-section" id="uploadSection" onclick="document.getElementById('fileInput').click()">
-                <div class="upload-icon">📁</div>
-                <div class="upload-text">
-                    <h3>Upload Aspirations File</h3>
-                    <p>Drag & drop or click to select .xlsx or .csv file</p>
-                </div>
-                <input type="file" id="fileInput" accept=".xlsx,.csv" onchange="handleFileUpload(event)">
-            </div>
-
-            <!-- SUMMARY CARDS -->
-            <div class="summary-cards" id="summaryCards" style="display: none;">
-                <div class="summary-card total">
-                    <div class="summary-label">Total Loaded</div>
-                    <div class="summary-value" id="totalCount">0</div>
-                </div>
-                <div class="summary-card accept">
-                    <div class="summary-label">Accepted</div>
-                    <div class="summary-value" id="acceptCount">0</div>
-                    <div class="summary-percent" id="acceptPercent">0%</div>
-                </div>
-                <div class="summary-card funded">
-                    <div class="summary-label">Funded</div>
-                    <div class="summary-value" id="fundedCount">0</div>
-                    <div class="summary-percent" id="fundedPercent">0%</div>
-                </div>
-                <div class="summary-card review">
-                    <div class="summary-label">Review</div>
-                    <div class="summary-value" id="reviewCount">0</div>
-                    <div class="summary-percent" id="reviewPercent">0%</div>
-                </div>
-                <div class="summary-card reject">
-                    <div class="summary-label">Rejected</div>
-                    <div class="summary-value" id="rejectCount">0</div>
-                    <div class="summary-percent" id="rejectPercent">0%</div>
-                </div>
-            </div>
-
-            <!-- PROCESSING MESSAGE -->
-            <div class="processing" id="processingMessage" style="display: none;">
-                <div class="spinner"></div>
-                <span>Processing records through 8 rules...</span>
-            </div>
-
-            <!-- TABS -->
-            <div id="tabsSection" style="display: none;">
-                <div class="tabs">
-                    <button class="tab-btn active" onclick="switchTab('rules')">📋 Rule Engine Results</button>
-                    <button class="tab-btn" onclick="switchTab('cni')">🏆 CNI Rankings</button>
-                    <button class="tab-btn" onclick="switchTab('budget')">💰 Budget Summary</button>
-                </div>
-
-                <!-- RULE ENGINE RESULTS TAB -->
-                <div class="tab-content active" id="rulesTab">
-                    <div class="filter-buttons">
-                        <button class="filter-btn active" onclick="filterTable('all')">All</button>
-                        <button class="filter-btn" onclick="filterTable('ACCEPT')">Accept</button>
-                        <button class="filter-btn" onclick="filterTable('FUNDED')">Funded</button>
-                        <button class="filter-btn" onclick="filterTable('REVIEW')">Review</button>
-                        <button class="filter-btn" onclick="filterTable('REJECT')">Reject</button>
-                    </div>
-                    <div class="table-wrapper">
-                        <table id="rulesTable">
-                            <thead>
-                                <tr>
-                                    <th>#</th>
-                                    <th>District</th>
-                                    <th>Block</th>
-                                    <th>GP</th>
-                                    <th>Item</th>
-                                    <th>Priority</th>
-                                    <th>Status</th>
-                                    <th>Rule Codes</th>
-                                    <th>Reason</th>
-                                </tr>
-                            </thead>
-                            <tbody id="rulesTableBody">
-                            </tbody>
-                        </table>
-                    </div>
-                    <button class="export-btn" onclick="exportCSV('rules')">📥 Export Rule Results (CSV)</button>
-                </div>
-
-                <!-- CNI RANKINGS TAB -->
-                <div class="tab-content" id="cniTab">
-                    <div id="cniBandSummary" style="margin-bottom: 1.5rem; padding: 1rem; background: #1e293b; border-radius: 8px; border: 1px solid #334155;">
-                    </div>
-                    <div class="table-wrapper">
-                        <table id="cniTable">
-                            <thead>
-                                <tr>
-                                    <th>Rank</th>
-                                    <th>GP Name</th>
-                                    <th>District</th>
-                                    <th>Block</th>
-                                    <th>Accepted Aspirations</th>
-                                    <th>CNI Score</th>
-                                    <th>Band</th>
-                                </tr>
-                            </thead>
-                            <tbody id="cniTableBody">
-                            </tbody>
-                        </table>
-                    </div>
-                    <button class="export-btn" onclick="exportCSV('cni')">📥 Export CNI Rankings (CSV)</button>
-                </div>
-
-                <!-- BUDGET SUMMARY TAB -->
-                <div class="tab-content" id="budgetTab">
-                    <div class="budget-section">
-                        <h3 style="margin-bottom: 1rem;">Overall Budget Summary</h3>
-                        <div class="budget-row">
-                            <div class="budget-item">
-                                <div class="budget-label">Total Budget</div>
-                                <div class="budget-amount" id="totalBudget">₹0</div>
+    <div class="login-container" id="loginContainer" style="display: flex;">
+                    <div class="login-card">
+                        <div class="login-header">
+                            <div class="login-brand">
+                                <div class="login-brand-mark">🌏</div>
+                                <div class="login-kicker">MANTHAAN OS</div>
                             </div>
-                            <div class="budget-item">
-                                <div class="budget-label">Funded Amount</div>
-                                <div class="budget-amount" id="fundedBudget">₹0</div>
+                            <h1>Rules Engine &amp; CNI Ranking</h1>
+                            <div class="login-divider"></div>
+                        </div>
+                        <form id="loginForm" onsubmit="handleLogin(event)">
+                            <div class="form-group">
+                                <label for="username">Username</label>
+                                <input type="text" id="username" placeholder="admin" autocomplete="username" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="password">Password</label>
+                                <input type="password" id="password" placeholder="••••••••" autocomplete="current-password" required>
+                            </div>
+                            <button type="submit" class="login-btn">Login</button>
+                            <div class="login-error" id="loginError"></div>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="main-container" id="mainContainer" style="display: none;">
+                    <header class="header">
+                        <div class="header-inner">
+                            <div class="header-brand">
+                                <div class="header-brand-mark">🌏</div>
+                                <div class="header-brand-text">
+                                    <div class="header-brand-title">Manthaan OS</div>
+                                    <div class="header-brand-subtitle">Rules Engine &amp; CNI</div>
+                                </div>
+                            </div>
+                            <div class="header-right">
+                                <div class="user-badge">admin</div>
+                                <button class="logout-btn" onclick="handleLogout()">Logout</button>
                             </div>
                         </div>
-                        <div class="budget-row">
-                            <div class="budget-item">
-                                <div class="budget-label">Funding Gap</div>
-                                <div class="budget-amount" id="budgetGap">₹0</div>
+                    </header>
+
+                    <main class="content">
+                        <div class="content-shell">
+                            <section class="section-panel">
+                                <div class="section-head">
+                                    <h2 class="section-title">Upload Aspiration Files</h2>
+                                    <div class="section-subtitle">Load one or more planning horizon files</div>
+                                </div>
+
+                                <div class="upload-grid">
+                                    <label class="upload-card" id="uploadCard2030" for="file2030">
+                                        <div class="upload-year-badge year-2030">2030</div>
+                                        <div class="upload-icon">📁</div>
+                                        <p>Aspiration 2030</p>
+                                        <p class="upload-status" id="status2030">Not uploaded</p>
+                                        <p class="upload-filename" id="fileName2030">Choose .xlsx or .csv</p>
+                                        <input type="file" id="file2030" accept=".xlsx,.csv" data-year="2030" onchange="handleFileUpload(event)">
+                                    </label>
+
+                                    <label class="upload-card" id="uploadCard2035" for="file2035">
+                                        <div class="upload-year-badge year-2035">2035</div>
+                                        <div class="upload-icon">📁</div>
+                                        <p>Aspiration 2035</p>
+                                        <p class="upload-status" id="status2035">Not uploaded</p>
+                                        <p class="upload-filename" id="fileName2035">Choose .xlsx or .csv</p>
+                                        <input type="file" id="file2035" accept=".xlsx,.csv" data-year="2035" onchange="handleFileUpload(event)">
+                                    </label>
+
+                                    <label class="upload-card" id="uploadCard2047" for="file2047">
+                                        <div class="upload-year-badge year-2047">2047</div>
+                                        <div class="upload-icon">📁</div>
+                                        <p>Aspiration 2047</p>
+                                        <p class="upload-status" id="status2047">Not uploaded</p>
+                                        <p class="upload-filename" id="fileName2047">Choose .xlsx or .csv</p>
+                                        <input type="file" id="file2047" accept=".xlsx,.csv" data-year="2047" onchange="handleFileUpload(event)">
+                                    </label>
+                                </div>
+
+                                <button class="process-btn" id="processBtn" onclick="runRulesEngine()" disabled>⚡ Run Rules Engine</button>
+                            </section>
+
+                            <div class="summary-cards" id="summaryCards" style="display: none;">
+                                <div class="summary-card total">
+                                    <div class="summary-label">Total Loaded</div>
+                                    <div class="summary-value" id="totalCount">0</div>
+                                </div>
+                                <div class="summary-card accept">
+                                    <div class="summary-label">Accepted</div>
+                                    <div class="summary-value" id="acceptCount">0</div>
+                                    <div class="summary-percent" id="acceptPercent">0%</div>
+                                </div>
+                                <div class="summary-card funded">
+                                    <div class="summary-label">Funded</div>
+                                    <div class="summary-value" id="fundedCount">0</div>
+                                    <div class="summary-percent" id="fundedPercent">0%</div>
+                                </div>
+                                <div class="summary-card review">
+                                    <div class="summary-label">Review</div>
+                                    <div class="summary-value" id="reviewCount">0</div>
+                                    <div class="summary-percent" id="reviewPercent">0%</div>
+                                </div>
+                                <div class="summary-card reject">
+                                    <div class="summary-label">Rejected</div>
+                                    <div class="summary-value" id="rejectCount">0</div>
+                                    <div class="summary-percent" id="rejectPercent">0%</div>
+                                </div>
                             </div>
-                            <div class="budget-item">
-                                <div class="budget-label">Funded %</div>
-                                <div class="budget-amount" id="fundedPercent2">0%</div>
+
+                            <div class="processing" id="processingMessage" style="display: none;">
+                                <div class="spinner"></div>
+                                <span>Processing X records through 7 rules...</span>
                             </div>
+
+                            <section id="tabsSection" style="display: none;">
+                                <div class="tabs">
+                                    <button class="tab-btn active" onclick="switchTab('rules')">📋 Rule Engine Results</button>
+                                    <button class="tab-btn" onclick="switchTab('cni')">🏆 CNI Rankings</button>
+                                    <button class="tab-btn" onclick="switchTab('budget')">💰 Budget Summary</button>
+                                </div>
+
+                                <div class="tab-content active" id="rulesTab">
+                                    <div class="filter-buttons">
+                                        <button class="filter-btn active" onclick="filterTable('all')">All</button>
+                                        <button class="filter-btn" onclick="filterTable('ACCEPT')">Accept</button>
+                                        <button class="filter-btn" onclick="filterTable('FUNDED')">Funded</button>
+                                        <button class="filter-btn" onclick="filterTable('REVIEW')">Review</button>
+                                        <button class="filter-btn" onclick="filterTable('REJECT')">Reject</button>
+                                    </div>
+                                    <div class="table-wrapper">
+                                        <table id="rulesTable">
+                                            <thead>
+                                                <tr>
+                                                    <th>#</th>
+                                                    <th>District</th>
+                                                    <th>Block</th>
+                                                    <th>GP</th>
+                                                    <th>Item</th>
+                                                    <th>Priority</th>
+                                                    <th>Status</th>
+                                                    <th>Rule Codes</th>
+                                                    <th>Reason</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="rulesTableBody"></tbody>
+                                        </table>
+                                    </div>
+                                    <div class="pagination-bar" id="rulesPagination"></div>
+                                    <button class="export-btn" onclick="exportCSV('rules')">📥 Export Rule Results (CSV)</button>
+                                </div>
+
+                                <div class="tab-content" id="cniTab">
+                                    <div id="cniBandSummary"></div>
+                                    <div class="table-wrapper">
+                                        <table id="cniTable">
+                                            <thead>
+                                                <tr>
+                                                    <th>Rank</th>
+                                                    <th>GP Name</th>
+                                                    <th>District</th>
+                                                    <th>Block</th>
+                                                    <th>Accepted Aspirations</th>
+                                                    <th>CNI Score</th>
+                                                    <th>Band</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="cniTableBody"></tbody>
+                                        </table>
+                                    </div>
+                                    <div class="pagination-bar" id="cniPagination"></div>
+                                    <button class="export-btn" onclick="exportCSV('cni')">📥 Export CNI Rankings (CSV)</button>
+                                </div>
+
+                                <div class="tab-content" id="budgetTab">
+                                    <section class="section-panel" style="margin-bottom: 20px;">
+                                        <div class="section-head">
+                                            <h2 class="section-title" style="font-size: 18px;">Budget Overview</h2>
+                                            <div class="section-subtitle">Total value, funded share, and remaining gap</div>
+                                        </div>
+                                        <div class="budget-overview">
+                                            <div class="budget-item">
+                                                <div class="budget-label">Total Budget</div>
+                                                <div class="budget-amount" id="totalBudget">₹0</div>
+                                            </div>
+                                            <div class="budget-item">
+                                                <div class="budget-label">Funded Amount</div>
+                                                <div class="budget-amount" id="fundedBudget">₹0</div>
+                                            </div>
+                                            <div class="budget-item">
+                                                <div class="budget-label">Funding Gap</div>
+                                                <div class="budget-amount" id="budgetGap">₹0</div>
+                                            </div>
+                                            <div class="budget-item">
+                                                <div class="budget-label">Funded %</div>
+                                                <div class="budget-amount" id="fundedPercent2">0%</div>
+                                            </div>
+                                        </div>
+                                    </section>
+
+                                    <section class="section-panel">
+                                        <div class="section-head">
+                                            <h2 class="section-title" style="font-size: 18px;">District-wise Budget Breakdown</h2>
+                                        </div>
+                                        <div class="table-wrapper">
+                                            <table id="budgetTable">
+                                                <thead>
+                                                    <tr>
+                                                        <th>District</th>
+                                                        <th>GPs</th>
+                                                        <th>Accepted Items</th>
+                                                        <th>Phase I (2030)</th>
+                                                        <th>Phase II (2035)</th>
+                                                        <th>Vision (2047)</th>
+                                                        <th>Total</th>
+                                                        <th>Funded</th>
+                                                        <th>Gap</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="budgetTableBody"></tbody>
+                                            </table>
+                                        </div>
+                                        <div class="pagination-bar" id="budgetPagination"></div>
+                                        <button class="export-btn" onclick="exportCSV('budget')">📥 Export Budget Summary (CSV)</button>
+                                    </section>
+                                </div>
+                            </section>
                         </div>
-                    </div>
-
-                    <h3 style="margin-bottom: 1rem;">District-wise Budget Breakdown</h3>
-                    <div class="table-wrapper">
-                        <table id="budgetTable">
-                            <thead>
-                                <tr>
-                                    <th>District</th>
-                                    <th>GPs</th>
-                                    <th>Accepted Items</th>
-                                    <th>Phase I (2030)</th>
-                                    <th>Phase II (2035)</th>
-                                    <th>Vision (2047)</th>
-                                    <th>Total</th>
-                                    <th>Funded</th>
-                                    <th>Gap</th>
-                                </tr>
-                            </thead>
-                            <tbody id="budgetTableBody">
-                            </tbody>
-                        </table>
-                    </div>
-                    <button class="export-btn" onclick="exportCSV('budget')">📥 Export Budget Summary (CSV)</button>
+                    </main>
                 </div>
-            </div>
-        </div>
-    </div>
+            <script>
+                (function () {
+                    function setPortalState(isLoggedIn) {
+                        const loginContainer = document.getElementById('loginContainer');
+                        const mainContainer = document.getElementById('mainContainer');
 
+                        if (loginContainer) loginContainer.style.display = isLoggedIn ? 'none' : 'flex';
+                        if (mainContainer) mainContainer.style.display = isLoggedIn ? 'flex' : 'none';
+                        document.body.style.overflow = isLoggedIn ? 'auto' : 'hidden';
+                        if (!isLoggedIn) {
+                            const username = document.getElementById('username');
+                            if (username) username.focus();
+                        }
+                    }
+
+                    function handleLogin(event) {
+                        if (event) event.preventDefault();
+                        const username = (document.getElementById('username')?.value || '').trim();
+                        const password = document.getElementById('password')?.value || '';
+                        const loginError = document.getElementById('loginError');
+
+                        if (username === 'admin' && password === '12345') {
+                            if (loginError) loginError.style.display = 'none';
+                            setPortalState(true);
+                            const mainContainer = document.getElementById('mainContainer');
+                            if (mainContainer) mainContainer.classList.add('visible');
+                        } else if (loginError) {
+                            loginError.textContent = 'Invalid credentials. Try admin / 12345';
+                            loginError.style.display = 'block';
+                        }
+                    }
+
+                    function handleLogout() {
+                        setPortalState(false);
+                        const mainContainer = document.getElementById('mainContainer');
+                        const loginForm = document.getElementById('loginForm');
+                        const loginError = document.getElementById('loginError');
+
+                        if (mainContainer) mainContainer.classList.remove('visible');
+                        if (loginForm) loginForm.reset();
+                        if (loginError) loginError.style.display = 'none';
+                    }
+
+                    window.setPortalState = setPortalState;
+                    window.handleLogin = handleLogin;
+                    window.handleLogout = handleLogout;
+
+                    document.addEventListener('DOMContentLoaded', function () {
+                        setPortalState(false);
+                    });
+                })();
+            </script>
     <script>
         // ==================== GLOBAL STATE ====================
         let isAuthenticated = false;
         let DATA = [];
         let filteredData = [];
         let currentFilter = 'all';
+        let currentPages = { rules: 0, cni: 0, budget: 0 };
+        let cniResultsCache = [];
+        let budgetRowsCache = [];
+        let loadedByYear = {};
+        const PAGE_SIZE = 200;
+        const FAST_XLSX_OPTIONS = {
+            type: 'array',
+            cellFormula: false,
+            cellHTML: false,
+            cellNF: false,
+            cellStyles: false,
+            cellDates: false,
+            sheetStubs: false,
+            dense: true,
+            raw: true
+        };
+        const FAST_SHEET_OPTIONS = {
+            header: 1,
+            raw: true,
+            defval: null,
+            blankrows: false
+        };
+        const TRUE_VALUES = new Set(['YES', 'yes', 'Y', 'y', 'TRUE', 'True', 'true', '1', 1, true]);
+
+        function setPortalState(isLoggedIn) {
+            const loginContainer = document.getElementById('loginContainer');
+            const mainContainer = document.getElementById('mainContainer');
+            const body = document.body;
+
+            loginContainer.style.display = isLoggedIn ? 'none' : 'flex';
+            mainContainer.style.display = isLoggedIn ? 'flex' : 'none';
+            body.style.overflow = isLoggedIn ? 'auto' : 'hidden';
+
+            if (!isLoggedIn) {
+                document.getElementById('username').focus();
+            }
+        }
+
+        function resetUploadState() {
+            loadedByYear = {};
+            currentPages = { rules: 0, cni: 0, budget: 0 };
+            cniResultsCache = [];
+            budgetRowsCache = [];
+            ['2030', '2035', '2047'].forEach(year => {
+                const status = document.getElementById(`status${year}`);
+                const fileName = document.getElementById(`fileName${year}`);
+                const card = document.getElementById(`uploadCard${year}`);
+                const input = document.getElementById(`file${year}`);
+                if (status) {
+                    status.textContent = 'Not uploaded';
+                    status.classList.remove('loaded');
+                }
+                if (fileName) fileName.textContent = 'Choose .xlsx or .csv';
+                if (card) card.classList.remove('loaded');
+                if (input) input.value = '';
+            });
+
+            const processBtn = document.getElementById('processBtn');
+            if (processBtn) {
+                processBtn.disabled = true;
+                processBtn.classList.remove('enabled');
+            }
+        }
 
         // ==================== LOGIN ====================
         function handleLogin(event) {
@@ -1094,10 +1358,11 @@
 
             if (username === 'admin' && password === '12345') {
                 isAuthenticated = true;
-                document.getElementById('loginContainer').classList.add('hidden');
+                document.getElementById('loginError').style.display = 'none';
+                setPortalState(true);
                 document.getElementById('mainContainer').classList.add('visible');
             } else {
-                document.getElementById('loginError').textContent = 'Invalid credentials';
+                document.getElementById('loginError').textContent = 'Invalid credentials. Try admin / 12345';
                 document.getElementById('loginError').style.display = 'block';
             }
         }
@@ -1106,12 +1371,14 @@
             isAuthenticated = false;
             DATA = [];
             filteredData = [];
-            document.getElementById('loginContainer').classList.remove('hidden');
+            setPortalState(false);
             document.getElementById('mainContainer').classList.remove('visible');
             document.getElementById('loginForm').reset();
             document.getElementById('loginError').style.display = 'none';
             document.getElementById('summaryCards').style.display = 'none';
             document.getElementById('tabsSection').style.display = 'none';
+            document.getElementById('processingMessage').style.display = 'none';
+            resetUploadState();
         }
 
         // ==================== FILE UPLOAD ====================
@@ -1119,48 +1386,96 @@
             const file = event.target.files[0];
             if (!file) return;
 
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                try {
-                    const data = new Uint8Array(e.target.result);
-                    const workbook = XLSX.read(data, { type: 'array' });
-                    const sheetName = workbook.SheetNames[0];
-                    const worksheet = workbook.Sheets[sheetName];
-                    const records = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+            const year = event.target.dataset.year || '2030';
+            const statusEl = document.getElementById(`status${year}`);
+            const fileNameEl = document.getElementById(`fileName${year}`);
+            const cardEl = document.getElementById(`uploadCard${year}`);
+            const processBtn = document.getElementById('processBtn');
 
-                    if (records.length < 2) {
-                        showToast('File must contain headers and data', true);
-                        return;
+            if (statusEl) statusEl.textContent = 'Loading...';
+            if (fileNameEl) fileNameEl.textContent = file.name;
+            if (cardEl) cardEl.classList.add('loaded');
+
+            parseFile(file, year)
+                .then((records) => {
+                    loadedByYear[year] = records;
+                    DATA = Object.values(loadedByYear).flat();
+
+                    if (records.length === 0) {
+                        showToast('No valid records found in uploaded file', true);
+                        if (statusEl) statusEl.textContent = 'No valid rows';
+                    } else {
+                        if (statusEl) {
+                            statusEl.textContent = `✓ ${records.length} records loaded`;
+                            statusEl.classList.add('loaded');
+                        }
+                        showToast(`${records.length} records loaded successfully`);
                     }
 
-                    const headers = records[0].map(h => (h || '').toString().trim());
-                    DATA = [];
-
-                    for (let i = 1; i < records.length; i++) {
-                        const row = records[i];
-                        const record = mapRowToRecord(headers, row);
-                        if (record) DATA.push(record);
+                    const hasAnyData = DATA.length > 0;
+                    if (processBtn) {
+                        processBtn.disabled = !hasAnyData;
+                        processBtn.classList.toggle('enabled', hasAnyData);
                     }
 
-                    if (DATA.length === 0) {
-                        showToast('No valid records found', true);
-                        return;
+                    if (hasAnyData) {
+                        runRulesEngine();
                     }
-
-                    showToast(`${DATA.length} records loaded successfully`);
-                    runRulesEngine();
-                } catch (err) {
+                })
+                .catch((err) => {
                     showToast('Error parsing file: ' + err.message, true);
-                }
-            };
-            reader.readAsArrayBuffer(file);
+                    if (statusEl) statusEl.textContent = 'Upload failed';
+                });
+        }
+
+        function parseFile(file, year) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+
+                reader.onerror = () => reject(reader.error || new Error('File read failed'));
+                reader.onload = (e) => {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, FAST_XLSX_OPTIONS);
+                        const sheetName = workbook.SheetNames[0];
+
+                        if (!sheetName) {
+                            throw new Error('No sheets found in workbook');
+                        }
+
+                        const worksheet = workbook.Sheets[sheetName];
+                        const records = XLSX.utils.sheet_to_json(worksheet, FAST_SHEET_OPTIONS);
+
+                        if (records.length < 2) {
+                            throw new Error('File must contain headers and data');
+                        }
+
+                        const headers = records[0] || [];
+                        const columnIndex = buildColumnIndex(headers);
+                        const parsed = [];
+
+                        for (let i = 1; i < records.length; i++) {
+                            const record = parseRowFast(records[i], columnIndex, year);
+                            if (record) parsed.push(record);
+                        }
+
+                        resolve(parsed);
+                    } catch (error) {
+                        reject(error);
+                    }
+                };
+
+                reader.readAsArrayBuffer(file);
+            });
         }
 
         // ==================== DATA MAPPING ====================
         const HEADER_MAP = {
+            // Legacy Hindi headers
             'जिला': 'district',
             'ब्लॉक': 'block',
             'ग्राम पंचायत': 'gp',
+            'ग्राम पंचायत / वार्ड': 'gp',
             'सब-इंडिकेटर्स': 'item',
             'प्राथमिकता स्तर': 'priority',
             '2030': 'qty_2030',
@@ -1173,23 +1488,174 @@
             'राजधारा संदर्भ संख्या': 'rajdhara_ref',
             'सूचक (Indicator)': 'sector',
             'Sector': 'sector',
-            'Department': 'dept'
+            'Department': 'dept',
+
+            // New Rajdhara / Excel headers
+            'AspirationsID': 'aspiration_id',
+            'UserSSOId': 'user_sso_id',
+            'SubIndicatorId': 'sub_indicator_id',
+            'IsUrbanRual': 'area_type',
+            'VillageId_WardId': 'village_ward_id',
+            'DISTRICT_ENG': 'district',
+            'BLOCK_ENG': 'block',
+            'GP_ENG': 'gp',
+            'VILLAGE_ENG': 'village',
+            'CITY_ENG': 'city',
+            'WARD_ENG': 'ward',
+            'Address_ENG': 'address_eng',
+            'Address_ENG1': 'address_hi',
+            'SubIndicatorLandMark': 'landmark',
+            'Sector_ENG': 'sector',
+            'Sector_Mangal': 'sector_hi',
+            'Department_ENG': 'dept',
+            'Indicator_Mangal': 'indicator_hi',
+            'SubIndicator_Mangal': 'item',
+            'AspirationsSubIndicatorMapID': 'map_id',
+            'UnitId': 'unit_id',
+            'Priorty': 'priority',
+            'Aspirationsin2030': 'qty_2030',
+            'Aspirationin2035': 'qty_2035',
+            'Aspirationin2047': 'qty_2047',
+            'Aspirationsin2035': 'qty_2035',
+            'Aspirationsin2047': 'qty_2047',
+            'Aspirations2030': 'qty_2030',
+            'Aspirations2035': 'qty_2035',
+            'Aspirations2047': 'qty_2047',
+            'Latitude': 'lat',
+            'Longitude': 'lng',
+            'IsFinancial': 'is_financial',
+            'IsFinancialApproved': 'is_financial_approved',
+            'SchemeId': 'scheme_id',
+            'IsApplicable': 'is_applicable'
         };
+
+        const HEADER_LOOKUP = Object.entries(HEADER_MAP).reduce((lookup, [header, field]) => {
+            lookup[normalizeHeader(header).toLowerCase()] = field;
+            return lookup;
+        }, {});
+
+        function normalizeHeader(header) {
+            return (header || '').toString().trim().replace(/\s+/g, ' ');
+        }
+
+        function buildColumnIndex(headers) {
+            const columnIndex = new Array(headers.length);
+
+            for (let i = 0; i < headers.length; i++) {
+                const normalized = normalizeHeader(headers[i]).toLowerCase();
+                columnIndex[i] = HEADER_LOOKUP[normalized] || null;
+            }
+
+            return columnIndex;
+        }
+
+        function toNumber(value) {
+            if (value === null || value === undefined || value === '') return 0;
+            if (typeof value === 'number') return value;
+            const parsed = parseFloat(value);
+            return Number.isFinite(parsed) ? parsed : 0;
+        }
+
+        function parseRowFast(row, colIndex, year) {
+            const record = {};
+
+            for (let i = 0; i < colIndex.length; i++) {
+                const field = colIndex[i];
+                if (!field || i >= row.length) continue;
+
+                const value = row[i];
+                if (value === null || value === undefined || value === '') continue;
+                record[field] = value;
+            }
+
+            if (!record.district && !record.gp && !record.ward && !record.village && !record.city) return null;
+            if (!record.item && !record.sector && !record.sub_indicator_id) return null;
+
+            record.priority = parseInt(record.priority, 10) || 0;
+            record.lat = toNumber(record.lat);
+            record.lng = toNumber(record.lng);
+            record.unit_id = toNumber(record.unit_id);
+            record.sub_indicator_id = toNumber(record.sub_indicator_id);
+            record.map_id = toNumber(record.map_id);
+            record.village_ward_id = toNumber(record.village_ward_id);
+
+            record.qty = toNumber(record.qty);
+            record.qty_2030 = toNumber(record.qty_2030);
+            record.qty_2035 = toNumber(record.qty_2035);
+            record.qty_2047 = toNumber(record.qty_2047);
+
+            if (!record.qty_2030 && !record.qty_2035 && !record.qty_2047 && record.qty) {
+                if (year === '2030') record.qty_2030 = record.qty;
+                if (year === '2035') record.qty_2035 = record.qty;
+                if (year === '2047') record.qty_2047 = record.qty;
+            }
+
+            const isFinancial = TRUE_VALUES.has(record.is_financial) || TRUE_VALUES.has(String(record.is_financial).trim());
+            const isApproved = TRUE_VALUES.has(record.is_financial_approved) || TRUE_VALUES.has(String(record.is_financial_approved).trim());
+
+            record.is_financial = isFinancial;
+            record.is_financial_approved = isApproved;
+            record.funded = (isFinancial && isApproved) ? 'YES' : 'NO';
+            record.scheme = record.scheme || (record.scheme_id ? `Scheme #${record.scheme_id}` : '');
+            record.planning_year = year;
+
+            if (!record.area_type) {
+                record.area_type = (record.ward || record.city) && !record.gp && !record.village ? 'Urban' : 'Rural';
+            }
+
+            if (!record.block && record.city) {
+                record.block = record.city;
+            }
+
+            return record;
+        }
+
+        function mapRowToRecord(headers, row, year) {
+            return parseRowFast(row, buildColumnIndex(headers), year);
+        }
 
         function mapRowToRecord(headers, row) {
             const record = {};
             for (let i = 0; i < headers.length; i++) {
-                const header = headers[i];
-                const field = HEADER_MAP[header];
+                const header = normalizeHeader(headers[i]);
+                const field = HEADER_MAP[header] || HEADER_MAP[header.toLowerCase?.() ? header.toLowerCase() : header];
                 if (field) {
                     let value = row[i];
-                    if (field.startsWith('qty_') || field === 'lat' || field === 'lng' || field === 'priority') {
-                        value = value ? parseFloat(value) || 0 : 0;
+                    if (field.startsWith('qty_') || field === 'lat' || field === 'lng' || field === 'priority' || field === 'unit_id' || field === 'sub_indicator_id' || field === 'map_id' || field === 'village_ward_id') {
+                        value = value !== null && value !== undefined && value !== '' ? parseFloat(value) || 0 : 0;
+                    }
+                    if (field === 'is_financial' || field === 'is_financial_approved' || field === 'is_applicable') {
+                        const truthy = ['YES', 'yes', 'Y', 'y', 'TRUE', 'True', 'true', '1'];
+                        value = value === true || truthy.includes(String(value).trim()) || value === 1 || value === '1';
                     }
                     record[field] = value;
                 }
             }
-            return (record.district && record.block && record.gp && record.item) ? record : null;
+
+            // Support both rural and urban row shapes from Rajdhara / Excel exports.
+            const hasDistrict = !!record.district;
+            const hasItem = !!record.item;
+            const hasRuralLocation = !!record.gp || !!record.village;
+            const hasUrbanLocation = !!record.ward || !!record.city;
+            const hasAnyLocation = hasRuralLocation || hasUrbanLocation;
+
+            if (!record.area_type) {
+                record.area_type = hasUrbanLocation && !hasRuralLocation ? 'Urban' : 'Rural';
+            }
+
+            if (!record.block && record.city) {
+                record.block = record.city;
+            }
+
+            // Use whichever year quantity columns exist; keep compatibility with the existing rules engine.
+            const qty2030 = record.qty_2030 || 0;
+            const qty2035 = record.qty_2035 || 0;
+            const qty2047 = record.qty_2047 || 0;
+            record.qty_2030 = qty2030;
+            record.qty_2035 = qty2035;
+            record.qty_2047 = qty2047;
+
+            return (hasDistrict && hasAnyLocation && hasItem) ? record : null;
         }
 
         // ==================== UNIT COSTS ====================
@@ -1230,10 +1696,15 @@
             'DEFAULT': 100000
         };
 
+        const UNIT_COST_ENTRIES = Object.entries(UNIT_COSTS)
+            .filter(([key]) => key !== 'DEFAULT')
+            .map(([key, cost]) => [key.toLowerCase(), cost]);
+
         function getUnitCost(itemName) {
             const lower = (itemName || '').toLowerCase();
-            for (const [key, cost] of Object.entries(UNIT_COSTS)) {
-                if (key !== 'DEFAULT' && lower.includes(key.toLowerCase())) {
+            for (let i = 0; i < UNIT_COST_ENTRIES.length; i++) {
+                const [key, cost] = UNIT_COST_ENTRIES[i];
+                if (lower.includes(key)) {
                     return cost;
                 }
             }
@@ -1242,132 +1713,184 @@
 
         // ==================== RULES ENGINE ====================
         function runRulesEngine() {
-            document.getElementById('processingMessage').style.display = 'block';
+            const processingMessage = document.getElementById('processingMessage');
+            processingMessage.style.display = 'flex';
+            updateProcessingText(0, DATA.length);
 
-            setTimeout(() => {
-                const seenSet = new Set();
+            if (DATA.length === 0) {
+                processingMessage.style.display = 'none';
+                displayResults();
+                return;
+            }
 
-                for (let i = 0; i < DATA.length; i++) {
+            const seenSet = new Set();
+            const chunkSize = 2000;
+            let index = 0;
+
+            function processChunk() {
+                const end = Math.min(index + chunkSize, DATA.length);
+
+                for (let i = index; i < end; i++) {
                     const record = DATA[i];
                     record.index = i + 1;
                     record.status = 'ACCEPT';
                     record.status_codes = [];
                     record.reasons = [];
                     record.fastTrack = false;
-
-                    // R1 — Data Integrity
-                    if (!record.district || !record.block || !record.gp || !record.item) {
-                        record.status = 'REJECT';
-                        record.status_codes.push('R1-NULL');
-                        record.reasons.push('Required field missing: District/Block/GP/Item is blank. | अनिवार्य फ़ील्ड खाली है: जिला/ब्लॉक/ग्राम पंचायत/सब-इंडिकेटर');
-                        continue;
-                    }
-
-                    if ((record.qty_2030 || 0) == 0 && (record.qty_2035 || 0) == 0 && (record.qty_2047 || 0) == 0) {
-                        record.status = 'REJECT';
-                        record.status_codes.push('R1-ZERQTY');
-                        record.reasons.push('All target year quantities are zero. At least one planning year must have quantity > 0. | सभी लक्ष्य वर्षों की मात्रा शून्य है।');
-                        continue;
-                    }
-
-                    // R2 — GIS Validation
-                    const lat = record.lat || 0;
-                    const lng = record.lng || 0;
-
-                    if (!lat || !lng || lat == 0 || lng == 0) {
-                        record.status_codes.push('R2-NOGIS');
-                        record.reasons.push('GIS coordinates missing or zero. Field officer must submit GPS via Rajdhara mobile app. | जीपीएस निर्देशांक उपलब्ध नहीं या शून्य है।');
-                    } else if (lat < 23 || lat > 30 || lng < 69 || lng > 79) {
-                        record.status = 'REJECT';
-                        record.status_codes.push('R2-BADGIS');
-                        record.reasons.push('Coordinates outside Rajasthan geographic bounds (Lat: 23-30°N, Lng: 69-79°E). Re-capture GPS in the field. | निर्देशांक राजस्थान की भौगोलिक सीमा के बाहर हैं।');
-                        continue;
-                    }
-
-                    // R3 — Population Norm (always REVIEW for now)
-                    record.status_codes.push('R3-NODATA');
-                    record.reasons.push('Population norm check skipped — baseline data not yet available for this GP. | इस ग्राम पंचायत के लिए आधारभूत डेटा उपलब्ध नहीं है।');
-
-                    // R4 — Scheme Availability
-                    if (record.funded === 'YES' || record.funded === 'हाँ') {
-                        if (!record.scheme || record.scheme.toString().trim() === '') {
-                            record.status_codes.push('R4-NOSCM');
-                            record.reasons.push('Funding marked YES but no scheme name provided. Add scheme name in Rajdhara funded items section. | वित्तीय स्वीकृति YES है लेकिन योजना का नाम नहीं दिया गया।');
-                        }
-                    }
-
-                    // R5 — Priority Alignment
-                    const priority = record.priority || 0;
-                    if (priority == 0 && (record.qty_2030 || 0) > 0) {
-                        record.status_codes.push('R5-P0Y30');
-                        record.reasons.push('Priority level is 0 (Low) but 2030 target is set. Likely data entry error — upgrade priority to 2 if genuinely needed by 2030. | प्राथमिकता स्तर 0 (न्यूनतम) है लेकिन 2030 का लक्ष्य निर्धारित है।');
-                    }
-
-                    // R6 — Budget Ceiling
-                    const unitCost = getUnitCost(record.item);
-                    const totalBudget = ((record.qty_2030 || 0) + (record.qty_2035 || 0) + (record.qty_2047 || 0)) * unitCost;
-                    record.budget_2030 = (record.qty_2030 || 0) * unitCost;
-                    record.budget_2035 = (record.qty_2035 || 0) * unitCost;
-                    record.budget_2047 = (record.qty_2047 || 0) * unitCost;
-                    record.total_budget = totalBudget;
-
-                    if (totalBudget > 500000000) {
-                        record.status_codes.push('R6-BIGBGT');
-                        record.reasons.push('Estimated budget exceeds Rs 50 Crore — must be escalated to District Planning Committee (DPC). | अनुमानित बजट ₹50 करोड़ से अधिक है, DPC को भेजें।');
-                    }
-
-                    // R7 — Duplicate Detection
-                    const dupKey = `${record.gp}||${record.item}`;
-                    if (seenSet.has(dupKey)) {
-                        record.status_codes.push('R7-DUPL');
-                        record.reasons.push('Duplicate entry — same item already exists for this GP in this dataset. Review both records and merge quantities or confirm separate need. | यही आकांक्षा इस ग्राम पंचायत में पहले से दर्ज है।');
-                    } else {
-                        seenSet.add(dupKey);
-                    }
-
-                    // R8 — Fast-Track (override REVIEW to ACCEPT for critical sectors)
-                    const criticalSectors = ['जल', 'स्वास्थ्य', 'स्वच्छता', 'water', 'health', 'sanitation'];
-                    const sectorText = ((record.sector || record.item || '') + '').toLowerCase();
-                    if (record.status !== 'REJECT' && criticalSectors.some(s => sectorText.includes(s.toLowerCase()))) {
-                        record.status = 'ACCEPT';
-                        record.fastTrack = true;
-                        record.reasons.push('⚡ Fast-tracked: Critical sector (Water/Health/Sanitation) — accepted regardless of baseline documentation. | महत्वपूर्ण क्षेत्र (जल/स्वास्थ्य/स्वच्छता) — फास्ट-ट्रैक स्वीकृत।');
-                    }
-
-                    // Final status assignment
-                    if (record.status !== 'REJECT') {
-                        if (record.status_codes.length > 0) {
-                            record.status = 'REVIEW';
-                        }
-                        if (record.status === 'ACCEPT' && record.funded === 'YES' && record.scheme) {
-                            record.status = 'FUNDED';
-                        }
-                    }
+                    applyRules(record, seenSet);
                 }
 
-                document.getElementById('processingMessage').style.display = 'none';
-                displayResults();
-            }, 100);
+                index = end;
+                updateProcessingText(index, DATA.length);
+
+                if (index < DATA.length) {
+                    requestAnimationFrame(processChunk);
+                } else {
+                    processingMessage.style.display = 'none';
+                    displayResults();
+                }
+            }
+
+            requestAnimationFrame(processChunk);
+        }
+
+        function updateProcessingText(done, total) {
+            const percent = total > 0 ? Math.round((done / total) * 100) : 0;
+            const processingMessage = document.getElementById('processingMessage');
+            processingMessage.innerHTML = `
+                <div style="width: 100%; max-width: 440px; text-align: center; margin: 0 auto; padding: 10px 0;">
+                    <div style="width: 100%; height: 8px; border-radius: 999px; overflow: hidden; background: #1a2236; border: 1px solid #2d3f5c; margin-bottom: 12px;">
+                        <div style="height: 100%; width: ${percent}%; background: linear-gradient(90deg, #3b82f6, #6366f1); transition: width 0.1s linear;"></div>
+                    </div>
+                    <div style="color: #94a3b8; font-size: 14px; font-weight: 600;">Processing ${done.toLocaleString()} / ${total.toLocaleString()} records — ${percent}%</div>
+                </div>
+            `;
+        }
+
+        function applyRules(record, seenSet) {
+            const statusCodes = record.status_codes;
+            const reasons = record.reasons;
+            const qty2030 = record.qty_2030 || 0;
+            const qty2035 = record.qty_2035 || 0;
+            const qty2047 = record.qty_2047 || 0;
+            const hasLocation = !!(record.gp || record.ward || record.village || record.city);
+
+            // R1 — Data Integrity
+            if (!record.district || !hasLocation || !record.item) {
+                record.status = 'REJECT';
+                statusCodes.push('R1-NULL');
+                reasons.push('Required field missing: District and location (GP/Ward/Village/City) or Item is blank. | अनिवार्य फ़ील्ड खाली है: जिला/स्थान/सब-इंडिकेटर');
+                return;
+            }
+
+            if (qty2030 === 0 && qty2035 === 0 && qty2047 === 0) {
+                record.status = 'REJECT';
+                statusCodes.push('R1-ZERQTY');
+                reasons.push('All target year quantities are zero. At least one planning year must have quantity > 0. | सभी लक्ष्य वर्षों की मात्रा शून्य है।');
+                return;
+            }
+
+            // R2 — GIS Validation
+            const lat = record.lat || 0;
+            const lng = record.lng || 0;
+
+            if (!lat || !lng || lat === 0 || lng === 0) {
+                statusCodes.push('R2-NOGIS');
+                reasons.push('GIS coordinates missing or zero. Field officer must submit GPS via Rajdhara mobile app. | जीपीएस निर्देशांक उपलब्ध नहीं या शून्य है।');
+            } else if (lat < 23 || lat > 30 || lng < 69 || lng > 79) {
+                record.status = 'REJECT';
+                statusCodes.push('R2-BADGIS');
+                reasons.push('Coordinates outside Rajasthan geographic bounds (Lat: 23-30°N, Lng: 69-79°E). Re-capture GPS in the field. | निर्देशांक राजस्थान की भौगोलिक सीमा के बाहर हैं।');
+                return;
+            }
+
+            // R3 — Population Norm (always REVIEW for now)
+            statusCodes.push('R3-NODATA');
+            reasons.push('Population norm check skipped — baseline data not yet available for this GP. | इस ग्राम पंचायत के लिए आधारभूत डेटा उपलब्ध नहीं है।');
+
+            // R4 — Scheme Availability
+            if (record.funded === 'YES' || record.funded === 'हाँ') {
+                if (!record.scheme || record.scheme.toString().trim() === '') {
+                    statusCodes.push('R4-NOSCM');
+                    reasons.push('Funding marked YES but no scheme name provided. Add scheme name in Rajdhara funded items section. | वित्तीय स्वीकृति YES है लेकिन योजना का नाम नहीं दिया गया।');
+                }
+            }
+
+            // R5 — Priority Alignment
+            const priority = record.priority || 0;
+            if (priority === 0 && qty2030 > 0) {
+                statusCodes.push('R5-P0Y30');
+                reasons.push('Priority level is 0 (Low) but 2030 target is set. Likely data entry error — upgrade priority to 2 if genuinely needed by 2030. | प्राथमिकता स्तर 0 (न्यूनतम) है लेकिन 2030 का लक्ष्य निर्धारित है।');
+            }
+
+            // R6 — Budget Ceiling
+            const unitCost = getUnitCost(record.item);
+            const totalBudget = (qty2030 + qty2035 + qty2047) * unitCost;
+            record.budget_2030 = qty2030 * unitCost;
+            record.budget_2035 = qty2035 * unitCost;
+            record.budget_2047 = qty2047 * unitCost;
+            record.total_budget = totalBudget;
+
+            if (totalBudget > 500000000) {
+                statusCodes.push('R6-BIGBGT');
+                reasons.push('Estimated budget exceeds Rs 50 Crore — must be escalated to District Planning Committee (DPC). | अनुमानित बजट ₹50 करोड़ से अधिक है, DPC को भेजें।');
+            }
+
+            // R7 — Duplicate Detection
+            const dupLocation = record.gp || record.ward || record.village || record.city || '';
+            const dupKey = `${record.district}||${record.block || record.city || ''}||${dupLocation}||${record.item}`;
+            if (seenSet.has(dupKey)) {
+                statusCodes.push('R7-DUPL');
+                reasons.push('Duplicate entry — same item already exists for this GP in this dataset. Review both records and merge quantities or confirm separate need. | यही आकांक्षा इस ग्राम पंचायत में पहले से दर्ज है।');
+            } else {
+                seenSet.add(dupKey);
+            }
+
+            // R8 — Fast-Track (override REVIEW to ACCEPT for critical sectors)
+            const criticalSectors = ['जल', 'स्वास्थ्य', 'स्वच्छता', 'water', 'health', 'sanitation'];
+            const sectorText = ((record.sector || record.item || '') + '').toLowerCase();
+            if (record.status !== 'REJECT' && criticalSectors.some(sector => sectorText.includes(sector.toLowerCase()))) {
+                record.status = 'ACCEPT';
+                record.fastTrack = true;
+                reasons.push('⚡ Fast-tracked: Critical sector (Water/Health/Sanitation) — accepted regardless of baseline documentation. | महत्वपूर्ण क्षेत्र (जल/स्वास्थ्य/स्वच्छता) — फास्ट-ट्रैक स्वीकृत।');
+            }
+
+            // Final status assignment
+            if (record.status !== 'REJECT') {
+                if (statusCodes.length > 0) {
+                    record.status = 'REVIEW';
+                }
+                if (record.status === 'ACCEPT' && record.funded === 'YES' && record.scheme) {
+                    record.status = 'FUNDED';
+                }
+            }
         }
 
         // ==================== DISPLAY RESULTS ====================
         function displayResults() {
             const counts = { ACCEPT: 0, FUNDED: 0, REVIEW: 0, REJECT: 0 };
-            for (const record of DATA) {
-                counts[record.status]++;
+
+            for (let i = 0; i < DATA.length; i++) {
+                counts[DATA[i].status]++;
             }
 
             const total = DATA.length;
+            const acceptPercent = total > 0 ? ((counts.ACCEPT / total) * 100).toFixed(0) : '0';
+            const fundedPercent = total > 0 ? ((counts.FUNDED / total) * 100).toFixed(0) : '0';
+            const reviewPercent = total > 0 ? ((counts.REVIEW / total) * 100).toFixed(0) : '0';
+            const rejectPercent = total > 0 ? ((counts.REJECT / total) * 100).toFixed(0) : '0';
+
             document.getElementById('totalCount').textContent = total;
             document.getElementById('acceptCount').textContent = counts.ACCEPT;
-            document.getElementById('acceptPercent').textContent = ((counts.ACCEPT / total) * 100).toFixed(0) + '%';
+            document.getElementById('acceptPercent').textContent = acceptPercent + '%';
             document.getElementById('fundedCount').textContent = counts.FUNDED;
-            document.getElementById('fundedPercent').textContent = ((counts.FUNDED / total) * 100).toFixed(0) + '%';
+            document.getElementById('fundedPercent').textContent = fundedPercent + '%';
             document.getElementById('reviewCount').textContent = counts.REVIEW;
-            document.getElementById('reviewPercent').textContent = ((counts.REVIEW / total) * 100).toFixed(0) + '%';
+            document.getElementById('reviewPercent').textContent = reviewPercent + '%';
             document.getElementById('rejectCount').textContent = counts.REJECT;
-            document.getElementById('rejectPercent').textContent = ((counts.REJECT / total) * 100).toFixed(0) + '%';
+            document.getElementById('rejectPercent').textContent = rejectPercent + '%';
 
+            currentPages = { rules: 0, cni: 0, budget: 0 };
             document.getElementById('summaryCards').style.display = 'grid';
             document.getElementById('tabsSection').style.display = 'block';
 
@@ -1378,67 +1901,134 @@
         }
 
         // ==================== TABLE RENDERING ====================
+        function escapeHtml(value) {
+            return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function renderPagination(tab, totalRows) {
+            const container = document.getElementById(`${tab}Pagination`);
+            if (!container) return;
+
+            const currentPage = currentPages[tab] || 0;
+            const totalPages = totalRows > 0 ? Math.ceil(totalRows / PAGE_SIZE) : 1;
+            const start = totalRows === 0 ? 0 : (currentPage * PAGE_SIZE) + 1;
+            const end = totalRows === 0 ? 0 : Math.min((currentPage + 1) * PAGE_SIZE, totalRows);
+
+            container.innerHTML = `
+                <div class="pagination-info">Showing ${start.toLocaleString()}–${end.toLocaleString()} of ${totalRows.toLocaleString()} records</div>
+                <div class="pagination-controls">
+                    <button class="pagination-btn" onclick="changePage('${tab}', -1)" ${currentPage === 0 ? 'disabled' : ''}>← Prev</button>
+                    <span class="pagination-count">${totalRows === 0 ? '0 / 0' : `${currentPage + 1} / ${totalPages}`}</span>
+                    <button class="pagination-btn" onclick="changePage('${tab}', 1)" ${currentPage >= totalPages - 1 ? 'disabled' : ''}>Next →</button>
+                </div>
+            `;
+        }
+
+        function changePage(tab, direction) {
+            const totalRows = tab === 'rules' ? filteredData.length : tab === 'cni' ? cniResultsCache.length : budgetRowsCache.length;
+            const totalPages = totalRows > 0 ? Math.ceil(totalRows / PAGE_SIZE) : 1;
+            const nextPage = Math.max(0, Math.min((currentPages[tab] || 0) + direction, totalPages - 1));
+            currentPages[tab] = nextPage;
+
+            if (tab === 'rules') {
+                renderRulesTable();
+            } else if (tab === 'cni') {
+                renderCniPage();
+            } else if (tab === 'budget') {
+                renderBudgetPage();
+            }
+        }
+
         function renderRulesTable() {
             const tbody = document.getElementById('rulesTableBody');
-            tbody.innerHTML = '';
+            const totalRows = filteredData.length;
 
-            if (filteredData.length === 0) {
+            if (totalRows === 0) {
                 tbody.innerHTML = '<tr><td colspan="9" class="no-data">No records match the current filter</td></tr>';
+                renderPagination('rules', 0);
                 return;
             }
 
-            for (const record of filteredData) {
-                const row = tbody.insertRow();
-                row.innerHTML = `
-                    <td>${record.index}</td>
-                    <td>${record.district || '-'}</td>
-                    <td>${record.block || '-'}</td>
-                    <td>${record.gp || '-'}</td>
-                    <td>${record.item || '-'}</td>
-                    <td>${record.priority || '-'}</td>
-                    <td><span class="badge ${record.status.toLowerCase()}">${record.status}${record.fastTrack ? ' ⚡' : ''}</span></td>
-                    <td><small>${record.status_codes.join(', ') || '-'}</small></td>
-                    <td><span class="reason-text">${record.reasons.join(' | ') || '-'}</span></td>
+            const start = currentPages.rules * PAGE_SIZE;
+            const end = Math.min(start + PAGE_SIZE, totalRows);
+            let html = '';
+
+            for (let i = start; i < end; i++) {
+                const record = filteredData[i];
+                const reasonText = record.reasons.join(' | ') || '-';
+                const reasonDisplay = reasonText.length > 80 ? `${reasonText.slice(0, 80)}…` : reasonText;
+
+                html += `
+                    <tr>
+                        <td>${record.index}</td>
+                        <td>${escapeHtml(record.district || '-')}</td>
+                        <td>${escapeHtml(record.block || record.city || '-')}</td>
+                        <td>${escapeHtml(record.gp || record.ward || record.village || '-')}</td>
+                        <td title="${escapeHtml(record.item || '')}">${escapeHtml(record.item || '-')}</td>
+                        <td>${escapeHtml(record.priority || '-')}</td>
+                        <td><span class="badge ${record.status.toLowerCase()}">${record.status}${record.fastTrack ? ' ⚡' : ''}</span></td>
+                        <td><small>${escapeHtml(record.status_codes.join(', ') || '-')}</small></td>
+                        <td title="${escapeHtml(reasonText)}"><span class="reason-text">${escapeHtml(reasonDisplay)}</span></td>
+                    </tr>
                 `;
             }
+
+            tbody.innerHTML = html;
+            renderPagination('rules', totalRows);
         }
 
         function filterTable(status) {
             currentFilter = status;
+            currentPages.rules = 0;
             document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
-            event.target.classList.add('active');
+            if (event && event.target) {
+                event.target.classList.add('active');
+            }
 
             if (status === 'all') {
                 filteredData = DATA;
             } else {
-                filteredData = DATA.filter(r => r.status === status);
+                filteredData = DATA.filter(record => record.status === status);
             }
             renderRulesTable();
         }
 
         // ==================== CNI RANKINGS ====================
         function renderCNIRankings() {
-            const acceptedRecords = DATA.filter(r => r.status === 'ACCEPT' || r.status === 'FUNDED');
-            const gpData = {};
+            const acceptedRecords = [];
+            for (let i = 0; i < DATA.length; i++) {
+                const record = DATA[i];
+                if (record.status === 'ACCEPT' || record.status === 'FUNDED') {
+                    acceptedRecords.push(record);
+                }
+            }
 
-            for (const record of acceptedRecords) {
-                const key = `${record.district}||${record.block}||${record.gp}`;
-                if (!gpData[key]) {
-                    gpData[key] = {
+            const gpData = new Map();
+            for (let i = 0; i < acceptedRecords.length; i++) {
+                const record = acceptedRecords[i];
+                const key = `${record.district}||${record.block || record.city || ''}||${record.gp || record.ward || record.village || ''}`;
+                let entry = gpData.get(key);
+                if (!entry) {
+                    entry = {
                         district: record.district,
                         block: record.block,
-                        gp: record.gp,
+                        gp: record.gp || record.ward || record.village || '',
                         items: [],
                         funded: 0,
                         total: 0
                     };
+                    gpData.set(key, entry);
                 }
-                gpData[key].items.push(record);
-                gpData[key].total++;
-                if (record.status === 'FUNDED') gpData[key].funded++;
+                entry.items.push(record);
+                entry.total++;
+                if (record.status === 'FUNDED') entry.funded++;
             }
 
-            const cniResults = [];
             const SECTOR_WEIGHTS = {
                 'जल': 0.13, 'water': 0.13,
                 'स्वास्थ्य': 0.22, 'health': 0.22,
@@ -1452,20 +2042,27 @@
                 'शासन': 0.04, 'governance': 0.04,
                 'पर्यावरण': 0.02, 'environment': 0.02
             };
+            const sectorWeightEntries = Object.entries(SECTOR_WEIGHTS);
 
-            for (const [key, data] of Object.entries(gpData)) {
+            cniResultsCache = [];
+
+            for (const data of gpData.values()) {
                 let cni = 0;
                 const sectorCounts = {};
 
-                for (const item of data.items) {
+                for (let i = 0; i < data.items.length; i++) {
+                    const item = data.items[i];
                     const sectorText = ((item.sector || item.item || '') + '').toLowerCase();
                     let sector = 'other';
-                    for (const [sectorKey, weight] of Object.entries(SECTOR_WEIGHTS)) {
+
+                    for (let j = 0; j < sectorWeightEntries.length; j++) {
+                        const [sectorKey] = sectorWeightEntries[j];
                         if (sectorText.includes(sectorKey.toLowerCase())) {
                             sector = sectorKey;
                             break;
                         }
                     }
+
                     sectorCounts[sector] = (sectorCounts[sector] || 0) + 1;
                 }
 
@@ -1479,81 +2076,86 @@
                 if (unfundedRatio > 0.5) cni += 10;
 
                 cni = Math.min(cni, 100);
-                cniResults.push({
+                const bandLabel = cni >= 70 ? '🔴 CRITICAL' : cni >= 40 ? '🟡 MODERATE' : '🟢 ON TRACK';
+                const bandClass = cni >= 70 ? 'cni-critical' : cni >= 40 ? 'cni-moderate' : 'cni-ontrack';
+
+                cniResultsCache.push({
                     district: data.district,
                     block: data.block,
                     gp: data.gp,
                     count: data.total,
-                    cni: cni
+                    cni,
+                    bandLabel,
+                    bandClass
                 });
             }
 
-            cniResults.sort((a, b) => b.cni - a.cni);
+            cniResultsCache.sort((a, b) => b.cni - a.cni);
 
             const bandSummary = {
-                critical: cniResults.filter(r => r.cni >= 70).length,
-                moderate: cniResults.filter(r => r.cni >= 40 && r.cni < 70).length,
-                ontrack: cniResults.filter(r => r.cni < 40).length
+                critical: 0,
+                moderate: 0,
+                ontrack: 0
             };
+            renderCniPage();
+        }
 
-            document.getElementById('cniBandSummary').innerHTML = `
-                <strong>CNI Band Distribution:</strong><br>
-                🔴 Critical (70-100): ${bandSummary.critical} GPs | 
-                🟡 Moderate (40-69): ${bandSummary.moderate} GPs | 
-                🟢 On Track (0-39): ${bandSummary.ontrack} GPs
-            `;
-
+        function renderCniPage() {
             const tbody = document.getElementById('cniTableBody');
-            tbody.innerHTML = '';
+            const totalRows = cniResultsCache.length;
 
-            if (cniResults.length === 0) {
+            if (totalRows === 0) {
                 tbody.innerHTML = '<tr><td colspan="7" class="no-data">No accepted aspirations found</td></tr>';
+                renderPagination('cni', 0);
                 return;
             }
 
-            for (let i = 0; i < cniResults.length; i++) {
-                const r = cniResults[i];
-                let bandLabel = '';
-                let bandClass = '';
-                if (r.cni >= 70) {
-                    bandLabel = '🔴 CRITICAL';
-                    bandClass = 'cni-critical';
-                } else if (r.cni >= 40) {
-                    bandLabel = '🟡 MODERATE';
-                    bandClass = 'cni-moderate';
-                } else {
-                    bandLabel = '🟢 ON TRACK';
-                    bandClass = 'cni-ontrack';
-                }
+            const start = currentPages.cni * PAGE_SIZE;
+            const end = Math.min(start + PAGE_SIZE, totalRows);
+            let html = '';
 
-                const row = tbody.insertRow();
-                row.innerHTML = `
-                    <td>${i + 1}</td>
-                    <td>${r.gp}</td>
-                    <td>${r.district}</td>
-                    <td>${r.block}</td>
-                    <td>${r.count}</td>
-                    <td><strong class="${bandClass}">${r.cni.toFixed(1)}</strong></td>
-                    <td>${bandLabel}</td>
+            for (let i = start; i < end; i++) {
+                const r = cniResultsCache[i];
+                html += `
+                    <tr>
+                        <td>${i + 1}</td>
+                        <td>${escapeHtml(r.gp || '-')}</td>
+                        <td>${escapeHtml(r.district || '-')}</td>
+                        <td>${escapeHtml(r.block || '-')}</td>
+                        <td>${r.count}</td>
+                        <td><strong class="${r.bandClass}">${r.cni.toFixed(1)}</strong></td>
+                        <td>${r.bandLabel}</td>
+                    </tr>
                 `;
             }
+
+            tbody.innerHTML = html;
+            renderPagination('cni', totalRows);
         }
 
-        // ==================== BUDGET SUMMARY ====================
         function renderBudgetSummary() {
-            const acceptedRecords = DATA.filter(r => r.status === 'ACCEPT' || r.status === 'FUNDED');
+            const acceptedRecords = [];
+            for (let i = 0; i < DATA.length; i++) {
+                const record = DATA[i];
+                if (record.status === 'ACCEPT' || record.status === 'FUNDED') {
+                    acceptedRecords.push(record);
+                }
+            }
 
-            let totalBudget = 0, fundedBudget = 0;
-            const districtBudgets = {};
+            let totalBudget = 0;
+            let fundedBudget = 0;
+            const districtBudgets = new Map();
 
-            for (const record of acceptedRecords) {
+            for (let i = 0; i < acceptedRecords.length; i++) {
+                const record = acceptedRecords[i];
                 totalBudget += record.total_budget || 0;
                 if (record.status === 'FUNDED') {
                     fundedBudget += record.total_budget || 0;
                 }
 
-                if (!districtBudgets[record.district]) {
-                    districtBudgets[record.district] = {
+                let districtData = districtBudgets.get(record.district);
+                if (!districtData) {
+                    districtData = {
                         gps: new Set(),
                         count: 0,
                         budget_2030: 0,
@@ -1561,45 +2163,80 @@
                         budget_2047: 0,
                         funded: 0
                     };
+                    districtBudgets.set(record.district, districtData);
                 }
-                districtBudgets[record.district].gps.add(record.gp);
-                districtBudgets[record.district].count++;
-                districtBudgets[record.district].budget_2030 += record.budget_2030 || 0;
-                districtBudgets[record.district].budget_2035 += record.budget_2035 || 0;
-                districtBudgets[record.district].budget_2047 += record.budget_2047 || 0;
+
+                districtData.gps.add(record.gp || record.ward || record.village || record.city || '');
+                districtData.count++;
+                districtData.budget_2030 += record.budget_2030 || 0;
+                districtData.budget_2035 += record.budget_2035 || 0;
+                districtData.budget_2047 += record.budget_2047 || 0;
                 if (record.status === 'FUNDED') {
-                    districtBudgets[record.district].funded += record.total_budget || 0;
+                    districtData.funded += record.total_budget || 0;
                 }
             }
 
             const budgetGap = totalBudget - fundedBudget;
-            const fundedPercent = totalBudget > 0 ? ((fundedBudget / totalBudget) * 100).toFixed(1) : 0;
+            const fundedPercent = totalBudget > 0 ? ((fundedBudget / totalBudget) * 100).toFixed(1) : '0.0';
 
             document.getElementById('totalBudget').textContent = formatCurrency(totalBudget);
             document.getElementById('fundedBudget').textContent = formatCurrency(fundedBudget);
             document.getElementById('budgetGap').textContent = formatCurrency(budgetGap);
             document.getElementById('fundedPercent2').textContent = fundedPercent + '%';
 
-            const tbody = document.getElementById('budgetTableBody');
-            tbody.innerHTML = '';
-
-            for (const [district, data] of Object.entries(districtBudgets)) {
+            budgetRowsCache = [];
+            for (const [district, data] of districtBudgets.entries()) {
                 const totalDist = data.budget_2030 + data.budget_2035 + data.budget_2047;
                 const gapDist = totalDist - data.funded;
+                budgetRowsCache.push({
+                    district,
+                    gPs: data.gps.size,
+                    count: data.count,
+                    budget_2030: data.budget_2030,
+                    budget_2035: data.budget_2035,
+                    budget_2047: data.budget_2047,
+                    totalDist,
+                    funded: data.funded,
+                    gapDist
+                });
+            }
 
-                const row = tbody.insertRow();
-                row.innerHTML = `
-                    <td>${district}</td>
-                    <td>${data.gps.size}</td>
-                    <td>${data.count}</td>
-                    <td>${formatCurrency(data.budget_2030)}</td>
-                    <td>${formatCurrency(data.budget_2035)}</td>
-                    <td>${formatCurrency(data.budget_2047)}</td>
-                    <td><strong>${formatCurrency(totalDist)}</strong></td>
-                    <td>${formatCurrency(data.funded)}</td>
-                    <td>${formatCurrency(gapDist)}</td>
+            renderBudgetPage();
+        }
+
+        function renderBudgetPage() {
+            const tbody = document.getElementById('budgetTableBody');
+            const totalRows = budgetRowsCache.length;
+
+            if (totalRows === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" class="no-data">No budget rows available</td></tr>';
+                renderPagination('budget', 0);
+                return;
+            }
+
+            const start = currentPages.budget * PAGE_SIZE;
+            const end = Math.min(start + PAGE_SIZE, totalRows);
+            let html = '';
+
+            for (let i = start; i < end; i++) {
+                const row = budgetRowsCache[i];
+                html += `
+                    <tr>
+                        <td>${escapeHtml(row.district || '-')}</td>
+                        <td>${row.gPs}</td>
+                        <td>${row.count}</td>
+                        <td>${formatCurrency(row.budget_2030)}</td>
+                        <td>${formatCurrency(row.budget_2035)}</td>
+                        <td>${formatCurrency(row.budget_2047)}</td>
+                        <td><strong>${formatCurrency(row.totalDist)}</strong></td>
+                        <td>${formatCurrency(row.funded)}</td>
+                        <td>${formatCurrency(row.gapDist)}</td>
+                    </tr>
                 `;
             }
+
+            tbody.innerHTML = html;
+            renderPagination('budget', totalRows);
         }
 
         // ==================== UTILITIES ====================
@@ -1628,28 +2265,28 @@
         }
 
         function exportCSV(tab) {
-            let csv = '', filename = '';
+            let csv = '';
+            let filename = '';
 
             if (tab === 'rules') {
                 csv = 'Index,District,Block,GP,Item,Priority,Status,RuleCodes,Reason\n';
-                for (const record of filteredData) {
+                for (let i = 0; i < filteredData.length; i++) {
+                    const record = filteredData[i];
                     csv += `${record.index},"${record.district}","${record.block}","${record.gp}","${record.item}",${record.priority},"${record.status}","${record.status_codes.join(';')}","${record.reasons.join('|')}"\n`;
                 }
                 filename = 'rule-results.csv';
             } else if (tab === 'cni') {
-                const tbody = document.getElementById('cniTableBody');
                 csv = 'Rank,GP,District,Block,Aspirations,CNI,Band\n';
-                for (let i = 0; i < tbody.rows.length; i++) {
-                    const cells = tbody.rows[i].cells;
-                    csv += `${cells[0].textContent},"${cells[1].textContent}","${cells[2].textContent}","${cells[3].textContent}",${cells[4].textContent},${cells[5].textContent},"${cells[6].textContent}"\n`;
+                for (let i = 0; i < cniResultsCache.length; i++) {
+                    const row = cniResultsCache[i];
+                    csv += `${i + 1},"${row.gp}","${row.district}","${row.block}",${row.count},${row.cni.toFixed(1)},"${row.bandLabel}"\n`;
                 }
                 filename = 'cni-rankings.csv';
             } else {
-                const tbody = document.getElementById('budgetTableBody');
                 csv = 'District,GPs,Items,2030Budget,2035Budget,2047Budget,Total,Funded,Gap\n';
-                for (let i = 0; i < tbody.rows.length; i++) {
-                    const cells = tbody.rows[i].cells;
-                    csv += `"${cells[0].textContent}",${cells[1].textContent},${cells[2].textContent},"${cells[3].textContent}","${cells[4].textContent}","${cells[5].textContent}","${cells[6].textContent}","${cells[7].textContent}","${cells[8].textContent}"\n`;
+                for (let i = 0; i < budgetRowsCache.length; i++) {
+                    const row = budgetRowsCache[i];
+                    csv += `"${row.district}",${row.gPs},${row.count},"${formatCurrency(row.budget_2030)}","${formatCurrency(row.budget_2035)}","${formatCurrency(row.budget_2047)}","${formatCurrency(row.totalDist)}","${formatCurrency(row.funded)}","${formatCurrency(row.gapDist)}"\n`;
                 }
                 filename = 'budget-summary.csv';
             }
@@ -1660,11 +2297,5 @@
             link.download = filename;
             link.click();
         }
-
-        // Focus on first input on load
-        window.addEventListener('load', () => {
-            document.getElementById('username').focus();
-        });
     </script>
-</body>
 </html>

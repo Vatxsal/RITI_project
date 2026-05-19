@@ -10,21 +10,19 @@
  * The static portal HTML is served from /public/backend/index.html
  */
 
+"use client";
+
+import { useEffect } from 'react';
+
 export default function BackendPortalPage() {
+    useEffect(() => {
+        // perform a full redirect to the static backend HTML so it renders standalone
+        window.location.replace('/backend/index.html');
+    }, []);
+
     return (
-        <div style={{ width: '100%', height: '100vh', overflow: 'hidden' }}>
-            <iframe
-                title="Manthaan Backend Portal"
-                src="/backend/index.html"
-                style={{
-                    width: '100%',
-                    height: '100%',
-                    border: 'none',
-                    display: 'block'
-                }}
-                sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-downloads"
-                allow="camera; microphone"
-            />
+        <div style={{ padding: '2rem', color: 'var(--t1)' }}>
+            <p>Redirecting to backend portal...</p>
         </div>
     );
 }
