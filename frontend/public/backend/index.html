@@ -1317,6 +1317,15 @@
                                 </div>
 
                                 <button class="process-btn" id="processBtn" onclick="runRulesEngine()" disabled>⚡ Run Rules Engine</button>
+                                <button
+                                    class="process-btn enabled"
+                                    id="saveToSupabaseBtn"
+                                    onclick="saveResultsToSupabase()"
+                                    style="display:none; margin-top: 10px; background: linear-gradient(135deg, #10b981, #059669);"
+                                >
+                                    ☁️ Save Results to Supabase
+                                </button>
+                                <div id="supabaseSaveStatus" style="text-align:center; font-size:12px; color:#64748b; margin-top:8px; display:none;"></div>
                             </section>
 
                             <div class="summary-cards" id="summaryCards" style="display: none;">
@@ -1535,6 +1544,9 @@
         const SUPABASE_URL = "https://snumetzplgwbwovbpkaj.supabase.co";
         const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNudW1ldHpwbGd3YndvdmJwa2FqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyNjAyNTgsImV4cCI6MjA5MjgzNjI1OH0.Zo2oM1ddUI8XyfMvhDP3ixmLP2RlYjjCRgD-fnhvo2o";
         const BASELINE_CACHE_KEY = 'backend_baseline_map_v2';
+        const BATCH_SIZE_INSERT = 500;  // Supabase insert chunk size
+        let currentBatchId = null;      // Set fresh per upload session
+        let isSaving = false;
 
         function normalizeStr(str) {
             if (!str) return '';
@@ -1840,6 +1852,10 @@
             document.getElementById('summaryCards').style.display = 'none';
             document.getElementById('tabsSection').style.display = 'none';
             document.getElementById('processingMessage').style.display = 'none';
+            const saveBtn = document.getElementById('saveToSupabaseBtn');
+            if (saveBtn) saveBtn.style.display = 'none';
+            const statusDiv = document.getElementById('supabaseSaveStatus');
+            if (statusDiv) statusDiv.style.display = 'none';
             resetUploadState();
         }
 
@@ -1848,15 +1864,22 @@
             const file = event.target.files[0];
             if (!file) return;
 
+            // New upload session always gets a fresh batch ID.
+            currentBatchId = `batch_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
             const year = event.target.dataset.year || '2030';
             const statusEl = document.getElementById(`status${year}`);
             const fileNameEl = document.getElementById(`fileName${year}`);
             const cardEl = document.getElementById(`uploadCard${year}`);
             const processBtn = document.getElementById('processBtn');
+            const saveBtn = document.getElementById('saveToSupabaseBtn');
+            const statusDiv = document.getElementById('supabaseSaveStatus');
 
             if (statusEl) statusEl.textContent = 'Loading...';
             if (fileNameEl) fileNameEl.textContent = file.name;
             if (cardEl) cardEl.classList.add('loaded');
+            if (saveBtn) saveBtn.style.display = 'none';
+            if (statusDiv) statusDiv.style.display = 'none';
 
             parseFile(file, year)
                 .then(async (records) => {
@@ -2407,6 +2430,193 @@
             renderRulesTable();
             renderCNIRankings();
             renderBudgetSummary();
+
+            const saveBtn = document.getElementById('saveToSupabaseBtn');
+            if (saveBtn) {
+                const actionableCount = DATA.filter(r => r.status !== 'REJECT').length;
+                saveBtn.style.display = 'block';
+                saveBtn.disabled = actionableCount === 0;
+                saveBtn.textContent = `☁️ Save ${actionableCount.toLocaleString()} Records to Supabase`;
+                saveBtn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+            }
+        }
+
+        async function saveResultsToSupabase() {
+            if (isSaving) return;
+            isSaving = true;
+
+            // Only save ACCEPT, FUNDED, REVIEW — skip REJECT
+            const recordsToSave = DATA.filter(r =>
+                r.status === 'ACCEPT' || r.status === 'FUNDED' || r.status === 'REVIEW'
+            );
+
+            if (recordsToSave.length === 0) {
+                showToast('No accepted/reviewed records to save.');
+                isSaving = false;
+                return;
+            }
+
+            // Show saving progress
+            const saveBtn = document.getElementById('saveToSupabaseBtn');
+            if (saveBtn) {
+                saveBtn.disabled = true;
+                saveBtn.textContent = `⏳ Saving 0 / ${recordsToSave.length}...`;
+            }
+
+            try {
+                // STEP A: Delete all existing records for the same planning years being uploaded
+                // This is the fast replace strategy — delete by planning_year first
+                const yearsInThisUpload = [...new Set(recordsToSave.map(r => r.planning_year).filter(Boolean))];
+
+                for (const year of yearsInThisUpload) {
+                    const deleteRes = await fetch(
+                        `${SUPABASE_URL}/rest/v1/aspirations?planning_year=eq.${year}`,
+                        {
+                            method: 'DELETE',
+                            headers: {
+                                'apikey': SUPABASE_KEY,
+                                'Authorization': `Bearer ${SUPABASE_KEY}`,
+                                'Content-Type': 'application/json'
+                            }
+                        }
+                    );
+                    if (!deleteRes.ok) {
+                        const err = await deleteRes.text();
+                        throw new Error(`Delete failed for year ${year}: ${err}`);
+                    }
+                }
+
+                console.log(`Deleted existing records for years: ${yearsInThisUpload.join(', ')}`);
+
+                // STEP B: Insert in chunks of BATCH_SIZE_INSERT
+                let saved = 0;
+                const chunks = [];
+                for (let i = 0; i < recordsToSave.length; i += BATCH_SIZE_INSERT) {
+                    chunks.push(recordsToSave.slice(i, i + BATCH_SIZE_INSERT));
+                }
+
+                for (let ci = 0; ci < chunks.length; ci++) {
+                    const chunk = chunks[ci];
+                    const rows = chunk.map(r => ({
+                        aspiration_id:         r.aspiration_id || null,
+                        rajdhara_ref:          r.rajdhara_ref || null,
+                        planning_year:         r.planning_year || '2047',
+                        upload_batch_id:       currentBatchId,
+
+                        district:              r.district || null,
+                        block:                 r.block || null,
+                        gram_panchayat:        r.gp || null,
+                        village:               r.village || null,
+                        ulb:                   r.ulb || null,
+                        ward:                  r.ward || null,
+                        city:                  r.city || null,
+                        area_type:             r.area_type || 'Rural',
+
+                        sector:                r.sector || null,
+                        dept:                  r.dept || null,
+                        item:                  r.item || '',
+                        priority:              r.priority || 0,
+
+                        qty_2030:              r.qty_2030 || 0,
+                        qty_2035:              r.qty_2035 || 0,
+                        qty_2047:              r.qty_2047 || 0,
+
+                        funded:                r.funded || 'NO',
+                        scheme:                r.scheme || null,
+                        is_financial:          r.is_financial || false,
+                        is_financial_approved: r.is_financial_approved || false,
+
+                        lat:                   r.lat || null,
+                        lng:                   r.lng || null,
+                        landmark:              r.landmark || null,
+                        address_eng:           r.address_eng || null,
+
+                        status:                r.status,
+                        status_codes:          r.status_codes || [],
+                        reasons:               r.reasons || [],
+                        fast_track:            r.fastTrack || false,
+
+                        budget_2030:           r.budget_2030 || 0,
+                        budget_2035:           r.budget_2035 || 0,
+                        budget_2047:           r.budget_2047 || 0,
+                        total_budget:          r.total_budget || 0,
+
+                        baseline_population:   findBaselineEntry(r)?.population || 0,
+                        zone:                  getZone(r.district)
+                    }));
+
+                    const insertRes = await fetch(
+                        `${SUPABASE_URL}/rest/v1/aspirations`,
+                        {
+                            method: 'POST',
+                            headers: {
+                                'apikey': SUPABASE_KEY,
+                                'Authorization': `Bearer ${SUPABASE_KEY}`,
+                                'Content-Type': 'application/json',
+                                'Prefer': 'return=minimal'
+                            },
+                            body: JSON.stringify(rows)
+                        }
+                    );
+
+                    if (!insertRes.ok) {
+                        const err = await insertRes.text();
+                        throw new Error(`Insert chunk ${ci + 1} failed: ${err}`);
+                    }
+
+                    saved += chunk.length;
+                    if (saveBtn) {
+                        saveBtn.textContent = `⏳ Saving ${saved.toLocaleString()} / ${recordsToSave.length.toLocaleString()}...`;
+                    }
+                }
+
+                // STEP C: Save batch metadata
+                const counts = { ACCEPT: 0, FUNDED: 0, REVIEW: 0, REJECT: 0 };
+                DATA.forEach(r => counts[r.status]++);
+                const totalBudgetSum = DATA.reduce((a, r) => a + (r.total_budget || 0), 0);
+
+                await fetch(`${SUPABASE_URL}/rest/v1/aspiration_batches`, {
+                    method: 'POST',
+                    headers: {
+                        'apikey': SUPABASE_KEY,
+                        'Authorization': `Bearer ${SUPABASE_KEY}`,
+                        'Content-Type': 'application/json',
+                        'Prefer': 'return=minimal'
+                    },
+                    body: JSON.stringify([{
+                        batch_id:       currentBatchId,
+                        planning_years: yearsInThisUpload,
+                        total_records:  DATA.length,
+                        accept_count:   counts.ACCEPT,
+                        funded_count:   counts.FUNDED,
+                        review_count:   counts.REVIEW,
+                        reject_count:   counts.REJECT,
+                        total_budget:   totalBudgetSum,
+                        notes:          `Uploaded ${new Date().toLocaleString('en-IN')}`
+                    }])
+                });
+
+                showToast(`✅ ${saved.toLocaleString()} records saved to Supabase successfully!`);
+                if (saveBtn) {
+                    saveBtn.textContent = `✅ Saved ${saved.toLocaleString()} records`;
+                    saveBtn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+                }
+
+                const statusDiv = document.getElementById('supabaseSaveStatus');
+                if (statusDiv) {
+                    statusDiv.style.display = 'block';
+                    statusDiv.textContent = `Last saved: ${new Date().toLocaleString('en-IN')} · Batch: ${currentBatchId}`;
+                }
+            } catch (err) {
+                console.error('Supabase save error:', err);
+                showToast(`❌ Save failed: ${err.message}`, true);
+                if (saveBtn) {
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = '☁️ Save to Supabase';
+                }
+            } finally {
+                isSaving = false;
+            }
         }
 
         // ==================== TABLE RENDERING ====================
