@@ -235,8 +235,9 @@ export default function ReportsPage() {
       try {
         let aspQuery = supabase
           .from('aspirations')
-          .select('district, block, gram_panchayat, ward, item, sector, dept, priority, qty_2030, qty_2035, qty_2047, status, total_budget, scheme, planning_year, fast_track')
+          .select('district, block, gram_panchayat, village, ulb, ward, city, area_type, item, sector, dept, priority, qty_2030, qty_2035, qty_2047, status, total_budget, scheme, planning_year, fast_track')
           .in('status', ['ACCEPT', 'FUNDED', 'REVIEW'])
+          .eq('area_type', 'Rural')
           .limit(1000);
 
         aspQuery = aspQuery.ilike('district', scope.district);
@@ -435,19 +436,28 @@ export default function ReportsPage() {
     try {
       let aspQuery = supabase
         .from('aspirations')
-        .select('district, block, gram_panchayat, ward, item, sector, dept, priority, qty_2030, qty_2035, qty_2047, status, total_budget, scheme, planning_year, fast_track')
+        .select('district, block, gram_panchayat, village, ulb, ward, city, area_type, item, sector, dept, priority, qty_2030, qty_2035, qty_2047, status, total_budget, scheme, planning_year, fast_track')
         .in('status', ['ACCEPT', 'FUNDED', 'REVIEW'])
+        .eq('area_type', 'Urban')
         .limit(1000);
 
       aspQuery = aspQuery.ilike('district', scope.district);
+      if (scope.ulb) aspQuery = aspQuery.ilike('city', scope.ulb);
       if (scope.wardName) aspQuery = aspQuery.ilike('ward', scope.wardName);
 
       const { data: aspData, error: aspError } = await aspQuery;
-      console.log(`[Aspirations] District: ${scope.district} | Found: ${aspData?.length || 0} rows | Error: ${aspError?.message || 'none'}`);
+      const rawData = aspData || [];
       if (aspError) {
         console.warn('[Aspirations] Fetch failed:', aspError.message);
       }
-      aspirationsData = aspData || [];
+
+      const filtered = rawData.filter((row: any) => {
+        const rowAreaType = String(row.area_type || '').toLowerCase().trim();
+        return rowAreaType === 'urban' || !!row.city || !!row.ward;
+      });
+
+      aspirationsData = filtered;
+      console.log(`[Urban Aspirations] scope.ulb="${scope.ulb}" scope.wardName="${scope.wardName}" | Final count: ${aspirationsData.length} | Sample city values:`, aspirationsData.slice(0, 3).map((a: any) => ({ city: a.city, ward: a.ward, area_type: a.area_type })));
     } catch (err) {
       console.warn('[Aspirations] Fetch failed:', err);
       aspirationsData = [];
@@ -1187,14 +1197,26 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
           <td style="text-align:center;">
             <span class="priority-badge ${Number(aspiration.priority) <= 2 ? 'p1' : 'p2'}">P-${escapeHtml(aspiration.priority || '—')}</span>
           </td>
-          <td style="text-align:center; font-family:'Inter',sans-serif; font-weight:700;">${escapeHtml(aspiration.gram_panchayat || aspiration.gp || aspiration.ward || '—')}</td>
+          <td style="text-align:center; font-family:'Inter',sans-serif; font-weight:700; font-size:11px; max-width:80px; word-break:break-word;">
+            ${escapeHtml(
+              aspiration.area_type === 'Urban'
+                ? (aspiration.ward || aspiration.city || '—')
+                : (aspiration.gram_panchayat || '—')
+            )}
+          </td>
           <td style="font-family:'Inter',sans-serif;">${escapeHtml(aspiration.qty_2030 ?? '—')}</td>
           <td style="font-family:'Inter',sans-serif;">${escapeHtml(aspiration.qty_2035 ?? '—')}</td>
           <td style="font-family:'Inter',sans-serif;">${escapeHtml(aspiration.qty_2047 ?? '—')}</td>
           <td>
             <span class="status-badge ${aspiration.status === 'FUNDED' ? 'active' : aspiration.status === 'ACCEPT' ? 'ready' : 'proposal'}">${escapeHtml(aspiration.status || '—')}</span>
             <div style="color:#1a1a2e; font-size:11px; line-height:1.5; font-family:'Noto Sans Devanagari',sans-serif; margin-top:4px;">
-              ${escapeHtml([aspiration.gram_panchayat ? `${aspiration.gram_panchayat} में` : '', aspiration.scheme ? `योजना: ${aspiration.scheme}` : '', aspiration.fast_track ? 'Fast-track' : ''].filter(Boolean).join(' · '))}
+              ${escapeHtml([
+                aspiration.area_type === 'Urban'
+                  ? (aspiration.ward ? `${aspiration.ward} वार्ड में` : aspiration.city ? `${aspiration.city} में` : '')
+                  : (aspiration.gram_panchayat ? `${aspiration.gram_panchayat} में` : aspiration.village ? `${aspiration.village} में` : ''),
+                aspiration.scheme ? `योजना: ${aspiration.scheme}` : '',
+                aspiration.fast_track ? 'Fast-track' : ''
+              ].filter(Boolean).join(' · '))}
             </div>
             ${aspiration.scheme ? `<div style="margin-top:4px;"><span class="scheme-tag">${escapeHtml(aspiration.scheme)}</span></div>` : ''}
             ${aspiration.fast_track ? `<div style="margin-top:2px;"><span class="scheme-tag" style="background:#92400e; color:#fff;">⚡ Fast-track</span></div>` : ''}
