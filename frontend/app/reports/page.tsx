@@ -1684,9 +1684,9 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
   .section-subtitle { color: var(--report-muted); font-size: 13px; margin-top: 6px; font-weight: 600; font-family: 'Inter', sans-serif; }
   .section-copy { color: #334155; font-size: 14px; line-height: 1.85; margin-top: 14px; font-family: 'Noto Sans Devanagari', sans-serif; }
   .kpi-grid-5 { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin: 18px 0 18px; }
-  .kpi-grid-5 .kpi-pill { min-width: 0; width: 100%; padding: 10px 10px; overflow: hidden; }
-  .kpi-grid-5 .kpi-pill-value { font-size: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .kpi-grid-5 .kpi-pill-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .kpi-grid-5 .kpi-pill { min-width: 0; width: 100%; padding: 10px 8px; overflow: visible; }
+  .kpi-grid-5 .kpi-pill-value { font-size: 15px; overflow: visible; text-overflow: unset; white-space: normal; word-break: break-word; line-height: 1.3; }
+  .kpi-grid-5 .kpi-pill-sub { overflow: visible; text-overflow: unset; white-space: normal; word-break: break-word; font-size: 9px; }
   .kpi-grid-4x2 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 16px; }
   .metric-card { background: var(--report-card-bg); border: 1px solid var(--report-border); border-radius: 10px; padding: 14px 12px; min-height: 112px; overflow: hidden; }
   .metric-value { font-size: 23px; font-weight: 900; color: var(--report-navy); line-height: 1.1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1712,6 +1712,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
     grid-template-columns: 140px 1fr;
     gap: 20px;
     align-items: end;
+    overflow: visible;
   }
   .group-blue { background: #1e3a5f; }
   .group-rust { background: #7c3a1e; }
@@ -1745,10 +1746,177 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
   .status-badge.selected { background: #dbeafe; color: #1d4ed8; }
   .status-badge.proposal { background: #e5e7eb; color: #374151; }
   .status-badge.concept { background: #f3f4f6; color: #6b7280; }
-  @media print {
-    body { background: white; }
-    .report-page { box-shadow: none; border: none; margin: 0; }
-  }
+        @media print {
+          @page {
+            size: A4 portrait;
+            margin: 10mm 12mm;
+          }
+
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+          }
+
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: white !important;
+            width: 100% !important;
+            overflow: visible !important;
+          }
+
+          /* Each report-page section = one PDF page */
+          .report-page {
+            width: 100% !important;
+            min-height: unset !important;
+            max-height: unset !important;
+            overflow: visible !important;
+            /* Remove forced margin between pages — let content flow */
+            margin: 0 0 24px 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            box-shadow: none !important;
+            border-radius: 0 !important;
+            /* No forced page break — let browser decide when page is full */
+            page-break-after: auto !important;
+            break-after: auto !important;
+            page-break-inside: auto !important;
+            break-inside: auto !important;
+            display: block !important;
+          }
+
+          .report-page:last-child {
+            margin-bottom: 0 !important;
+          }
+
+          /* Only force a page break BEFORE specific pages — cover always starts fresh */
+          .report-page.cover-page {
+            page-break-before: auto !important;
+            break-before: auto !important;
+          }
+
+          /* Each thematic group starts on a new page */
+          .report-page.thematic-page {
+            page-break-before: always !important;
+            break-before: always !important;
+          }
+
+          /* Strategic page starts on a new page */
+          .report-page.strategic-page {
+            page-break-before: always !important;
+            break-before: always !important;
+          }
+
+          /* Allow tables and grids to break across printed pages if needed */
+          .aspirations-table,
+          .strategic-table,
+          .scheme-table {
+            page-break-inside: auto !important;
+            break-inside: auto !important;
+          }
+
+          /* Keep individual table rows together */
+          tr {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+
+          /* Keep these compact elements from splitting */
+          .kpi-pill,
+          .metric-card,
+          .stat-card,
+          .info-panel,
+          .featured-box,
+          .summary-box,
+          .bottom-note-box,
+          .master-summary,
+          .group-band,
+          .kpi-grid-4x2,
+          .kpi-grid-5,
+          .cover-grid {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+
+          /* Keep page header with its content */
+          .page-header {
+            page-break-after: avoid !important;
+            break-after: avoid !important;
+          }
+
+          /* Keep group band header with its metric cards */
+          .group-band {
+            page-break-after: avoid !important;
+            break-after: avoid !important;
+          }
+
+          /* Fix group band negative margins in print — they cause left-side clipping */
+          .group-band {
+            margin: 0 0 22px 0 !important;
+            padding: 20px 24px 18px !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
+            display: grid !important;
+            grid-template-columns: 100px 1fr !important;
+            gap: 16px !important;
+            overflow: visible !important;
+          }
+
+          .group-band-number {
+            font-size: 48px !important;
+            line-height: 1 !important;
+            overflow: visible !important;
+            white-space: nowrap !important;
+          }
+
+          .group-band-left {
+            overflow: visible !important;
+            min-width: 0 !important;
+          }
+
+          .group-band-body {
+            overflow: visible !important;
+            min-width: 0 !important;
+          }
+
+          .group-band-title {
+            font-size: 26px !important;
+            line-height: 1.1 !important;
+          }
+
+          /* Keep section heading with at least first row of content below */
+          .group-section-head,
+          .asp-head {
+            page-break-after: avoid !important;
+            break-after: avoid !important;
+          }
+
+          /* Force background colors to print */
+          .group-blue { background: #1e3a5f !important; color: white !important; }
+          .group-rust { background: #7c3a1e !important; color: white !important; }
+          .group-teal { background: #1a4a3a !important; color: white !important; }
+          .group-brown { background: #5c3a1a !important; color: white !important; }
+          .featured-box { background: #1a2744 !important; color: white !important; }
+          .summary-box { background: #0f1f3d !important; color: white !important; }
+          .master-summary { background: #1a2744 !important; color: white !important; }
+          .master-summary-head { background: #e85d04 !important; color: white !important; }
+          .vr-logo { background: #1a2744 !important; color: white !important; }
+          .priority-badge.p1 { background: #e85d04 !important; color: white !important; }
+          .priority-badge.p2 { border: 2px solid #e85d04 !important; color: #e85d04 !important; background: transparent !important; }
+          .scheme-tag { background: #1e293b !important; color: #94a3b8 !important; }
+          .status-badge.active { background: #dcfce7 !important; color: #166534 !important; }
+          .status-badge.ready { background: #fef3c7 !important; color: #92400e !important; }
+          .status-badge.selected { background: #dbeafe !important; color: #1d4ed8 !important; }
+          .status-badge.proposal { background: #e5e7eb !important; color: #374151 !important; }
+          .cover-kicker { color: #e85d04 !important; }
+          .section-kicker { color: #e85d04 !important; }
+          .panel-title { color: #e85d04 !important; }
+          .group-band-number { color: white !important; }
+          .group-band-title { color: white !important; }
+          .group-band-subtitle { color: white !important; }
+          .group-sector-chip { background: rgba(255,255,255,0.14) !important; color: white !important; }
+        }
 </style>
 </head>
 <body>
@@ -2655,10 +2823,18 @@ ${closingHtml}
                 Open in New Tab
               </button>
               <button 
-                onClick={() => {
-                  reportFrameRef.current?.contentWindow?.focus();
-                  reportFrameRef.current?.contentWindow?.print();
-                }}
+                  onClick={() => {
+                    const iframe = reportFrameRef.current;
+                    if (!iframe || !iframe.contentWindow) return;
+
+                    // Inject print-trigger script into iframe to ensure proper sizing
+                    iframe.contentWindow.focus();
+
+                    // Small delay to ensure iframe is fully rendered before print dialog
+                    setTimeout(() => {
+                      iframe.contentWindow?.print();
+                    }, 300);
+                  }}
                 style={{ padding: '5px 15px', background: '#E85D04', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}
               >
                 Download as PDF
@@ -2677,6 +2853,14 @@ ${closingHtml}
             srcDoc={generatedHtml} 
             style={{ flex: 1, border: 'none', background: 'white' }} 
             title="Generated Report"
+                  onLoad={() => {
+                    // Ensure iframe content is accessible after load
+                    try {
+                      reportFrameRef.current?.contentWindow?.document?.body;
+                    } catch (e) {
+                      console.warn('iframe not ready yet');
+                    }
+                  }}
           />
         </div>
       )}
