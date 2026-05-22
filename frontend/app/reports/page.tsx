@@ -443,7 +443,10 @@ export default function ReportsPage() {
 
       aspQuery = aspQuery.ilike('district', scope.district);
       if (scope.ulb) aspQuery = aspQuery.ilike('city', scope.ulb);
-      if (scope.wardName) aspQuery = aspQuery.ilike('ward', scope.wardName);
+      if (scope.wardName) {
+        const wardNum = scope.wardName.replace(/[^0-9]/g, '').replace(/^0+/, '') || scope.wardName;
+        aspQuery = aspQuery.ilike('ward', `%${wardNum}%`);
+      }
 
       const { data: aspData, error: aspError } = await aspQuery;
       const rawData = aspData || [];
@@ -451,13 +454,8 @@ export default function ReportsPage() {
         console.warn('[Aspirations] Fetch failed:', aspError.message);
       }
 
-      const filtered = rawData.filter((row: any) => {
-        const rowAreaType = String(row.area_type || '').toLowerCase().trim();
-        return rowAreaType === 'urban' || !!row.city || !!row.ward;
-      });
-
-      aspirationsData = filtered;
-      console.log(`[Urban Aspirations] scope.ulb="${scope.ulb}" scope.wardName="${scope.wardName}" | Final count: ${aspirationsData.length} | Sample city values:`, aspirationsData.slice(0, 3).map((a: any) => ({ city: a.city, ward: a.ward, area_type: a.area_type })));
+      aspirationsData = rawData; // area_type = 'Urban' filter already applied at DB level
+      console.log(`[Urban Aspirations] District: ${scope.district} | city: ${scope.ulb || 'all'} | ward: ${scope.wardName || 'all'} | wardNum used: ${scope.wardName ? scope.wardName.replace(/[^0-9]/g, '').replace(/^0+/, '') : 'none'} | Found: ${aspirationsData.length} rows`);
     } catch (err) {
       console.warn('[Aspirations] Fetch failed:', err);
       aspirationsData = [];
@@ -1044,10 +1042,17 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
       </div>
 
       <div class="cover-grid">
-        ${statCard('रणनीतिक स्थिति', `${fmtPct(isRural ? d.water?.ruralFhtcAvg : d.water?.urbanFhtcAvg)}`, '#1e3a5f', isRural ? `Rural FHTC · ${fmt(d.water?.gpsBelow30Fhtc || 0)} GPs below 30%` : `Urban FHTC · ${fmt(d.meta?.ulbCount || 0)} ULBs`)}
-        ${statCard('कृषि स्थिति', `${fmtPct(d.agriculture?.irrigationPct)}`, '#16a34a', `${fmtLakh(d.agriculture?.totalFarmers || 0)} farmers · ${fmtLakh(d.agriculture?.kccHolders || 0)} KCC`)}
-        ${statCard('पशुधन एवं डेयरी', `${fmtLakh(totalLivestock)}`, '#e85d04', `${fmt(d.dairy?.milkCenters || 0)} milk collection centres · ${fmtLakh(dailyMilkLpd, true)} LPD`)}
-        ${statCard(isRural ? 'ग्राम पंचायतें' : 'वार्ड', isRural ? fmt(d.meta?.gpCount || 0) : fmt(d.meta?.wardCount || 0), '#1a2744', isRural ? 'Selected rural units' : 'Selected urban units')}
+              ${isRural ? `
+                ${statCard('रणनीतिक स्थिति', `${fmtPct(d.water?.ruralFhtcAvg)}`, '#1e3a5f', `Rural FHTC · ${fmt(d.water?.gpsBelow30Fhtc || 0)} GPs below 30%`)}
+                ${statCard('कृषि स्थिति', `${fmtPct(d.agriculture?.irrigationPct)}`, '#16a34a', `${fmtLakh(d.agriculture?.totalFarmers || 0)} farmers · ${fmtLakh(d.agriculture?.kccHolders || 0)} KCC`)}
+                ${statCard('पशुधन एवं डेयरी', `${fmtLakh(totalLivestock)}`, '#e85d04', `${fmt(d.dairy?.milkCenters || 0)} milk collection centres · ${fmtLakh(dailyMilkLpd, true)} LPD`)}
+                ${statCard('ग्राम पंचायतें', fmt(d.meta?.gpCount || 0), '#1a2744', 'Selected rural units')}
+              ` : `
+                ${statCard('जल आपूर्ति स्थिति', `${fmtPct(d.water?.urbanFhtcAvg)}`, '#1e3a5f', `Groundwater: ${fmtKm(d.water?.groundwaterDepth || 0, 1)} depth · ${fmt(d.water?.overheadTanks || 0)} overhead tanks`)}
+                ${statCard('स्वास्थ्य सेवाएं', `${fmt(Number(d.health?.allopathicCenters || 0) + Number(d.health?.ayushCenters || 0) + Number(d.health?.privateHealthCenters || 0))}`, '#16a34a', `${fmtLakh(d.health?.urbanAyushman || d.health?.ayushmanBen || 0)} Ayushman · ${fmt(d.health?.healthBeds || 0)} beds`)}
+                ${statCard('शहरी अर्थव्यवस्था', `${fmt(Number(d.economy?.largeIndustrialUnits || 0) + Number(d.economy?.smallScaleIndustries || 0))}`, '#e85d04', `${fmt(d.economy?.activeShgs || 0)} SHG · ${fmt(d.economy?.artisans || 0)} कारीगर`)}
+                ${statCard('वार्ड / नगर निकाय', `${fmt(d.meta?.wardCount || 0)} · ${fmt(d.meta?.ulbCount || 0)}`, '#1a2744', 'Selected urban units')}
+              `}
       </div>
 
       <div class="footer-line">तैयार किया — RITI · राजस्थान इंस्टिट्यूट फॉर ट्रांसफॉर्मेशन एंड इनोवेशन | दिनांक: ${escapeHtml(reportDateLabel)} · योजना चक्रः FY 2026-27</div>
