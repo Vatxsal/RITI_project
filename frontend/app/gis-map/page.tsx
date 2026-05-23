@@ -4,7 +4,7 @@ import Map from '@/components/dashboard/Map';
 
 export default function GISPage() {
   return (
-    <div className="space-y-4">
+    <div style={{ background: '#f8fafc', minHeight: '100vh', padding: 24, color: '#1a2744' }}>
       <div>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 3 }}>
           <div className="pg-t">GIS Planning Map — All Districts</div>
@@ -12,7 +12,7 @@ export default function GISPage() {
         <div className="pg-s">41 districts from the live dashboard cache · circle size = population · colour = composite score (green 55+, amber 45-54, red below 45) · click marker for 11-sector detail</div>
       </div>
 
-      <div className="card">
+      <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.06)', padding: 20 }}>
         <Map />
       </div>
 

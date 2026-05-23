@@ -2595,7 +2595,7 @@ ${closingHtml}
   }
 
   return (
-    <div>
+    <div style={{ paddingLeft: '24px' }}>
       <div className="pg-t">Report Library</div>
       <div className="pg-s">Generate AI-powered planning intelligence briefs — select District, Block, and GP or Ward level</div>
       

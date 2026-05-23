@@ -30,6 +30,13 @@ const KPI_INDEX: Record<string, number> = {
   env: 10,
 };
 
+const LIGHT_CARD_STYLE = {
+  background: '#ffffff',
+  border: '1px solid #e2e8f0',
+  borderRadius: 12,
+  boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+} as const;
+
 function buildSectorTemplate(dashboard: DashboardKpiPayload, sectorKey: string, sectorLabel: string, sorted: DashboardKpiPayload['districtScores']) : SectorTemplate {
   const score = Number(dashboard.radarScores[sectorKey as keyof typeof dashboard.radarScores] ?? 0);
   const topKpi = dashboard.topKPIs[KPI_INDEX[sectorKey] ?? 0];
@@ -89,7 +96,7 @@ export default function SectorPage() {
   const template = buildSectorTemplate(dashboard, sector.v, sector.label, sorted);
 
   return (
-    <div className="space-y-4">
+    <div style={{ background: '#f8fafc', minHeight: '100vh', padding: 24, color: '#1a2744' }}>
       <div>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 3 }}>
           <div className="pg-t">{sector.label}</div>
@@ -99,34 +106,22 @@ export default function SectorPage() {
       </div>
 
       {/* Area Type Filter */}
-      <div className="flex gap-2">
+      <div style={{ display: 'inline-flex', gap: 4, padding: 4, background: '#f1f5f9', borderRadius: 10 }}>
         <button
           onClick={() => setAreaType('all')}
-          className={`px-4 py-2 rounded-lg font-medium transition-all ${
-            areaType === 'all'
-              ? 'bg-blue-600 text-white shadow-lg'
-              : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-          }`}
+          style={{ border: 'none', borderRadius: 8, padding: '8px 20px', background: areaType === 'all' ? '#ffffff' : 'transparent', color: areaType === 'all' ? '#1a2744' : '#64748b', boxShadow: areaType === 'all' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', fontWeight: areaType === 'all' ? 700 : 600, cursor: 'pointer' }}
         >
           ALL (Rural + Urban)
         </button>
         <button
           onClick={() => setAreaType('rural')}
-          className={`px-4 py-2 rounded-lg font-medium transition-all ${
-            areaType === 'rural'
-              ? 'bg-green-600 text-white shadow-lg'
-              : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-          }`}
+          style={{ border: 'none', borderRadius: 8, padding: '8px 20px', background: areaType === 'rural' ? '#ffffff' : 'transparent', color: areaType === 'rural' ? '#1a2744' : '#64748b', boxShadow: areaType === 'rural' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', fontWeight: areaType === 'rural' ? 700 : 600, cursor: 'pointer' }}
         >
           Rural Only
         </button>
         <button
           onClick={() => setAreaType('urban')}
-          className={`px-4 py-2 rounded-lg font-medium transition-all ${
-            areaType === 'urban'
-              ? 'bg-orange-600 text-white shadow-lg'
-              : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-          }`}
+          style={{ border: 'none', borderRadius: 8, padding: '8px 20px', background: areaType === 'urban' ? '#ffffff' : 'transparent', color: areaType === 'urban' ? '#1a2744' : '#64748b', boxShadow: areaType === 'urban' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', fontWeight: areaType === 'urban' ? 700 : 600, cursor: 'pointer' }}
         >
           Urban Only
         </button>
@@ -147,12 +142,12 @@ export default function SectorPage() {
 
       <div className="g2">
         <div>
-          <div className="card">
+          <div style={{ ...LIGHT_CARD_STYLE, padding: 20, marginBottom: 12 }}>
             <div className="ct">{sector.label} score — all districts</div>
             <div className="cs">State average: {avg}/100 · hover bars for district detail · click bar to open district panel</div>
             <SectorDistributionChart labels={labels} data={values} />
           </div>
-          <div className="card">
+          <div style={{ ...LIGHT_CARD_STYLE, padding: 20, marginBottom: 12 }}>
             <div className="ct">5 districts needing most attention</div>
             <div className="space-y-1 mt-2">
               {bottom5.map((d) => {
@@ -173,7 +168,7 @@ export default function SectorPage() {
         </div>
 
         <div>
-          <div className="card">
+          <div style={{ ...LIGHT_CARD_STYLE, padding: 20, marginBottom: 12 }}>
             <div className="ct">5 leading districts</div>
             <div className="space-y-1 mt-2">
               {top5.map((d) => {
@@ -192,7 +187,7 @@ export default function SectorPage() {
             </div>
           </div>
 
-          <div className="card">
+          <div style={{ ...LIGHT_CARD_STYLE, padding: 20, marginBottom: 12 }}>
             <div className="ct">VR 2047 Planning Insights</div>
             <div className="cs">RITI Intelligence · click for deep dive</div>
             <div className="space-y-2 mt-2">

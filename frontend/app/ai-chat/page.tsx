@@ -80,8 +80,15 @@ export default function AIChatPage() {
     'GP level development brief — Berka 1508'
   ];
 
+  const lightCardStyle = {
+    background: '#ffffff',
+    border: '1px solid #e2e8f0',
+    borderRadius: 12,
+    boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+  } as const;
+
   return (
-    <div className="ai-chat-page">
+    <div style={{ background: '#f8fafc', minHeight: '100vh', padding: 24, color: '#1a2744' }}>
       <div>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 3 }}>
           <div className="pg-t">Ask Manthaan OS Planning Intelligence</div>
@@ -90,17 +97,17 @@ export default function AIChatPage() {
         <div className="pg-s">Ask any planning question or request a structured brief for district, GP, ward, or sector planning. Live data is refreshed before each response.</div>
       </div>
 
-      <div className="qs qs-row">
+      <div style={{ display: 'inline-flex', gap: 4, padding: 4, background: '#f1f5f9', borderRadius: 10, flexWrap: 'wrap' }}>
         {suggestions.map((s) => (
-          <button key={s} className="qsb" onClick={() => setVal(s)}>{s}</button>
+          <button key={s} onClick={() => setVal(s)} style={{ border: 'none', borderRadius: 8, padding: '8px 16px', background: '#ffffff', color: '#1a2744', boxShadow: '0 1px 3px rgba(0,0,0,0.06)', fontWeight: 600, cursor: 'pointer' }}>{s}</button>
         ))}
       </div>
 
-      <div className="cbx response-panel">
-        <div ref={responseContainerRef} className="cmsgs response-container">
+      <div className="cbx response-panel" style={lightCardStyle}>
+        <div ref={responseContainerRef} className="cmsgs response-container" style={{ background: '#ffffff' }}>
           {msgs.map((m, i) => (
             <div key={i} className={`msg ${m.who === 'ai' ? 'ai' : 'us'}`}>
-              <div className={`msg-card ${m.who === 'ai' ? 'ai' : 'us'}`}>
+              <div className={`msg-card ${m.who === 'ai' ? 'ai' : 'us'}`} style={{ background: '#ffffff', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
                 {m.who === 'ai' ? (
                   <div className="msg-head">
                     <div className="ml">
@@ -130,7 +137,7 @@ export default function AIChatPage() {
           ))}
           {loading && (
             <div className="msg ai">
-              <div className="msg-card ai">
+              <div className="msg-card ai" style={{ background: '#ffffff', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
                 <div className="msg-head">
                   <div className="ml">
                     <span className="ai-head-dot" aria-hidden="true" />

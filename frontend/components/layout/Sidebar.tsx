@@ -46,11 +46,6 @@ export default function Sidebar() {
       ))}
 
       <div className="sbl" style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--t3)', padding: '11px 16px 4px', opacity: 0.55 }}>Explore</div>
-      <Link href="/districts" className="si" style={{ display: 'flex', alignItems: 'center', gap: '9px', padding: '7px 16px', cursor: 'pointer', color: 'var(--t3)', fontSize: '12px', borderLeft: '2px solid transparent', transition: 'all .15s', userSelect: 'none' }}>
-        <span className="ic" style={{ width: '16px', textAlign: 'center', flexShrink: 0, fontSize: '13px', opacity: 0.6 }}>▦</span>
-        All Districts
-        <span className="bdg" style={{ marginLeft: 'auto', fontSize: '9px', color: 'var(--t3)', background: 'rgba(255,255,255,.06)', padding: '1px 6px', borderRadius: '10px' }}>41</span>
-      </Link>
       <Link href="/gis-map-new" className="si" style={{ display: 'flex', alignItems: 'center', gap: '9px', padding: '7px 16px', cursor: 'pointer', color: 'var(--t3)', fontSize: '12px', borderLeft: '2px solid transparent', transition: 'all .15s', userSelect: 'none' }}>
         <span className="ic" style={{ width: '16px', textAlign: 'center', flexShrink: 0, fontSize: '13px', opacity: 0.6 }}>●</span>
         GIS Map

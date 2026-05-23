@@ -48,7 +48,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div id="app" className="flex h-screen bg-var(--bg) overflow-hidden">
+    <div id="app" className="flex h-screen overflow-hidden" style={{ background: 'var(--bg)' }}>
       <Sidebar isMobileOpen={isMobileSidebarOpen} onMobileClose={() => setIsMobileSidebarOpen(false)} />
       
       <div id="mn" className="flex flex-col flex-1 overflow-hidden">
@@ -61,7 +61,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
           onMobileMenuClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
         />
         
-        <div id="ct" className="flex-1 overflow-y-auto p-4">
+        <div id="ct" className="flex-1 overflow-y-auto" style={{ padding: '0 24px 24px 0', background: 'var(--bg)' }}>
           {children}
         </div>
       </div>
