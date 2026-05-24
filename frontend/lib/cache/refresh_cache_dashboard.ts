@@ -149,6 +149,29 @@ export interface AspirationSectorBreakdown {
   topItem: string;
   count: number;
   qty2030: number;
+  qty2035?: number;
+  qty2047?: number;
+  combinedQty?: number;
+  topItemQty2030?: number;
+  topItemQty2035?: number;
+  topItemQty2047?: number;
+  topItemCombinedQty?: number;
+  totalQty2030?: number;
+  totalQty2035?: number;
+  totalQty2047?: number;
+  uniqueItems?: number;
+  allItems?: Array<{
+    item: string;
+    dept: string;
+    qty_2030: number;
+    qty_2035: number;
+    qty_2047: number;
+    combinedQty: number;
+    count: number;
+    fast_track: boolean;
+    status: string;
+    priority: number;
+  }>;
   priority: number;
   planning_year?: number | string;
   status: string;
@@ -181,7 +204,7 @@ export interface AspirationKpis {
   budget2047Cr?: number;
 }
 
-const ASPIRATION_CACHE_TTL_MS = 5 * 60 * 1000;
+const ASPIRATION_CACHE_TTL_MS = 60 * 1000;
 const aspirationKpiCache = new Map<string, { data: AspirationKpis; fetchedAt: number }>();
 
 function createEmptyAspirationKpis(): AspirationKpis {
@@ -219,7 +242,7 @@ function statusRank(status: string) {
 export async function fetchAspirationsKpis(params: { areaType?: 'rural' | 'urban' | 'all'; district?: string | null }): Promise<AspirationKpis> {
   const areaType = params.areaType || 'all';
   const district = normalizeFilterValue(params.district || undefined) || 'all';
-  const cacheKey = `${areaType}__${district}`;
+  const cacheKey = `${areaType}__${district}__v2`;
   const cached = aspirationKpiCache.get(cacheKey);
   const now = Date.now();
 
@@ -229,64 +252,72 @@ export async function fetchAspirationsKpis(params: { areaType?: 'rural' | 'urban
 
   try {
     const PAGE_SIZE = 1000;
+    let allRows: AspirationSectorEntry[] = [];
     let from = 0;
-    let hasMore = true;
-    const rows: AspirationSectorEntry[] = [];
+    let keepFetching = true;
 
-    while (hasMore) {
-      let query = supabase
+    while (keepFetching) {
+      let pageQuery = supabase
         .from('aspirations')
         .select('sector, dept, item, district, area_type, gram_panchayat, block, ward, ulb, city, planning_year, priority, qty_2030, qty_2035, qty_2047, total_budget, budget_2030, budget_2035, budget_2047, status, fast_track')
         .in('status', ['ACCEPT', 'FUNDED', 'REVIEW'])
         .range(from, from + PAGE_SIZE - 1);
 
       if (district !== 'all') {
-        query = query.ilike('district', params.district || '');
+        pageQuery = pageQuery.ilike('district', params.district || '');
       }
 
       if (areaType === 'rural') {
-        query = query.eq('area_type', 'Rural');
+        pageQuery = pageQuery.eq('area_type', 'Rural');
       } else if (areaType === 'urban') {
-        query = query.eq('area_type', 'Urban');
+        pageQuery = pageQuery.eq('area_type', 'Urban');
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
+      const { data: pageData, error: pageError } = await pageQuery;
+      if (pageError) {
+        console.warn('[fetchAspirationsKpis] page fetch error:', pageError.message);
+        break;
+      }
 
-      const pageRows = (data || []) as AspirationSectorEntry[];
-      rows.push(...pageRows);
-      if (pageRows.length < PAGE_SIZE) {
-        hasMore = false;
+      if (!pageData || pageData.length === 0) {
+        keepFetching = false;
       } else {
-        from += PAGE_SIZE;
+        allRows = allRows.concat(pageData as AspirationSectorEntry[]);
+        if (pageData.length < PAGE_SIZE) {
+          keepFetching = false;
+        } else {
+          from += PAGE_SIZE;
+        }
       }
     }
 
-    const validRows = rows.filter((row) => ['ACCEPT', 'FUNDED', 'REVIEW'].includes(String(row.status || '').trim().toUpperCase()));
+    console.log(`[fetchAspirationsKpis] Total rows fetched: ${allRows.length} | areaType: ${params.areaType || 'all'} | district: ${params.district || 'all'}`);
+
+    allRows = allRows.filter((row) => ['ACCEPT', 'FUNDED', 'REVIEW'].includes(String(row.status || '').trim().toUpperCase()));
 
     const summary: AspirationKpis = {
-      totalCount: validRows.length,
-      qty2030Total: validRows.reduce((total, row) => total + (Number(row.qty_2030) || 0), 0),
-      qty2035Total: validRows.reduce((total, row) => total + (Number(row.qty_2035) || 0), 0),
-      qty2047Total: validRows.reduce((total, row) => total + (Number(row.qty_2047) || 0), 0),
-      count2030: validRows.filter((row) => Number(row.planning_year) === 2030).length,
-      count2035: validRows.filter((row) => Number(row.planning_year) === 2035).length,
-      count2047: validRows.filter((row) => Number(row.planning_year) === 2047).length,
+      totalCount: allRows.length,
+      qty2030Total: allRows.reduce((total, row) => total + (Number(row.qty_2030) || 0), 0),
+      qty2035Total: allRows.reduce((total, row) => total + (Number(row.qty_2035) || 0), 0),
+      qty2047Total: allRows.reduce((total, row) => total + (Number(row.qty_2047) || 0), 0),
+      count2030: allRows.filter((row) => Number(row.planning_year) === 2030).length,
+      count2035: allRows.filter((row) => Number(row.planning_year) === 2035).length,
+      count2047: allRows.filter((row) => Number(row.planning_year) === 2047).length,
       sectorBreakdown: [],
-      budgetTotal: validRows.reduce((total, row) => total + (Number(row.total_budget) || 0), 0),
-      fastTrackCount: validRows.filter((row) => Boolean(row.fast_track)).length,
-      fundedCount: validRows.filter((row) => String(row.status || '').trim().toUpperCase() === 'FUNDED').length,
+      budgetTotal: allRows.reduce((total, row) => total + (Number(row.total_budget) || 0), 0),
+      fastTrackCount: allRows.filter((row) => Boolean(row.fast_track)).length,
+      fundedCount: allRows.filter((row) => String(row.status || '').trim().toUpperCase() === 'FUNDED').length,
       districtBreakdown: [],
-      records: validRows,
-      budget2030Cr: validRows.reduce((total, row) => total + (Number(row.budget_2030) || 0), 0) / 10000000,
-      budget2035Cr: validRows.reduce((total, row) => total + (Number(row.budget_2035) || 0), 0) / 10000000,
-      budget2047Cr: validRows.reduce((total, row) => total + (Number(row.budget_2047) || 0), 0) / 10000000,
+      records: allRows,
+      budget2030Cr: allRows.reduce((total, row) => total + (Number(row.budget_2030) || 0), 0) / 10000000,
+      budget2035Cr: allRows.reduce((total, row) => total + (Number(row.budget_2035) || 0), 0) / 10000000,
+      budget2047Cr: allRows.reduce((total, row) => total + (Number(row.budget_2047) || 0), 0) / 10000000,
     };
 
     const sectorMap = new Map<string, AspirationSectorEntry[]>();
     const districtMap = new Map<string, { count: number; qty2030: number; budget: number }>();
 
-    validRows.forEach((row) => {
+    allRows.forEach((row) => {
       const sector = String(row.sector || row.dept || 'अन्य').trim() || 'अन्य';
       const districtName = String(row.district || 'Unknown').trim() || 'Unknown';
       const sectorRows = sectorMap.get(sector) || [];
@@ -301,30 +332,90 @@ export async function fetchAspirationsKpis(params: { areaType?: 'rural' | 'urban
     });
 
     summary.sectorBreakdown = Array.from(sectorMap.entries())
-      .map(([sector, rowsForSector]) => {
-        const sortedRows = rowsForSector.slice().sort((left, right) => {
-          const statusDiff = statusRank(left.status) - statusRank(right.status);
-          if (statusDiff !== 0) return statusDiff;
-          const priorityDiff = (Number(left.priority) || 99) - (Number(right.priority) || 99);
-          if (priorityDiff !== 0) return priorityDiff;
-          return String(left.item || '').localeCompare(String(right.item || ''));
-        });
-        const topRow = sortedRows[0] || rowsForSector[0];
-        const qty2030 = rowsForSector.reduce((total, row) => total + (Number(row.qty_2030) || 0), 0);
+      .map(([sectorName, rowsForSector]) => {
+        const itemMap = new Map<string, {
+          item: string;
+          dept: string;
+          qty_2030: number;
+          qty_2035: number;
+          qty_2047: number;
+          combinedQty: number;
+          count: number;
+          fast_track: boolean;
+          status: string;
+          priority: number;
+        }>();
+
+        for (const record of rowsForSector) {
+          const itemKey = String(record.item || '').trim().toLowerCase();
+          if (!itemKey) continue;
+
+          const q2030 = Number(record.qty_2030 || 0);
+          const q2035 = Number(record.qty_2035 || 0);
+          const q2047 = Number(record.qty_2047 || 0);
+          const existing = itemMap.get(itemKey);
+
+          if (!existing) {
+            itemMap.set(itemKey, {
+              item: String(record.item || '').trim(),
+              dept: String(record.dept || '').trim(),
+              qty_2030: q2030,
+              qty_2035: q2035,
+              qty_2047: q2047,
+              combinedQty: q2030 + q2035 + q2047,
+              count: 1,
+              fast_track: Boolean(record.fast_track),
+              status: String(record.status || ''),
+              priority: Number(record.priority || 99),
+            });
+          } else {
+            existing.qty_2030 += q2030;
+            existing.qty_2035 += q2035;
+            existing.qty_2047 += q2047;
+            existing.combinedQty += q2030 + q2035 + q2047;
+            existing.count += 1;
+            if (record.fast_track) existing.fast_track = true;
+
+            if (statusRank(String(record.status || '')) < statusRank(existing.status)) {
+              existing.status = String(record.status || existing.status);
+            }
+          }
+        }
+
+        const itemList = Array.from(itemMap.values())
+          .sort((left, right) => right.combinedQty - left.combinedQty || left.priority - right.priority);
+        const topEntry = itemList[0];
+
+        const totalQty2030 = rowsForSector.reduce((sum, row) => sum + Number(row.qty_2030 || 0), 0);
+        const totalQty2035 = rowsForSector.reduce((sum, row) => sum + Number(row.qty_2035 || 0), 0);
+        const totalQty2047 = rowsForSector.reduce((sum, row) => sum + Number(row.qty_2047 || 0), 0);
 
         return {
-          sector,
-          dept: String(topRow?.dept || sector || 'अन्य'),
-          topItem: String(topRow?.item || topRow?.dept || sector || '—'),
+          sector: sectorName,
+          dept: topEntry?.dept || '',
+          topItem: topEntry?.item || '—',
+          topItemQty2030: topEntry?.qty_2030 ?? 0,
+          topItemQty2035: topEntry?.qty_2035 ?? 0,
+          topItemQty2047: topEntry?.qty_2047 ?? 0,
+          topItemCombinedQty: topEntry?.combinedQty ?? 0,
+          totalQty2030,
+          totalQty2035,
+          totalQty2047,
           count: rowsForSector.length,
-          qty2030,
-          priority: Number(topRow?.priority) || 0,
-          planning_year: topRow?.planning_year,
-          status: String(topRow?.status || 'REVIEW'),
-          fast_track: Boolean(topRow?.fast_track),
+          uniqueItems: itemMap.size,
+          fast_track: topEntry?.fast_track || false,
+          status: topEntry?.status || '',
+          priority: topEntry?.priority || 99,
+          allItems: itemList,
+          // Backward-compatible fields used in existing UI logic.
+          qty2030: topEntry?.qty_2030 ?? 0,
+          qty2035: topEntry?.qty_2035 ?? 0,
+          qty2047: topEntry?.qty_2047 ?? 0,
+          combinedQty: topEntry?.combinedQty ?? 0,
+          planning_year: undefined,
         };
       })
-      .sort((left, right) => right.count - left.count || right.qty2030 - left.qty2030 || left.sector.localeCompare(right.sector));
+      .sort((left, right) => Number(right.totalQty2030 || 0) - Number(left.totalQty2030 || 0));
 
     summary.districtBreakdown = Array.from(districtMap.entries())
       .map(([districtName, metrics]) => ({
