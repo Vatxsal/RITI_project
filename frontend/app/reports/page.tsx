@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { fetchBlocksForDistrict, fetchGpsForBlock, fetchUlbsForDistrict, fetchWardsForUlb } from '@/lib/cache/refresh_cache_dashboard';
 
@@ -21,6 +21,19 @@ if (DISTRICTS_EN.length !== 41) {
 export default function ReportsPage() {
   const reportFrameRef = useRef<HTMLIFrameElement | null>(null);
   const [activeTab, setActiveTab] = useState<'rural' | 'urban'>('rural');
+  const [reportHistory, setReportHistory] = useState<Array<{
+    id: number;
+    report_name: string;
+    scope_type: string;
+    district: string | null;
+    area_type: string;
+    created_at: string;
+    html_content: string;
+    file_size_kb: number | null;
+    created_by: string | null;
+  }>>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const [ruralDistrict, setRuralDistrict] = useState('');
   const [ruralBlock, setRuralBlock] = useState('');
   const [ruralGpId, setRuralGpId] = useState<number | null>(null);
@@ -61,6 +74,86 @@ export default function ReportsPage() {
         : urbanDistrict
           ? `District: ${urbanDistrict}`
           : 'Select location';
+
+  const loadReportHistory = async () => {
+    try {
+      setHistoryLoading(true);
+      const { data, error } = await supabase
+        .from('generated_reports')
+        .select('id, report_name, scope_type, district, area_type, created_at, file_size_kb, created_by')
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (!error && data) {
+        setReportHistory(data as typeof reportHistory);
+      }
+    } catch (e) {
+      console.warn('Could not load report history:', e);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const handleDeleteReport = async (id: number) => {
+    if (!confirm('इस रिपोर्ट को हटाएं?')) return;
+    setDeletingId(id);
+    try {
+      await supabase.from('generated_reports').delete().eq('id', id);
+      setReportHistory((prev) => prev.filter((r) => r.id !== id));
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleOpenSavedReport = async (id: number) => {
+    try {
+      const { data, error } = await supabase
+        .from('generated_reports')
+        .select('html_content, report_name')
+        .eq('id', id)
+        .single();
+      if (!error && data?.html_content) {
+        const blob = new Blob([data.html_content], { type: 'text/html;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const newTab = window.open(url, '_blank');
+        setTimeout(() => URL.revokeObjectURL(url), 3000);
+        if (!newTab) {
+          setGeneratedHtml(data.html_content);
+        }
+      }
+    } catch (e) {
+      console.warn('Could not load report:', e);
+    }
+  };
+
+  const handlePrintSavedReport = async (id: number) => {
+    try {
+      const { data, error } = await supabase
+        .from('generated_reports')
+        .select('html_content, report_name')
+        .eq('id', id)
+        .single();
+      if (!error && data?.html_content) {
+        const blob = new Blob([data.html_content], { type: 'text/html;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const printWindow = window.open(url, '_blank');
+        if (printWindow) {
+          printWindow.addEventListener('load', () => {
+            setTimeout(() => {
+              printWindow.focus();
+              printWindow.print();
+            }, 800);
+          });
+        }
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+      }
+    } catch (e) {
+      console.warn('Could not print report:', e);
+    }
+  };
+
+  useEffect(() => {
+    loadReportHistory();
+  }, []);
 
   async function handleRuralDistrictChange(district: string) {
     setRuralDistrict(district);
@@ -1933,8 +2026,66 @@ ${strategicPage}
 
   // STEP 4 — Render the report in a new tab
   function renderReport(scope: any, data: any, narrative: any) {
-    const generatedHtml = buildAlwarPdfReportHtml(scope, data, narrative);
-    setGeneratedHtml(generatedHtml);
+    const reportHtml = buildAlwarPdfReportHtml(scope, data, narrative);
+    setGeneratedHtml(reportHtml);
+
+    try {
+      const areaType = scope.type === 'urban' ? 'Urban' : 'Rural';
+      const districtVal = scope.district || null;
+      // Build a clean human-readable name
+      const locationParts: string[] = [];
+      if (districtVal) locationParts.push(districtVal);
+      if (scope.block) locationParts.push(scope.block);
+      if (scope.gpName) locationParts.push(scope.gpName);
+      if (scope.ulb) locationParts.push(scope.ulb);
+      if (scope.wardName) locationParts.push(scope.wardName);
+
+      // Determine scope level label
+      const scopeLevelLabel = scope.wardName ? 'Ward Report'
+        : scope.gpName ? 'GP Report'
+        : scope.ulb ? 'ULB Report'
+        : scope.block ? 'Block Report'
+        : 'District Report';
+
+      const reportName = `${locationParts.join(' › ')} — ${scopeLevelLabel} (${areaType})`;
+
+      const scopeType = scope.wardName ? 'ward'
+        : scope.gpName ? 'gp'
+        : scope.ulb ? 'ulb'
+        : scope.block ? 'block'
+        : 'district';
+
+      void (async () => {
+        try {
+          const { error: saveError } = await supabase.from('generated_reports').insert({
+          report_name: reportName,
+          scope_label: reportName,
+          scope_type: scopeType,
+          district: districtVal,
+          block_name: scope.block || null,
+          gp_name: scope.gpName || null,
+          ulb_name: scope.ulb || null,
+          ward_name: scope.wardName || null,
+          area_type: areaType,
+          html_content: reportHtml,
+          created_by: typeof window !== 'undefined' ? (sessionStorage.getItem('username') || 'user') : 'user',
+          file_size_kb: Math.round(reportHtml.length / 1024),
+          });
+
+          if (saveError) {
+            console.warn('[Report Save] Supabase insert failed:', saveError.message);
+          } else {
+            console.log('[Report Save] Saved successfully:', reportName);
+            loadReportHistory();
+          }
+        } catch (saveErr) {
+          console.warn('[Report Save] Could not save report to history:', saveErr);
+        }
+      })();
+    } catch (saveErr) {
+      console.warn('Could not save report to history:', saveErr);
+    }
+
     return;
     console.log('✅ renderReport v2 called — new code is active', scope);
     const d = data;
@@ -2595,275 +2746,315 @@ ${closingHtml}
   }
 
   return (
-    <div style={{ paddingLeft: '24px' }}>
-      <div className="pg-t">Report Library</div>
-      <div className="pg-s">Generate AI-powered planning intelligence briefs — select District, Block, and GP or Ward level</div>
-      
-      <div className="rg" style={{ display: 'flex', flexDirection: 'column', maxWidth: '700px', margin: '0 auto' }}>
-        <div className="rc">
-          <div className="rh">
-            <div className="rtag">Planning Report · Generate</div>
-            <div className="rt">District / Block / GP · Ward Level</div>
-          </div>
+    <div style={{ background: '#f8fafc', minHeight: '100vh', padding: 24 }}>
+      <div style={{ marginBottom: 20 }}>
+        <div className="pg-t" style={{ color: '#1a2744' }}>Report Library</div>
+        <div className="pg-s" style={{ color: '#64748b' }}>
+          Generate AI-powered planning intelligence briefs — select District, Block, and GP or Ward level
+        </div>
+      </div>
 
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-            {(['rural', 'urban'] as const).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                style={{
-                  flex: 1,
-                  padding: '8px',
-                  border: '1px solid',
-                  borderColor: activeTab === tab ? '#E8620A' : '#334155',
-                  background: activeTab === tab ? 'rgba(232,98,10,0.1)' : 'transparent',
-                  color: activeTab === tab ? '#E8620A' : '#94a3b8',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  textTransform: 'capitalize',
-                }}
-              >
-                {tab === 'rural' ? 'Rural (GP Level)' : 'Urban (Ward Level)'}
-              </button>
-            ))}
-          </div>
+      <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+        <div style={{ width: 420, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: 16, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+            <div style={{ height: 4, background: 'linear-gradient(90deg, #e85d04 0%, #f97316 100%)' }} />
+            <div style={{ padding: '20px 22px' }}>
+              <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#e85d04', marginBottom: 6 }}>Planning Report · Generate</div>
+              <div style={{ fontSize: 17, fontWeight: 800, color: '#1a2744', marginBottom: 18 }}>District / Block / GP · Ward Level</div>
 
-          {activeTab === 'rural' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <select
-                className="fs"
-                value={ruralDistrict}
-                onChange={(e) => handleRuralDistrictChange(e.target.value)}
-                disabled={generating}
-              >
-                <option value="">1. District select karo...</option>
-                {DISTRICTS_EN.map((district) => (
-                  <option key={district} value={district}>{district}</option>
-                ))}
-              </select>
+              <div style={{ display: 'inline-flex', gap: 4, padding: 3, background: '#f1f5f9', borderRadius: 8, marginBottom: 16 }}>
+                {(['rural', 'urban'] as const).map((tab) => {
+                  const active = activeTab === tab;
+                  return (
+                    <button
+                      key={tab}
+                      onClick={() => setActiveTab(tab)}
+                      style={{
+                        border: 'none',
+                        borderRadius: 6,
+                        padding: '5px 14px',
+                        background: active ? '#1e3a5f' : 'transparent',
+                        color: active ? '#ffffff' : '#64748b',
+                        fontWeight: active ? 700 : 600,
+                        fontSize: 12,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      {tab === 'rural' ? 'Rural (GP Level)' : 'Urban (Ward Level)'}
+                    </button>
+                  );
+                })}
+              </div>
 
-              {ruralDistrict && (
-                <select
-                  className="fs"
-                  value={ruralBlock}
-                  onChange={(e) => handleRuralBlockChange(e.target.value)}
-                  disabled={generating || loadingBlocks}
-                >
-                  <option value="">{loadingBlocks ? 'Blocks load ho rahe hain...' : '2. Block select karo (optional)'}</option>
-                  {ruralBlocks.map((block) => (
-                    <option key={block} value={block}>{block}</option>
-                  ))}
-                </select>
-              )}
+              {activeTab === 'rural' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <select className="fs" value={ruralDistrict} onChange={(e) => handleRuralDistrictChange(e.target.value)} disabled={generating}>
+                    <option value="">1. District select karo...</option>
+                    {DISTRICTS_EN.map((district) => (
+                      <option key={district} value={district}>{district}</option>
+                    ))}
+                  </select>
 
-              {ruralBlock && (
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type="text"
-                    className="fs"
-                    placeholder={loadingGps ? 'GPs load ho rahe hain...' : `3. GP search karo (${ruralGps.length} available)`}
-                    value={gpSearch}
-                    onChange={(e) => {
-                      setGpSearch(e.target.value);
-                      setRuralGpId(null);
-                      setRuralGpName('');
-                    }}
-                    disabled={generating || loadingGps}
-                    style={{ width: '100%' }}
-                  />
-                  {gpSearch && !ruralGpId && (
-                    <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', maxHeight: '200px', overflowY: 'auto', zIndex: 10 }}>
-                      {ruralGps
-                        .filter((gp) => gp.gram_panchayat.toLowerCase().includes(gpSearch.toLowerCase()))
-                        .slice(0, 20)
-                        .map((gp) => (
-                          <div
-                            key={gp.gp_id}
-                            onClick={() => {
-                              setRuralGpId(gp.gp_id);
-                              setRuralGpName(gp.gram_panchayat);
-                              setGpSearch(gp.gram_panchayat);
-                            }}
-                            style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: '#e2e8f0', borderBottom: '1px solid #1e293b' }}
-                            onMouseEnter={(e) => (e.currentTarget.style.background = '#1e293b')}
-                            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                          >
-                            {gp.gram_panchayat}
-                          </div>
-                        ))}
-                      {ruralGps.filter((gp) => gp.gram_panchayat.toLowerCase().includes(gpSearch.toLowerCase())).length === 0 && (
-                        <div style={{ padding: '8px 12px', color: '#64748b', fontSize: '13px' }}>Koi GP nahi mila</div>
+                  {ruralDistrict && (
+                    <select className="fs" value={ruralBlock} onChange={(e) => handleRuralBlockChange(e.target.value)} disabled={generating || loadingBlocks}>
+                      <option value="">{loadingBlocks ? 'Blocks load ho rahe hain...' : '2. Block select karo (optional)'}</option>
+                      {ruralBlocks.map((block) => (
+                        <option key={block} value={block}>{block}</option>
+                      ))}
+                    </select>
+                  )}
+
+                  {ruralBlock && (
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type="text"
+                        className="fs"
+                        placeholder={loadingGps ? 'GPs load ho rahe hain...' : `3. GP search karo (${ruralGps.length} available)`}
+                        value={gpSearch}
+                        onChange={(e) => {
+                          setGpSearch(e.target.value);
+                          setRuralGpId(null);
+                          setRuralGpName('');
+                        }}
+                        disabled={generating || loadingGps}
+                        style={{ width: '100%' }}
+                      />
+                      {gpSearch && !ruralGpId && (
+                        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', maxHeight: '200px', overflowY: 'auto', zIndex: 10 }}>
+                          {ruralGps
+                            .filter((gp) => gp.gram_panchayat.toLowerCase().includes(gpSearch.toLowerCase()))
+                            .slice(0, 20)
+                            .map((gp) => (
+                              <div
+                                key={gp.gp_id}
+                                onClick={() => {
+                                  setRuralGpId(gp.gp_id);
+                                  setRuralGpName(gp.gram_panchayat);
+                                  setGpSearch(gp.gram_panchayat);
+                                }}
+                                style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: '#e2e8f0', borderBottom: '1px solid #1e293b' }}
+                                onMouseEnter={(e) => (e.currentTarget.style.background = '#1e293b')}
+                                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                              >
+                                {gp.gram_panchayat}
+                              </div>
+                            ))}
+                          {ruralGps.filter((gp) => gp.gram_panchayat.toLowerCase().includes(gpSearch.toLowerCase())).length === 0 && (
+                            <div style={{ padding: '8px 12px', color: '#64748b', fontSize: '13px' }}>Koi GP nahi mila</div>
+                          )}
+                        </div>
                       )}
                     </div>
                   )}
                 </div>
               )}
-            </div>
-          )}
 
-          {activeTab === 'urban' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <select
-                className="fs"
-                value={urbanDistrict}
-                onChange={(e) => handleUrbanDistrictChange(e.target.value)}
-                disabled={generating}
-              >
-                <option value="">1. District select karo...</option>
-                {DISTRICTS_EN.map((district) => (
-                  <option key={district} value={district}>{district}</option>
-                ))}
-              </select>
+              {activeTab === 'urban' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <select className="fs" value={urbanDistrict} onChange={(e) => handleUrbanDistrictChange(e.target.value)} disabled={generating}>
+                    <option value="">1. District select karo...</option>
+                    {DISTRICTS_EN.map((district) => (
+                      <option key={district} value={district}>{district}</option>
+                    ))}
+                  </select>
 
-              {urbanDistrict && (
-                <select
-                  className="fs"
-                  value={urbanUlb}
-                  onChange={(e) => handleUrbanUlbChange(e.target.value)}
-                  disabled={generating || loadingUlbs}
-                >
-                  <option value="">{loadingUlbs ? 'ULBs load ho rahe hain...' : '2. ULB select karo (optional)'}</option>
-                  {urbanUlbs.map((ulb) => (
-                    <option key={ulb} value={ulb}>{ulb}</option>
-                  ))}
-                </select>
-              )}
+                  {urbanDistrict && (
+                    <select className="fs" value={urbanUlb} onChange={(e) => handleUrbanUlbChange(e.target.value)} disabled={generating || loadingUlbs}>
+                      <option value="">{loadingUlbs ? 'ULBs load ho rahe hain...' : '2. ULB select karo (optional)'}</option>
+                      {urbanUlbs.map((ulb) => (
+                        <option key={ulb} value={ulb}>{ulb}</option>
+                      ))}
+                    </select>
+                  )}
 
-              {urbanUlb && (
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type="text"
-                    className="fs"
-                    placeholder={loadingWards ? 'Wards load ho rahe hain...' : `3. Ward search karo (${urbanWards.length} available)`}
-                    value={wardSearch}
-                    onChange={(e) => {
-                      setWardSearch(e.target.value);
-                      setUrbanWardId(null);
-                      setUrbanWardName('');
-                    }}
-                    disabled={generating || loadingWards}
-                    style={{ width: '100%' }}
-                  />
-                  {wardSearch && !urbanWardId && (
-                    <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', maxHeight: '200px', overflowY: 'auto', zIndex: 10 }}>
-                      {urbanWards
-                        .filter((ward) => ward.ward.toLowerCase().includes(wardSearch.toLowerCase()))
-                        .slice(0, 20)
-                        .map((ward) => (
-                          <div
-                            key={ward.ward_id}
-                            onClick={() => {
-                              setUrbanWardId(ward.ward_id);
-                              setUrbanWardName(ward.ward);
-                              setWardSearch(ward.ward);
-                            }}
-                            style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: '#e2e8f0', borderBottom: '1px solid #1e293b' }}
-                            onMouseEnter={(e) => (e.currentTarget.style.background = '#1e293b')}
-                            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                          >
-                            {ward.ward} — {ward.ulb}
-                          </div>
-                        ))}
-                      {urbanWards.filter((ward) => ward.ward.toLowerCase().includes(wardSearch.toLowerCase())).length === 0 && (
-                        <div style={{ padding: '8px 12px', color: '#64748b', fontSize: '13px' }}>Koi Ward nahi mila</div>
+                  {urbanUlb && (
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type="text"
+                        className="fs"
+                        placeholder={loadingWards ? 'Wards load ho rahe hain...' : `3. Ward search karo (${urbanWards.length} available)`}
+                        value={wardSearch}
+                        onChange={(e) => {
+                          setWardSearch(e.target.value);
+                          setUrbanWardId(null);
+                          setUrbanWardName('');
+                        }}
+                        disabled={generating || loadingWards}
+                        style={{ width: '100%' }}
+                      />
+                      {wardSearch && !urbanWardId && (
+                        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', maxHeight: '200px', overflowY: 'auto', zIndex: 10 }}>
+                          {urbanWards
+                            .filter((ward) => ward.ward.toLowerCase().includes(wardSearch.toLowerCase()))
+                            .slice(0, 20)
+                            .map((ward) => (
+                              <div
+                                key={ward.ward_id}
+                                onClick={() => {
+                                  setUrbanWardId(ward.ward_id);
+                                  setUrbanWardName(ward.ward);
+                                  setWardSearch(ward.ward);
+                                }}
+                                style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: '#e2e8f0', borderBottom: '1px solid #1e293b' }}
+                                onMouseEnter={(e) => (e.currentTarget.style.background = '#1e293b')}
+                                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                              >
+                                {ward.ward} — {ward.ulb}
+                              </div>
+                            ))}
+                          {urbanWards.filter((ward) => ward.ward.toLowerCase().includes(wardSearch.toLowerCase())).length === 0 && (
+                            <div style={{ padding: '8px 12px', color: '#64748b', fontSize: '13px' }}>Koi Ward nahi mila</div>
+                          )}
+                        </div>
                       )}
                     </div>
                   )}
                 </div>
               )}
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#64748b', marginTop: 12, padding: '8px 0', borderTop: '1px solid #f1f5f9' }}>
+                <span>Report scope</span>
+                <span style={{ fontWeight: 700, color: '#e85d04' }}>{scopeLabel}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#64748b', padding: '4px 0 12px' }}>
+                <span>Covers</span>
+                <span style={{ fontWeight: 600, color: '#1a2744' }}>All 11 sectors</span>
+              </div>
+
+              {(ruralDistrict || urbanDistrict) && (
+                <button
+                  onClick={handleGenerateReport}
+                  disabled={generating}
+                  style={{
+                    background: '#1a2744',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: 10,
+                    padding: 13,
+                    fontSize: 14,
+                    fontWeight: 700,
+                    width: '100%',
+                    cursor: 'pointer',
+                    marginTop: 12,
+                    opacity: generating ? 0.85 : 1,
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!generating) (e.currentTarget as HTMLButtonElement).style.background = '#e85d04';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!generating) (e.currentTarget as HTMLButtonElement).style.background = '#1a2744';
+                  }}
+                >
+                  {generating ? generatingLabel : 'Generate Planning Report'}
+                </button>
+              )}
             </div>
-          )}
-
-          <div className="rr" style={{ marginTop: '12px' }}>
-            <span>Report scope</span>
-            <span style={{ color: (ruralDistrict || urbanDistrict) ? '#E8620A' : '#64748b', fontSize: '12px' }}>
-              {scopeLabel}
-            </span>
-          </div>
-          <div className="rr">
-            <span>Covers</span>
-            <span>All 11 sectors</span>
           </div>
 
-          {(ruralDistrict || urbanDistrict) && (
-            <div className="rf">
-              <button
-                className="btn btn-ai"
-                style={{ width: '100%', justifyContent: 'center', marginTop: '12px', opacity: generating ? 0.8 : 1 }}
-                onClick={handleGenerateReport}
-                disabled={generating}
-              >
-                {generating ? generatingLabel : 'Generate Planning Report'}
+          <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 12, padding: '14px 18px', display: 'flex', gap: 20 }}>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#1e3a5f', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Reports Generated</div>
+              <div style={{ fontSize: 22, fontWeight: 900, color: '#1a2744', marginTop: 2 }}>{reportHistory.length}</div>
+            </div>
+            <div style={{ width: 1, background: '#bfdbfe' }} />
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#1e3a5f', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Rural</div>
+              <div style={{ fontSize: 22, fontWeight: 900, color: '#16a34a', marginTop: 2 }}>{reportHistory.filter(r => r.area_type === 'Rural').length}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#1e3a5f', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Urban</div>
+              <div style={{ fontSize: 22, fontWeight: 900, color: '#2563eb', marginTop: 2 }}>{reportHistory.filter(r => r.area_type === 'Urban').length}</div>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: 16, padding: '20px 22px', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#1a2744' }}>Report History</div>
+                <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>Previously generated reports — click to open or download as PDF</div>
+              </div>
+              <button onClick={loadReportHistory} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '6px 14px', fontSize: 12, fontWeight: 600, color: '#64748b', cursor: 'pointer' }}>
+                ↻ Refresh
               </button>
+            </div>
+
+            {historyLoading ? (
+              <div style={{ color: '#94a3b8', fontStyle: 'italic', padding: '20px 0', textAlign: 'center' }}>Loading report history...</div>
+            ) : reportHistory.length === 0 ? (
+              <div style={{ padding: '32px 20px', textAlign: 'center', background: '#f8fafc', borderRadius: 12, border: '1px dashed #e2e8f0' }}>
+                <div style={{ fontSize: 32, marginBottom: 8 }}>📄</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#1a2744' }}>No reports yet</div>
+                <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>Generate your first report using the form on the left</div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {reportHistory.map((report) => {
+                  const date = new Date(report.created_at);
+                  const dateStr = date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+                  const timeStr = date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+                  const isRural = report.area_type === 'Rural';
+
+                  return (
+                    <div key={report.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px 18px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, transition: 'border-color 0.15s' }} onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLDivElement).style.borderColor = '#cbd5e1';
+                      (e.currentTarget as HTMLDivElement).style.background = '#f1f5f9';
+                    }} onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLDivElement).style.borderColor = '#e2e8f0';
+                      (e.currentTarget as HTMLDivElement).style.background = '#f8fafc';
+                    }}>
+                      <div style={{ width: 40, height: 40, borderRadius: 10, background: isRural ? '#dcfce7' : '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 14 }}>
+                        {isRural ? '🌾' : '🏙️'}
+                      </div>
+
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: '#1a2744', marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{report.report_name}</div>
+                        <div style={{ display: 'flex', gap: 10, marginTop: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 12, color: '#64748b' }}>{dateStr} · {timeStr}</span>
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 999, background: isRural ? '#dcfce7' : '#dbeafe', color: isRural ? '#166534' : '#1d4ed8' }}>{report.area_type.toUpperCase()}</span>
+                          {report.file_size_kb && <span style={{ fontSize: 11, color: '#94a3b8' }}>{report.file_size_kb} KB</span>}
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                        <button onClick={() => handleOpenSavedReport(report.id)} style={{ background: '#1a2744', color: 'white', border: 'none', borderRadius: 7, padding: '7px 13px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }} title="Open report">Open</button>
+                        <button
+                          onClick={() => handlePrintSavedReport(report.id)}
+                          style={{
+                            background: '#e85d04',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: 7,
+                            padding: '7px 13px',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                          }}
+                          title="Download as PDF"
+                        >
+                          ⬇ PDF
+                        </button>
+                        <button onClick={() => handleDeleteReport(report.id)} disabled={deletingId === report.id} style={{ background: 'white', color: '#dc2626', border: '1px solid #fee2e2', borderRadius: 7, padding: '7px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', opacity: deletingId === report.id ? 0.5 : 1 }} title="Delete report">✕</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {generatedHtml && (
+            <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: 16, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+              <div style={{ padding: '14px 20px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#1a2744' }}>Report Preview</div>
+              </div>
+              <iframe ref={reportFrameRef} srcDoc={generatedHtml} style={{ width: '100%', height: 900, border: 'none', background: 'white' }} title="Generated Report" />
             </div>
           )}
         </div>
       </div>
-
-      {generatedHtml && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
-          background: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', flexDirection: 'column'
-        }}>
-          <div style={{ background: '#1A2744', padding: '10px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ color: 'white', fontWeight: 'bold' }}>District Intelligence Brief: {scopeLabel}</span>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button
-                onClick={() => {
-                  if (!generatedHtml) return;
-                  const blob = new Blob([generatedHtml], { type: 'text/html;charset=utf-8' });
-                  const url = URL.createObjectURL(blob);
-                  window.open(url, '_blank');
-                  setTimeout(() => URL.revokeObjectURL(url), 1000);
-                }}
-                style={{ padding: '5px 15px', background: 'white', color: '#1A2744', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}
-              >
-                Open in New Tab
-              </button>
-              <button 
-                  onClick={() => {
-                    const iframe = reportFrameRef.current;
-                    if (!iframe || !iframe.contentWindow) return;
-
-                    // Inject print-trigger script into iframe to ensure proper sizing
-                    iframe.contentWindow.focus();
-
-                    // Small delay to ensure iframe is fully rendered before print dialog
-                    setTimeout(() => {
-                      iframe.contentWindow?.print();
-                    }, 300);
-                  }}
-                style={{ padding: '5px 15px', background: '#E85D04', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}
-              >
-                Download as PDF
-              </button>
-              <button 
-                onClick={() => setGeneratedHtml(null)}
-                style={{ padding: '5px 15px', background: 'white', color: '#1B3A6B', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-          <iframe 
-            key={generatedHtml?.length}
-            ref={reportFrameRef}
-            srcDoc={generatedHtml} 
-            style={{ flex: 1, border: 'none', background: 'white' }} 
-            title="Generated Report"
-                  onLoad={() => {
-                    // Ensure iframe content is accessible after load
-                    try {
-                      reportFrameRef.current?.contentWindow?.document?.body;
-                    } catch (e) {
-                      console.warn('iframe not ready yet');
-                    }
-                  }}
-          />
-        </div>
-      )}
     </div>
   );
 }
