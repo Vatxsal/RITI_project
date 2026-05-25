@@ -1,10 +1,33 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { CSSProperties, useEffect, useMemo, useRef, useState } from 'react';
 import { DISTRICTS } from '@/lib/data';
 import { DashboardKpiPayload, fetchDashboardKpis, getEmptyDashboardPayload } from '@/lib/dashboard-kpis';
 
 type DistrictScore = DashboardKpiPayload['districtScores'][number] & { lat: number; lon: number };
+
+type MapPredicate = {
+  id: number;
+  type: 'attribute' | 'spatial';
+  field: string;
+  op: string;
+  value: string;
+};
+
+type MapLayerState = {
+  govtSchools: boolean;
+  healthInstitutes: boolean;
+  ayush: boolean;
+  policeStations: boolean;
+  anganwadi: boolean;
+};
+
+type MapProps = {
+  predicates?: MapPredicate[];
+  activeLayers?: MapLayerState;
+  compact?: boolean;
+  style?: CSSProperties;
+};
 
 const DISTRICT_ALIASES: Record<string, string> = {
   balotra: 'Balotara',
@@ -49,7 +72,7 @@ function getDistrictCoords(name: string) {
   return coords ?? null;
 }
 
-export default function Map() {
+export default function Map({ compact = false, style }: MapProps) {
   const ref = useRef<HTMLDivElement | null>(null);
   const [payload, setPayload] = useState<DashboardKpiPayload>(getEmptyDashboardPayload());
 
@@ -173,30 +196,34 @@ export default function Map() {
   }, [districtMarkers]);
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap gap-2">
-        <span className="chip">{districtMarkers.length} districts plotted</span>
-        <span className="chip" style={{ color: '#22C55E' }}>Green {totals.green}</span>
-        <span className="chip" style={{ color: '#F59E0B' }}>Yellow {totals.yellow}</span>
-        <span className="chip" style={{ color: '#EF4444' }}>Red {totals.red}</span>
-        <span className="chip">Source {payload.source ?? 'live'}</span>
-        <span className="chip">Updated {payload.lastUpdated ? new Date(payload.lastUpdated).toLocaleString('en-IN') : 'just now'}</span>
-      </div>
+    <div style={{ height: compact ? '100%' : 'auto', width: '100%', ...style }}>
+      {!compact && (
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            <span className="chip">{districtMarkers.length} districts plotted</span>
+            <span className="chip" style={{ color: '#22C55E' }}>Green {totals.green}</span>
+            <span className="chip" style={{ color: '#F59E0B' }}>Yellow {totals.yellow}</span>
+            <span className="chip" style={{ color: '#EF4444' }}>Red {totals.red}</span>
+            <span className="chip">Source {payload.source ?? 'live'}</span>
+            <span className="chip">Updated {payload.lastUpdated ? new Date(payload.lastUpdated).toLocaleString('en-IN') : 'just now'}</span>
+          </div>
 
-      <div className="grid gap-3 md:grid-cols-2">
-        <div className="rounded-xl border border-[var(--bd)] bg-[var(--nv)] px-4 py-3">
-          <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--t3)]">Top district</div>
-          <div className="mt-1 text-sm font-semibold text-[var(--t1)]">{totals.top ? `${totals.top.n} · ${totals.top.dev}/100` : 'No live data yet'}</div>
-          <div className="mt-1 text-[11px] text-[var(--t2)]">Highest composite score from the live cache.</div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="rounded-xl border border-[var(--bd)] bg-[var(--nv)] px-4 py-3">
+              <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--t3)]">Top district</div>
+              <div className="mt-1 text-sm font-semibold text-[var(--t1)]">{totals.top ? `${totals.top.n} · ${totals.top.dev}/100` : 'No live data yet'}</div>
+              <div className="mt-1 text-[11px] text-[var(--t2)]">Highest composite score from the live cache.</div>
+            </div>
+            <div className="rounded-xl border border-[var(--bd)] bg-[var(--nv)] px-4 py-3">
+              <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--t3)]">Needs attention</div>
+              <div className="mt-1 text-sm font-semibold text-[var(--t1)]">{totals.bottom ? `${totals.bottom.n} · ${totals.bottom.dev}/100` : 'No live data yet'}</div>
+              <div className="mt-1 text-[11px] text-[var(--t2)]">Lowest composite score from the live cache.</div>
+            </div>
+          </div>
         </div>
-        <div className="rounded-xl border border-[var(--bd)] bg-[var(--nv)] px-4 py-3">
-          <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--t3)]">Needs attention</div>
-          <div className="mt-1 text-sm font-semibold text-[var(--t1)]">{totals.bottom ? `${totals.bottom.n} · ${totals.bottom.dev}/100` : 'No live data yet'}</div>
-          <div className="mt-1 text-[11px] text-[var(--t2)]">Lowest composite score from the live cache.</div>
-        </div>
-      </div>
+      )}
 
-      <div id="mapwrap" ref={ref} style={{ height: 440, width: '100%', borderRadius: 12, overflow: 'hidden' }} />
+      <div id="mapwrap" ref={ref} style={{ height: compact ? '100%' : 440, width: '100%', borderRadius: compact ? 0 : 12, overflow: 'hidden' }} />
     </div>
   );
 }
