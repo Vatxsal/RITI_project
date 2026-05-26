@@ -1,4 +1,5 @@
-import { supabase } from '@/lib/supabase';
+import { fetchAll, supabase } from '@/lib/supabase';
+import type { AreaType } from '@/lib/dashboard-kpis';
 
 export const CACHE_KEYS = {
   RURAL_DISTRICTS: 'geo_rural_districts',
@@ -231,7 +232,7 @@ function normalizeFilterValue(value: string | undefined) {
   return String(value ?? '').trim().toLowerCase();
 }
 
-function statusRank(status: string) {
+function sectorStatusRank(status: string) {
   const normalized = String(status || '').trim().toUpperCase();
   if (normalized === 'FUNDED') return 0;
   if (normalized === 'ACCEPT') return 1;
@@ -432,6 +433,466 @@ export async function fetchAspirationsKpis(params: { areaType?: 'rural' | 'urban
     console.warn('Failed to fetch aspiration KPIs:', error);
     const fallback = createEmptyAspirationKpis();
     aspirationKpiCache.set(cacheKey, { data: fallback, fetchedAt: now });
+    return fallback;
+  }
+}
+
+export type SectorPageAspirationItem = {
+  item: string;
+  dept: string;
+  qty2030: number;
+  qty2035: number;
+  qty2047: number;
+  count: number;
+  status: string;
+  fastTrack: boolean;
+};
+
+export type SectorPageData = {
+  sectorId: string;
+  areaType: AreaType;
+  aspTotalCount: number;
+  aspQty2030: number;
+  aspQty2035: number;
+  aspQty2047: number;
+  aspFunded: number;
+  aspFastTrack: number;
+  aspP1: number;
+  aspBudgetCr: number;
+  topAspItems: SectorPageAspirationItem[];
+  distAspBreakdown: Array<{ district: string; count: number }>;
+  aspStatusMix: { funded: number; accept: number; review: number };
+  baselineMetrics: Record<string, number>;
+  fetchedAt: number;
+};
+
+type SectorBaselineConfig = {
+  ruralTable?: string;
+  ruralCols?: string[];
+  urbanTable?: string;
+  urbanCols?: string[];
+};
+
+const SECTOR_ASPIRATION_KEYWORDS: Record<string, string[]> = {
+  water: ['Water Security', 'Public Health Engineering', 'पेयजल', 'नल कनेक्शन', 'हैंडपंप', 'tubewell', 'ट्यूबवेल', 'overhead tank', 'tanker', 'jjm', 'amrut', 'drinking water'],
+  health: ['Health and Wellness', 'NHM', 'ayushman', 'ayush', 'asha', 'anganwadi', 'awc', 'poshan', 'ambulance', 'dispensary', 'स्वास्थ्य'],
+  agri: ['Agriculture and Livelihoods', 'irrigation', 'sinchai', 'kisan', 'fpo', 'solar pump', 'tarbandi', 'diggi', 'pmksy', 'pmfby', 'soil', 'कृषि'],
+  dairy: ['Agriculture and Livelihoods', 'dairy', 'livestock', 'pashu', 'milk', 'goat', 'poultry', 'saras', 'rcdf', 'veterinary', 'पशुपालन'],
+  edu: ['Education and Knowledge', 'school', 'vidyalay', 'teacher', 'classroom', 'hostel', 'skill', 'iti', 'samagra', 'शिक्षा'],
+  employ: ['Industry and Economic Development', 'shg', 'self help', 'livelihood', 'mudra', 'msme', 'rozgar', 'srlm', 'nrlm', 'lakhpati', 'artisan'],
+  women: ['Social Empowerment', 'mahila', 'women', 'shg', 'lakhpati', 'ujjwala', 'widow', 'beti', 'kishori'],
+  welfare: ['Social Empowerment', 'pension', 'awas', 'housing', 'ujjwala', 'pwd', 'divyang', 'bpl', 'nfsa', 'old age', 'pmay'],
+  infra: ['Key Infrastructure', 'road', 'sadak', 'bridge', 'electricity', 'bijli', 'street light', 'bus stand', 'panchayat bhawan', 'pmgsy', 'सड़क'],
+  tourism: ['Tourism and Cultural Development', 'heritage', 'fair', 'mela', 'cultural', 'temple', 'monument', 'swadesh darshan', 'पर्यटन'],
+  env: ['Environment and Climate', 'forest', 'nursery', 'plantation', 'biogas', 'compost', 'waste', 'solar energy', 'pm surya ghar', 'watershed', 'पर्यावरण'],
+};
+
+const SECTOR_BASELINE_CONFIG: Record<string, SectorBaselineConfig> = {
+  water: {
+    ruralTable: 'fact_rural_water',
+    ruralCols: ['tap_connection_pct', 'overhead_tanks_count', 'handpump_tubewell_only_houses', 'drinking_water_sources', 'groundwater_depth_meters', 'ro_facilities', 'water_quality_test_frequency', 'tanker_only_supply_houses'],
+    urbanTable: 'fact_urban_water',
+    urbanCols: ['tap_connection_pct', 'overhead_tanks_count', 'handpumps_count', 'wells_count', 'tanks_count', 'groundwater_depth_meters', 'water_quality_test_frequency'],
+  },
+  health: {
+    ruralTable: 'fact_rural_health',
+    ruralCols: ['allopathic_centers', 'ayush_centers', 'private_health_centers', 'health_center_beds', 'working_health_staff', 'avg_daily_patients', 'ayushman_arogya_beneficiaries', 'janaadhar_registered_families_pct', 'tb_patients_count', 'anemic_pregnant_women', 'phc_dist_km', 'chc_dist_km'],
+    urbanTable: 'fact_urban_health',
+    urbanCols: ['allopathic_centers', 'ayush_centers', 'pvt_health_centers', 'health_center_beds', 'working_health_staff', 'avg_daily_patients', 'ayushman_arogya_beneficiaries', 'janaadhar_reg_families_pct', 'tb_patients_count', 'anemic_pregnant_women', 'hypertension_screening_2025_26', 'diabetes_screening_2025_26'],
+  },
+  agri: {
+    ruralTable: 'fact_rural_livelihood',
+    ruralCols: ['cultivable_land_hectare', 'irrigated_area_hectare', 'net_sown_area', 'kharif_area_hectare', 'kharif_production_quintal', 'rabi_area_hectare', 'rabi_production_quintal', 'total_farmers_count', 'small_farmers_count', 'medium_farmers_count', 'large_farmers_count', 'kcc_holders_count', 'pm_cm_kisan_beneficiaries', 'soil_health_cards_valid', 'crop_insurance_farmers', 'fpo_count', 'drip_sprinkler_farmers', 'solar_pumps_count', 'agri_electricity_conn', 'govt_vet_centers'],
+  },
+  dairy: {
+    ruralTable: 'fact_rural_livelihood',
+    ruralCols: ['total_livestock_count', 'milch_animals_count', 'daily_milk_prod_litres', 'milk_collection_centers', 'goat_farms_count', 'poultry_farms_count', 'kcc_holders_count'],
+  },
+  edu: {
+    ruralTable: 'fact_rural_education',
+    ruralCols: ['anganwadi_centers', 'anganwadi_workers', 'anganwadi_helpers', 'anganwadi_enrolled_children', 'anganwadi_pregnant_women', 'asha_sahyogini_count', 'sam_children_count', 'govt_schools_count', 'pvt_schools_count', 'total_schools_count', 'useful_rooms_count', 'working_teachers', 'sanctioned_teachers_count', 'computers_available', 'total_enrolled_students', 'enrolled_boys_0_5', 'enrolled_girls_0_5', 'enrolled_boys_6_8', 'enrolled_girls_6_8', 'enrolled_boys_9_10', 'enrolled_girls_9_10', 'enrolled_boys_11_12', 'enrolled_girls_11_12', 'dropout_children_prev_year', 'skill_training_centers', 'govt_hostels_count', 'higher_edu_institutes'],
+    urbanTable: 'fact_urban_education',
+    urbanCols: ['anganwadi_centers', 'anganwadi_workers', 'anganwadi_enrolled_children', 'asha_sahyogini_count', 'sam_children_count', 'snp_recipients_6_72_months', 'govt_schools_count', 'pvt_schools_count', 'total_schools_count', 'total_enrolled_students', 'useful_rooms_count', 'working_teachers', 'sanctioned_teachers_count', 'computers_available', 'dropout_children_prev_year', 'govt_hostels_count'],
+  },
+  employ: {
+    ruralTable: 'fact_rural_economy',
+    ruralCols: ['active_shg_count', 'women_in_shgs', 'lakhpati_didis_count', 'millionaire_didis_count', 'local_artisans_count', 'large_industrial_units', 'mudra_loan_beneficiaries'],
+    urbanTable: 'fact_urban_economy',
+    urbanCols: ['active_shg_count', 'local_artisans_count', 'large_industrial_units', 'small_scale_industries'],
+  },
+  women: {
+    ruralTable: 'fact_rural_economy',
+    ruralCols: ['active_shg_count', 'women_in_shgs', 'lakhpati_didis_count', 'millionaire_didis_count', 'local_artisans_count', 'mudra_loan_beneficiaries'],
+    urbanTable: 'fact_urban_economy',
+    urbanCols: ['active_shg_count', 'women_in_shgs', 'lakhpati_didis_count', 'local_artisans_count', 'large_industrial_units', 'small_scale_industries'],
+  },
+  welfare: {
+    ruralTable: 'fact_rural_social',
+    ruralCols: ['old_age_pensioners', 'widow_pensioners', 'pwd_pensioners_est', 'pm_ujjwala_beneficiaries', 'pm_cm_awas_beneficiaries'],
+    urbanTable: 'fact_urban_social',
+    urbanCols: ['pm_ujjwala_beneficiaries', 'pm_cm_awas_beneficiaries', 'old_age_pensioners', 'widow_pensioners', 'pwd_pensioners_est'],
+  },
+  infra: {
+    ruralTable: 'fact_rural_infra',
+    ruralCols: ['post_offices_count', 'govt_banks_count', 'private_banks_count', 'houses_with_electricity', 'avg_electricity_hours_daily', 'total_street_lights', 'solar_installed_houses', 'public_toilets', 'road_length_km', 'dist_bus_stand_km', 'dist_main_market_km', 'dist_railway_station_km'],
+    urbanTable: 'fact_urban_infra',
+    urbanCols: ['govt_banks_count', 'private_banks_count', 'houses_with_electricity', 'solar_installed_houses', 'public_toilets_functional', 'road_length_km', 'dist_main_market_km', 'dist_bus_stand_km', 'dist_railway_station_km'],
+  },
+  tourism: {
+    ruralTable: 'fact_rural_tourism',
+    ruralCols: ['cultural_assets_count', 'avg_daily_footfall_cultural_sites', 'annual_fairs_count', 'avg_fair_footfall_daily', 'temporary_fair_stalls', 'fair_related_employment', 'registered_trained_guides'],
+    urbanTable: 'fact_urban_tourism',
+    urbanCols: ['avg_fair_footfall_daily', 'shg_operated_stalls', 'registered_trained_guides'],
+  },
+  env: {
+    ruralTable: 'fact_rural_environment',
+    ruralCols: ['houses_with_toilets', 'door_to_door_collection_houses', 'waste_dump_sites', 'total_waste_daily_kg', 'wet_waste_daily_kg', 'dry_waste_daily_kg', 'govt_compost_pits_count', 'mrf_sheds_count', 'biogas_plants_count', 'pasture_land_hectare', 'forest_area_hectare', 'pm_surya_ghar_solar_houses'],
+    urbanTable: 'fact_urban_environment',
+    urbanCols: ['houses_without_toilets', 'govt_compost_pits_count', 'govt_nurseries_count', 'nursery_saplings_available'],
+  },
+};
+
+const SECTOR_PAGE_CACHE_TTL_MS = 5 * 60 * 1000;
+const sectorPageCache = new Map<string, { data: SectorPageData; fetchedAt: number }>();
+
+function toNumber(value: unknown): number {
+  if (value === null || value === undefined || value === '') return 0;
+  const parsed = Number(String(value).replace(/,/g, '').replace(/%/g, '').trim());
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function statusRank(status: string) {
+  const normalized = String(status || '').trim().toUpperCase();
+  if (normalized === 'FUNDED') return 0;
+  if (normalized === 'ACCEPT') return 1;
+  if (normalized === 'REVIEW') return 2;
+  return 3;
+}
+
+const SECTOR_DB_NAMES: Record<string, string[]> = {
+  water: ['Water Security'],
+  health: ['Health and Wellness'],
+  agri: ['Agriculture and Livelihoods'],
+  dairy: ['Agriculture and Livelihoods'],
+  edu: ['Education and Knowledge'],
+  employ: ['Industry and Economic Development', 'Social Empowerment'],
+  women: ['Social Empowerment'],
+  welfare: ['Social Empowerment'],
+  infra: ['Key Infrastructure'],
+  tourism: ['Tourism and Cultural Development'],
+  env: ['Environment and Climate'],
+};
+
+async function fetchAspirationsBySector(sectorId: string, areaType: AreaType, district?: string | null) {
+  const keywords = SECTOR_ASPIRATION_KEYWORDS[sectorId] || [];
+  const PAGE_SIZE = 1000;
+  const rows: any[] = [];
+  let from = 0;
+  let keepFetching = true;
+
+  while (keepFetching) {
+    let query = supabase
+      .from('aspirations')
+      .select('item, dept, sector, qty_2030, qty_2035, qty_2047, status, priority, district, area_type, fast_track, scheme, total_budget')
+      .in('status', ['ACCEPT', 'FUNDED', 'REVIEW'])
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (district) {
+      query = query.ilike('district', district);
+    }
+
+    if (areaType === 'rural') query = query.eq('area_type', 'Rural');
+    if (areaType === 'urban') query = query.eq('area_type', 'Urban');
+
+    const sectorDbNames = SECTOR_DB_NAMES[sectorId] || [];
+    const uniqueKeywords = [...new Set([...keywords, ...sectorDbNames])].slice(0, 15);
+
+    if (uniqueKeywords.length) {
+      const clauses = uniqueKeywords.flatMap((keyword) => [
+        `sector.ilike.%${keyword}%`,
+        `dept.ilike.%${keyword}%`,
+        `item.ilike.%${keyword}%`,
+      ]);
+      query = query.or(clauses.join(','));
+    }
+
+    const { data, error } = await query;
+    if (error || !data || data.length === 0) break;
+
+    rows.push(...data);
+    if (data.length < PAGE_SIZE) {
+      keepFetching = false;
+    } else {
+      from += PAGE_SIZE;
+    }
+  }
+
+  return rows;
+}
+
+async function fetchTableRows(table: string, columns: string[], district?: string | null, areaType?: AreaType) {
+  if (!district) {
+    return fetchAll(table, {}, columns.join(', '));
+  }
+
+  // Determine if this is a rural or urban table
+  const isUrbanTable = table.startsWith('fact_urban_');
+  const isRuralTable = table.startsWith('fact_rural_');
+
+  if (isRuralTable) {
+    // Get GP IDs for this district
+    const { data: gpData, error: gpError } = await supabase
+      .from('dim_rural_gps')
+      .select('gp_id')
+      .ilike('district', district);
+
+    if (gpError || !gpData || gpData.length === 0) return [];
+
+    const gpIds = gpData.map((row: any) => row.gp_id);
+
+    // Fetch in batches of 500 to avoid URL length limits
+    const BATCH = 500;
+    const allRows: any[] = [];
+    for (let i = 0; i < gpIds.length; i += BATCH) {
+      const batch = gpIds.slice(i, i + BATCH);
+      const { data, error } = await supabase
+        .from(table)
+        .select(columns.join(', '))
+        .in('gp_id', batch);
+      if (!error && data) allRows.push(...data);
+    }
+    return allRows;
+  }
+
+  if (isUrbanTable) {
+    // Get ward IDs for this district
+    const { data: wardData, error: wardError } = await supabase
+      .from('dim_urban_wards')
+      .select('ward_id')
+      .ilike('district', district);
+
+    if (wardError || !wardData || wardData.length === 0) return [];
+
+    const wardIds = wardData.map((row: any) => row.ward_id);
+
+    const BATCH = 500;
+    const allRows: any[] = [];
+    for (let i = 0; i < wardIds.length; i += BATCH) {
+      const batch = wardIds.slice(i, i + BATCH);
+      const { data, error } = await supabase
+        .from(table)
+        .select(columns.join(', '))
+        .in('ward_id', batch);
+      if (!error && data) allRows.push(...data);
+    }
+    return allRows;
+  }
+
+  // Non-fact table — return all
+  return fetchAll(table, {}, columns.join(', '));
+}
+
+// Columns that should be averaged rather than summed
+const AVG_COLUMNS = new Set([
+  'tap_connection_pct',
+  'groundwater_depth_meters',
+  'groundwater_depth_m',
+  'avg_electricity_hours_daily',
+  'janaadhar_registered_families_pct',
+  'janaadhar_reg_families_pct',
+  'water_quality_test_frequency',
+  'phc_dist_km',
+  'chc_dist_km',
+  'dist_bus_stand_km',
+  'dist_main_market_km',
+  'dist_railway_station_km',
+  'dist_police_station_km',
+  'dist_emitra_km',
+  'dist_lpg_distributor_km',
+  'avg_daily_patients',
+  'avg_fair_footfall_daily',
+  'avg_daily_footfall_cultural_sites',
+]);
+
+function addBaselineRows(acc: Map<string, { sum: number; count: number; avg: boolean }>, rows: any[], columns: string[]) {
+  for (const row of rows) {
+    for (const column of columns) {
+      const value = toNumber(row?.[column]);
+      if (!Number.isFinite(value)) continue;
+
+      const shouldAvg = column.includes('_pct') || AVG_COLUMNS.has(column);
+      const entry = acc.get(column) || { sum: 0, count: 0, avg: shouldAvg };
+      entry.sum += value;
+      entry.count += 1;
+      acc.set(column, entry);
+    }
+  }
+}
+
+function finalizeBaselineMetrics(acc: Map<string, { sum: number; count: number; avg: boolean }>) {
+  const metrics: Record<string, number> = {};
+  for (const [column, entry] of acc.entries()) {
+    const raw = entry.avg ? (entry.count ? entry.sum / entry.count : 0) : entry.sum;
+    // Round percentage and distance columns to 1 decimal, others to nearest integer
+    if (column.includes('_pct') || column.includes('_km') || column.includes('_meters') || column.includes('_depth')) {
+      metrics[column] = Math.round(raw * 10) / 10;
+    } else {
+      metrics[column] = Math.round(raw * 100) / 100;
+    }
+  }
+  return metrics;
+}
+
+function mergeBaselineRows(config: SectorBaselineConfig, areaType: AreaType, district?: string | null) {
+  const tasks: Promise<{ rows: any[]; columns: string[] }>[] = [];
+
+  if (config.ruralTable && areaType !== 'urban') {
+    tasks.push(fetchTableRows(config.ruralTable, config.ruralCols || [], district, areaType).then((rows) => ({ rows, columns: config.ruralCols || [] })));
+  }
+
+  if (config.urbanTable && areaType !== 'rural') {
+    tasks.push(fetchTableRows(config.urbanTable, config.urbanCols || [], district, areaType).then((rows) => ({ rows, columns: config.urbanCols || [] })));
+  }
+
+  return Promise.all(tasks);
+}
+
+export async function fetchSectorPageData(params: { sectorId: string; areaType: AreaType; district?: string | null }): Promise<SectorPageData> {
+  const cacheKey = `sector__${params.sectorId}__${params.areaType}__${params.district || 'all'}`;
+  const now = Date.now();
+  const cached = sectorPageCache.get(cacheKey);
+  if (cached && now - cached.fetchedAt < SECTOR_PAGE_CACHE_TTL_MS) {
+    return cached.data;
+  }
+
+  try {
+    const sectorId = String(params.sectorId || '').trim();
+    const areaType = params.areaType || 'all';
+    const baselineConfig = SECTOR_BASELINE_CONFIG[sectorId] || {};
+
+    const district = params.district || null;
+
+    const [aspRows, baselineParts, ruralGpsRows, urbanWardRows] = await Promise.all([
+      fetchAspirationsBySector(sectorId, areaType, district),
+      mergeBaselineRows(baselineConfig, areaType, district),
+      areaType === 'urban'
+        ? Promise.resolve([])
+        : district
+          ? supabase.from('dim_rural_gps').select('gp_id, district, block, gram_panchayat').ilike('district', district).then(({ data }: { data: any[] | null }) => data || [])
+          : fetchAll('dim_rural_gps', {}, 'gp_id, district, block, gram_panchayat'),
+      areaType === 'rural'
+        ? Promise.resolve([])
+        : district
+          ? supabase.from('dim_urban_wards').select('ward_id, district, ulb, ward').ilike('district', district).then(({ data }: { data: any[] | null }) => data || [])
+          : fetchAll('dim_urban_wards', {}, 'ward_id, district, ulb, ward'),
+    ]);
+
+    const aspTotalCount = aspRows.length;
+    const aspQty2030 = aspRows.reduce((sum: number, row: any) => sum + toNumber(row.qty_2030), 0);
+    const aspQty2035 = aspRows.reduce((sum: number, row: any) => sum + toNumber(row.qty_2035), 0);
+    const aspQty2047 = aspRows.reduce((sum: number, row: any) => sum + toNumber(row.qty_2047), 0);
+    const aspFunded = aspRows.filter((row: any) => String(row.status || '').trim().toUpperCase() === 'FUNDED').length;
+    const aspFastTrack = aspRows.filter((row: any) => Boolean(row.fast_track)).length;
+    const aspP1 = aspRows.filter((row: any) => Number(row.priority) === 1).length;
+    const aspBudgetTotal = aspRows.reduce((sum: number, row: any) => sum + toNumber(row.total_budget), 0);
+
+    const itemMap = new Map<string, SectorPageAspirationItem>();
+    for (const row of aspRows) {
+      const key = String(row.item || '').trim().toLowerCase();
+      if (!key) continue;
+
+      const existing = itemMap.get(key);
+      const nextStatus = String(row.status || '').trim().toUpperCase();
+      if (!existing) {
+        itemMap.set(key, {
+          item: String(row.item || '').trim(),
+          dept: String(row.dept || '').trim(),
+          qty2030: toNumber(row.qty_2030),
+          qty2035: toNumber(row.qty_2035),
+          qty2047: toNumber(row.qty_2047),
+          count: 1,
+          status: nextStatus,
+          fastTrack: Boolean(row.fast_track),
+        });
+      } else {
+        existing.qty2030 += toNumber(row.qty_2030);
+        existing.qty2035 += toNumber(row.qty_2035);
+        existing.qty2047 += toNumber(row.qty_2047);
+        existing.count += 1;
+        if (Boolean(row.fast_track)) existing.fastTrack = true;
+        if (sectorStatusRank(nextStatus) < sectorStatusRank(existing.status)) existing.status = nextStatus;
+      }
+    }
+
+    const topAspItems = Array.from(itemMap.values())
+      .sort((left, right) => right.qty2030 - left.qty2030 || right.count - left.count || left.item.localeCompare(right.item))
+      .slice(0, 8);
+
+    const distAspMap = new Map<string, number>();
+    for (const row of aspRows) {
+      const district = String(row.district || 'Unknown').trim() || 'Unknown';
+      distAspMap.set(district, (distAspMap.get(district) || 0) + 1);
+    }
+    const distAspBreakdown = Array.from(distAspMap.entries())
+      .map(([district, count]) => ({ district, count }))
+      .sort((left, right) => right.count - left.count || left.district.localeCompare(right.district))
+      .slice(0, 15);
+
+    const aspStatusMix = {
+      funded: aspFunded,
+      accept: aspRows.filter((row: any) => String(row.status || '').trim().toUpperCase() === 'ACCEPT').length,
+      review: aspRows.filter((row: any) => String(row.status || '').trim().toUpperCase() === 'REVIEW').length,
+    };
+
+    const baselineMetricAcc = new Map<string, { sum: number; count: number; avg: boolean }>();
+    for (const part of baselineParts) {
+      addBaselineRows(baselineMetricAcc, part.rows, part.columns);
+    }
+    const baselineMetrics = finalizeBaselineMetrics(baselineMetricAcc);
+
+    baselineMetrics.rural_gp_count = ruralGpsRows.length;
+    baselineMetrics.urban_ward_count = urbanWardRows.length;
+
+    const data: SectorPageData = {
+      sectorId,
+      areaType,
+      aspTotalCount,
+      aspQty2030,
+      aspQty2035,
+      aspQty2047,
+      aspFunded,
+      aspFastTrack,
+      aspP1,
+      aspBudgetCr: aspBudgetTotal / 10000000,
+      topAspItems,
+      distAspBreakdown,
+      aspStatusMix,
+      baselineMetrics,
+      fetchedAt: now,
+    };
+
+    sectorPageCache.set(cacheKey, { data, fetchedAt: now });
+    return data;
+  } catch (error) {
+    console.warn('[fetchSectorPageData] failed:', error);
+    const fallback: SectorPageData = {
+      sectorId: params.sectorId,
+      areaType: params.areaType,
+      aspTotalCount: 0,
+      aspQty2030: 0,
+      aspQty2035: 0,
+      aspQty2047: 0,
+      aspFunded: 0,
+      aspFastTrack: 0,
+      aspP1: 0,
+      aspBudgetCr: 0,
+      topAspItems: [],
+      distAspBreakdown: [],
+      aspStatusMix: { funded: 0, accept: 0, review: 0 },
+      baselineMetrics: {},
+      fetchedAt: now,
+    };
+    sectorPageCache.set(cacheKey, { data: fallback, fetchedAt: now });
     return fallback;
   }
 }
