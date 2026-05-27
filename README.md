@@ -218,6 +218,23 @@ GEMINI_API_KEY=your_gemini_api_key_here
 - **GIS Integration** - Spatial data mapping
 - **CSV Upload** - Batch data import with preview
 
+### Implemented Features (Recent)
+- **GIS map redesign**: Split-panel GIS page with left-side filters and a compact, full-height map view. Map component accepts `compact`, `predicates`, and `activeLayers` props for filtering and overlays.
+- **Sector page — aspirations-first dashboard**: Reworked sector page to surface Hero KPIs, baseline snapshot cards, aspiration mix, coverage bars, aspiration timeline and density list, and a right-column `P-1 Priority Aspirations` card.
+- **District-aware data**: `selectedDistrict` from the global `FilterContext` is threaded through `fetchSectorPageData`, cache keys, and Supabase queries so sector views respect district-level filtering.
+- **Baseline aggregation fixes**: Added averaged baseline columns, corrected metric interpretation, and consistent rounding for coverage and baseline KPIs.
+- **Aspiration matching improvements**: Broadened aspiration matching to use exact database sector names and aspiration keywords while avoiding false positives for specific sectors (e.g., Water Security).
+- **AI insights (Gemini) reliability**: Multi-model retry/fallback, increased output token limit, hardened JSON parsing and repair for truncated responses, user-visible error/fallback UI, and debug logging for troubleshooting.
+- **Budget UI removal**: Removed misleading on-page budget summaries (₹ display) from the sector UI while preserving budget fields in cache for future use.
+- **Cache & aggregation**: `frontend/lib/cache/refresh_cache_dashboard.ts` updated to be district-aware, include averaged columns, and finalize baseline metrics with rounding.
+
+### Deployment & Checklist Notes
+- `.env` and `.env.local` files must remain uncommitted and are correctly ignored.
+- Important: `frontend/.env.example` should be tracked in git so developers can see required variables — the repo now allows committing `frontend/.env.example` (see `.gitignore` change).
+- Confirm the following files/directories are ignored for deployment builds: `frontend/node_modules/`, `frontend/.next/`, `frontend/out/`, `frontend/dist/`.
+- Frontend build was validated locally: run `cd frontend && npm run build` and ensure the build succeeds before deploying.
+
+If you want, I can commit these README and `.gitignore` changes and push them to `main`.
 ## 📊 Data Flow
 
 ```
