@@ -92,32 +92,36 @@ export default function Sidebar({ isMobileOpen, onMobileClose }: { isMobileOpen?
           </Link>
 
           <div className="sbl" style={{ color: 'rgba(255,255,255,0.35)', fontSize: '9px', fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', padding: '16px 20px 6px', opacity: 1 }}>11 Sector Dashboards</div>
-          {SECTORS.map(sector => (
-            <Link 
-              key={sector.v}
-              href={`/sector/${sector.v}`}
-              className={`si ${pathname === `/sector/${sector.v}` ? 'on' : ''}`}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                padding: '9px 20px',
-                cursor: 'pointer',
-                color: pathname === `/sector/${sector.v}` ? '#ffffff' : 'rgba(255,255,255,0.65)',
-                fontSize: '13px',
-                fontWeight: pathname === `/sector/${sector.v}` ? 700 : 500,
-                borderRadius: 0,
-                transition: 'all 0.15s',
-                borderLeft: pathname === `/sector/${sector.v}` ? '3px solid #e85d04' : '3px solid transparent',
-                background: pathname === `/sector/${sector.v}` ? 'rgba(255,255,255,0.1)' : 'transparent',
-                userSelect: 'none'
-              }}
-              onClick={handleLinkClick}
-            >
-              <span className="ic" style={{ width: '18px', flexShrink: 0, fontSize: '14px', color: pathname === `/sector/${sector.v}` ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.4)' }}>{sector.icon}</span>
-              <span>{sector.label}</span>
-            </Link>
-          ))}
+          {SECTORS.map(sector => {
+            const sectorRoute = sector.v === 'women' ? 'social' : sector.v;
+
+            return (
+              <Link 
+                key={sector.v}
+                href={`/sector/${sectorRoute}`}
+                className={`si ${pathname === `/sector/${sectorRoute}` ? 'on' : ''}`}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '9px 20px',
+                  cursor: 'pointer',
+                  color: pathname === `/sector/${sectorRoute}` ? '#ffffff' : 'rgba(255,255,255,0.65)',
+                  fontSize: '13px',
+                  fontWeight: pathname === `/sector/${sectorRoute}` ? 700 : 500,
+                  borderRadius: 0,
+                  transition: 'all 0.15s',
+                  borderLeft: pathname === `/sector/${sectorRoute}` ? '3px solid #e85d04' : '3px solid transparent',
+                  background: pathname === `/sector/${sectorRoute}` ? 'rgba(255,255,255,0.1)' : 'transparent',
+                  userSelect: 'none'
+                }}
+                onClick={handleLinkClick}
+              >
+                <span className="ic" style={{ width: '18px', flexShrink: 0, fontSize: '14px', color: pathname === `/sector/${sectorRoute}` ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.4)' }}>{sector.icon}</span>
+                <span>{sector.label}</span>
+              </Link>
+            );
+          })}
 
           <div className="sbl" style={{ color: 'rgba(255,255,255,0.35)', fontSize: '9px', fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', padding: '16px 20px 6px', opacity: 1 }}>Explore</div>
           <Link 

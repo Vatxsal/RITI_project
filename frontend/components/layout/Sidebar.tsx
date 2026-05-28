@@ -33,7 +33,7 @@ export default function Sidebar() {
         { view: 'dairy', label: 'Dairy & Livestock', icon: 'Ⓓ' },
         { view: 'edu', label: 'Education', icon: '✎' },
         { view: 'employ', label: 'Employment & Skills', icon: '⊙' },
-        { view: 'women', label: 'Women Empowerment', icon: '✧' },
+        { view: 'women', label: 'Social Empowerment', icon: '✧' },
         { view: 'welfare', label: 'Welfare & Housing', icon: '♥' },
         { view: 'infra', label: 'Infrastructure', icon: '⚙' },
         { view: 'tourism', label: 'Tourism & Heritage', icon: '✈' },

@@ -205,7 +205,7 @@ export interface AspirationKpis {
   budget2047Cr?: number;
 }
 
-const ASPIRATION_CACHE_TTL_MS = 60 * 1000;
+const ASPIRATION_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 const aspirationKpiCache = new Map<string, { data: AspirationKpis; fetchedAt: number }>();
 
 function createEmptyAspirationKpis(): AspirationKpis {
@@ -252,7 +252,7 @@ export async function fetchAspirationsKpis(params: { areaType?: 'rural' | 'urban
   }
 
   try {
-    const PAGE_SIZE = 1000;
+    const PAGE_SIZE = 2000;
     let allRows: AspirationSectorEntry[] = [];
     let from = 0;
     let keepFetching = true;
@@ -262,6 +262,7 @@ export async function fetchAspirationsKpis(params: { areaType?: 'rural' | 'urban
         .from('aspirations')
         .select('sector, dept, item, district, area_type, gram_panchayat, block, ward, ulb, city, planning_year, priority, qty_2030, qty_2035, qty_2047, total_budget, budget_2030, budget_2035, budget_2047, status, fast_track')
         .in('status', ['ACCEPT', 'FUNDED', 'REVIEW'])
+        .order('id', { ascending: true })
         .range(from, from + PAGE_SIZE - 1);
 
       if (district !== 'all') {
@@ -524,7 +525,7 @@ const SECTOR_BASELINE_CONFIG: Record<string, SectorBaselineConfig> = {
     ruralTable: 'fact_rural_economy',
     ruralCols: ['active_shg_count', 'women_in_shgs', 'lakhpati_didis_count', 'millionaire_didis_count', 'local_artisans_count', 'mudra_loan_beneficiaries'],
     urbanTable: 'fact_urban_economy',
-    urbanCols: ['active_shg_count', 'women_in_shgs', 'lakhpati_didis_count', 'local_artisans_count', 'large_industrial_units', 'small_scale_industries'],
+    urbanCols: ['active_shg_count', 'local_artisans_count', 'large_industrial_units', 'small_scale_industries'],
   },
   welfare: {
     ruralTable: 'fact_rural_social',

@@ -88,6 +88,10 @@ export default function CommandCenterPage() {
   const [sectorYearFilter, setSectorYearFilter] = useState<'2030' | '2035' | '2047'>('2030');
 
   useEffect(() => {
+    fetchAspirationsKpis({ areaType: 'all', district: null }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
     let alive = true;
     fetchDashboardKpis({ areaType: urbanFilter, district: selectedDistrict })
       .then((payload) => {

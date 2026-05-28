@@ -109,7 +109,7 @@ export const SECTORS = [
   },
   {
     v: 'women',
-    label: 'Women Empowerment',
+    label: 'Social Empowerment',
     icon: '⚪',
     key: 'sc_women',
     description: 'PMMUY, Shakti, gender parity in employment',
@@ -178,7 +178,8 @@ export function getDistrictByName(name: string) {
 }
 
 export function getSectorByValue(value: string) {
-  return SECTORS.find(s => s.v === value);
+  const normalized = String(value || '').trim().toLowerCase();
+  return SECTORS.find((s) => s.v === normalized || (normalized === 'social' && s.v === 'women'));
 }
 
 export function formatNumber(num: number | undefined): string {
