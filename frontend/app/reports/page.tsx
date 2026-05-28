@@ -1086,10 +1086,10 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
       <tr>
         <td>
           <div style="font-weight:700; color:#1a1a2e;">${escapeHtml(row.title)}</div>
-          <div style="font-size:10px; color:#64748b; margin-top:2px; font-family:'Inter',sans-serif;">${escapeHtml(row.subtitle)}</div>
+          <div style="font-size:10px; color:#64748b; margin-top:2px; font-family:sans-serif;">${escapeHtml(row.subtitle)}</div>
         </td>
         <td style="text-align:center;"><span class="priority-badge ${row.priority === 'P-1' ? 'p1' : 'p2'}">${row.priority}</span></td>
-        <td style="text-align:center; font-family:'Inter',sans-serif; font-weight:700;">${escapeHtml(row.gp)}</td>
+        <td style="text-align:center; font-family:sans-serif; font-weight:700;">${escapeHtml(row.gp)}</td>
         <td>${escapeHtml(row.qty2030)}</td>
         <td>${escapeHtml(row.qty2035)}</td>
         <td>${escapeHtml(row.qty2047)}</td>
@@ -1290,21 +1290,21 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
         <tr>
           <td>
             <div style="font-weight:700; color:#1a1a2e; font-family:'Noto Sans Devanagari',sans-serif;">${escapeHtml(aspiration.item || '—')}</div>
-            <div style="font-size:10px; color:#64748b; margin-top:2px; font-family:'Inter',sans-serif;">${escapeHtml(aspiration.dept || aspiration.sector || '')}</div>
+            <div style="font-size:10px; color:#64748b; margin-top:2px; font-family:sans-serif;">${escapeHtml(aspiration.dept || aspiration.sector || '')}</div>
           </td>
           <td style="text-align:center;">
             <span class="priority-badge ${Number(aspiration.priority) <= 2 ? 'p1' : 'p2'}">P-${escapeHtml(aspiration.priority || '—')}</span>
           </td>
-          <td style="text-align:center; font-family:'Inter',sans-serif; font-weight:700; font-size:11px; max-width:80px; word-break:break-word;">
+          <td style="text-align:center; font-family:sans-serif; font-weight:700; font-size:11px; max-width:80px; word-break:break-word;">
             ${escapeHtml(
               aspiration.area_type === 'Urban'
                 ? (aspiration.ward || aspiration.city || '—')
                 : (aspiration.gram_panchayat || '—')
             )}
           </td>
-          <td style="font-family:'Inter',sans-serif;">${escapeHtml(aspiration.qty_2030 ?? '—')}</td>
-          <td style="font-family:'Inter',sans-serif;">${escapeHtml(aspiration.qty_2035 ?? '—')}</td>
-          <td style="font-family:'Inter',sans-serif;">${escapeHtml(aspiration.qty_2047 ?? '—')}</td>
+          <td style="font-family:sans-serif;">${escapeHtml(aspiration.qty_2030 ?? '—')}</td>
+          <td style="font-family:sans-serif;">${escapeHtml(aspiration.qty_2035 ?? '—')}</td>
+          <td style="font-family:sans-serif;">${escapeHtml(aspiration.qty_2047 ?? '—')}</td>
           <td>
             <span class="status-badge ${aspiration.status === 'FUNDED' ? 'active' : aspiration.status === 'ACCEPT' ? 'ready' : 'proposal'}">${escapeHtml(aspiration.status || '—')}</span>
             <div style="color:#1a1a2e; font-size:11px; line-height:1.5; font-family:'Noto Sans Devanagari',sans-serif; margin-top:4px;">
@@ -1319,7 +1319,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
             ${aspiration.scheme ? `<div style="margin-top:4px;"><span class="scheme-tag">${escapeHtml(aspiration.scheme)}</span></div>` : ''}
             ${aspiration.fast_track ? `<div style="margin-top:2px;"><span class="scheme-tag" style="background:#92400e; color:#fff;">⚡ Fast-track</span></div>` : ''}
             ${aspiration.status === 'FUNDED' ? `<div style="margin-top:2px;"><span class="scheme-tag" style="background:#14532d; color:#fff;">✓ Funded</span></div>` : ''}
-            ${aspiration.total_budget ? `<div style="font-size:10px; color:#64748b; margin-top:2px; font-family:'Inter',sans-serif;">₹${(Number(aspiration.total_budget) / 10000000).toFixed(1)} Cr</div>` : ''}
+            ${aspiration.total_budget ? `<div style="font-size:10px; color:#64748b; margin-top:2px; font-family:sans-serif;">₹${(Number(aspiration.total_budget) / 10000000).toFixed(1)} Cr</div>` : ''}
           </td>
         </tr>
       `).join('');
@@ -1680,7 +1680,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${escapeHtml(district)} — Viksit Rajasthan 2047</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800;900&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700;800&display=swap');
   :root {
     --report-bg: #ffffff;
     --report-navy: #1a2744;
@@ -1695,7 +1695,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
     --report-card-bg: #f8fafc;
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: #f1f5f9; color: var(--report-text); font-family: 'Inter', sans-serif; }
+  body { margin: 0; background: #f1f5f9; color: var(--report-text); font-family: sans-serif; }
   .report-page {
     width: 794px;
     min-height: 1123px;
@@ -1732,7 +1732,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
     letter-spacing: 0.08em;
     text-transform: uppercase;
     margin: 18px 0 18px;
-    font-family: 'Inter', sans-serif;
+    font-family: sans-serif;
   }
   .cover-district {
     margin: 0;
@@ -1748,7 +1748,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
     color: #334155;
     font-size: 18px;
     font-weight: 600;
-    font-family: 'Inter', sans-serif;
+    font-family: sans-serif;
   }
   .pill-row { display: flex; flex-wrap: wrap; gap: 10px; margin: 22px 0 24px; }
   .kpi-pill {
@@ -1760,21 +1760,21 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
   }
   .kpi-pill-label { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--report-muted); font-weight: 700; }
   .kpi-pill-value { margin-top: 4px; font-size: 20px; font-weight: 800; color: var(--report-navy); line-height: 1.1; }
-  .kpi-pill-sub { margin-top: 2px; font-size: 10px; color: #94a3b8; font-family: 'Inter', sans-serif; }
+  .kpi-pill-sub { margin-top: 2px; font-size: 10px; color: #94a3b8; font-family: sans-serif; }
   .featured-box { background: var(--report-navy); color: white; border-radius: 16px; padding: 22px 24px 18px; margin: 14px 0 22px; }
   .featured-title { color: var(--report-orange); font-size: 12px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 14px; }
   .featured-body { font-family: 'Noto Sans Devanagari', sans-serif; font-size: 14px; line-height: 1.85; color: #e2e8f0; }
   .featured-body p { margin: 0 0 12px; }
-  .featured-caption { margin-top: 10px; color: #94a3b8; font-size: 10px; font-family: 'Inter', sans-serif; }
+  .featured-caption { margin-top: 10px; color: #94a3b8; font-size: 10px; font-family: sans-serif; }
   .cover-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 18px; }
   .stat-card { background: #f8fafc; border: 1px solid var(--report-border); border-left: 4px solid; border-radius: 12px; padding: 16px; min-height: 120px; }
   .stat-card-title { font-size: 12px; color: var(--report-muted); letter-spacing: 0.04em; text-transform: uppercase; font-weight: 800; }
-  .stat-card-value { margin-top: 12px; font-size: 24px; font-weight: 900; color: var(--report-navy); line-height: 1.15; font-family: 'Inter', sans-serif; }
+  .stat-card-value { margin-top: 12px; font-size: 24px; font-weight: 900; color: var(--report-navy); line-height: 1.15; font-family: sans-serif; }
   .stat-card-note { margin-top: 6px; color: #475569; font-size: 12px; line-height: 1.6; font-family: 'Noto Sans Devanagari', sans-serif; }
-  .footer-line { margin-top: 18px; color: #64748b; font-size: 11px; border-top: 1px solid var(--report-border); padding-top: 12px; font-family: 'Inter', sans-serif; }
+  .footer-line { margin-top: 18px; color: #64748b; font-size: 11px; border-top: 1px solid var(--report-border); padding-top: 12px; font-family: sans-serif; }
   .section-kicker { color: var(--report-orange); font-size: 12px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; margin: 4px 0 8px; }
   .section-title { margin: 0; font-size: 30px; line-height: 1.08; color: var(--report-navy); font-weight: 900; font-family: 'Noto Sans Devanagari', sans-serif; }
-  .section-subtitle { color: var(--report-muted); font-size: 13px; margin-top: 6px; font-weight: 600; font-family: 'Inter', sans-serif; }
+  .section-subtitle { color: var(--report-muted); font-size: 13px; margin-top: 6px; font-weight: 600; font-family: sans-serif; }
   .section-copy { color: #334155; font-size: 14px; line-height: 1.85; margin-top: 14px; font-family: 'Noto Sans Devanagari', sans-serif; }
   .kpi-grid-5 { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin: 18px 0 18px; }
   .kpi-grid-5 .kpi-pill { min-width: 0; width: 100%; padding: 10px 8px; overflow: visible; }
@@ -1794,7 +1794,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
   .info-row { display: flex; justify-content: space-between; gap: 16px; padding: 7px 0; border-bottom: 1px solid #f1f5f9; font-size: 12px; min-height: 28px; align-items: center; }
   .info-row:last-child { border-bottom: none; }
   .info-row span:first-child { color: #64748b; font-family: 'Noto Sans Devanagari', sans-serif; flex: 1; min-width: 0; word-break: break-word; }
-  .info-row span:last-child { color: #1a1a2e; font-weight: 700; font-family: 'Inter', sans-serif; text-align: right; flex-shrink: 0; white-space: nowrap; }
+  .info-row span:last-child { color: #1a1a2e; font-weight: 700; font-family: sans-serif; text-align: right; flex-shrink: 0; white-space: nowrap; }
   .metrics-row { align-items: start; }
   .bottom-note-box { margin-top: 18px; background: #f8fafc; border-left: 4px solid var(--report-orange); border-radius: 12px; padding: 14px 16px; color: #334155; font-size: 13px; line-height: 1.8; font-family: 'Noto Sans Devanagari', sans-serif; }
   .group-band {
@@ -1814,26 +1814,26 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
   .group-band-kicker { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.8; }
   .group-band-number { font-size: 58px; line-height: 0.9; font-weight: 900; margin-top: 8px; }
   .group-band-title { font-size: 30px; line-height: 1.05; font-weight: 900; font-family: 'Noto Sans Devanagari', sans-serif; }
-  .group-band-subtitle { margin-top: 4px; font-size: 14px; opacity: 0.92; font-family: 'Inter', sans-serif; }
+  .group-band-subtitle { margin-top: 4px; font-size: 14px; opacity: 0.92; font-family: sans-serif; }
   .group-band-asp { margin-top: 10px; font-size: 13px; opacity: 0.92; line-height: 1.7; font-family: 'Noto Sans Devanagari', sans-serif; }
   .group-sector-strip { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-  .group-sector-chip { display: inline-flex; align-items: center; border-radius: 999px; padding: 4px 10px; background: rgba(255,255,255,0.14); color: #fff; font-size: 10px; font-weight: 800; letter-spacing: 0.04em; font-family: 'Inter', sans-serif; }
+  .group-sector-chip { display: inline-flex; align-items: center; border-radius: 999px; padding: 4px 10px; background: rgba(255,255,255,0.14); color: #fff; font-size: 10px; font-weight: 800; letter-spacing: 0.04em; font-family: sans-serif; }
   .group-section-head, .asp-head, .scheme-map-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 8px; }
-  .section-note { color: var(--report-muted); font-size: 12px; font-weight: 600; font-family: 'Inter', sans-serif; text-align: right; }
+  .section-note { color: var(--report-muted); font-size: 12px; font-weight: 600; font-family: sans-serif; text-align: right; }
   .aspirations-table, .strategic-table, .scheme-table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 12px; }
   .aspirations-table th, .strategic-table th, .scheme-table th { background: #f1f5f9; color: var(--report-muted); text-align: left; padding: 10px 10px; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; border-bottom: 2px solid var(--report-border); }
   .aspirations-table td, .strategic-table td, .scheme-table td { border-bottom: 1px solid var(--report-border); padding: 10px; vertical-align: top; font-family: 'Noto Sans Devanagari', sans-serif; }
-  .priority-badge { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; font-size: 11px; font-weight: 900; font-family: 'Inter', sans-serif; }
+  .priority-badge { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; font-size: 11px; font-weight: 900; font-family: sans-serif; }
   .priority-badge.p1 { background: var(--report-orange); color: white; }
   .priority-badge.p2 { border: 2px solid var(--report-orange); color: var(--report-orange); background: transparent; }
-  .scheme-tag { display: inline-block; background: #1e293b; color: #94a3b8; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; font-family: 'Inter', sans-serif; margin: 2px 2px 2px 0; }
+  .scheme-tag { display: inline-block; background: #1e293b; color: #94a3b8; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; font-family: sans-serif; margin: 2px 2px 2px 0; }
   .summary-box { background: #0f1f3d; border-radius: 12px; padding: 16px 18px; display: flex; gap: 14px; align-items: flex-start; margin-top: 16px; }
   .summary-box-arrow { width: 34px; height: 34px; border-radius: 50%; background: var(--report-orange); color: white; display: grid; place-items: center; font-size: 18px; flex: 0 0 auto; margin-top: 2px; }
   .summary-box-text { color: #e2e8f0; font-size: 13px; line-height: 1.7; font-family: 'Noto Sans Devanagari', sans-serif; }
   .master-summary { margin-top: 18px; background: var(--report-navy); border-radius: 14px; overflow: hidden; }
   .master-summary-head { padding: 12px 16px; background: var(--report-orange); color: white; font-weight: 800; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; }
   .master-summary-body { padding: 16px; color: #e2e8f0; line-height: 1.8; font-size: 13px; font-family: 'Noto Sans Devanagari', sans-serif; }
-  .status-badge { display: inline-flex; align-items: center; border-radius: 999px; padding: 4px 10px; font-size: 10px; font-weight: 800; font-family: 'Inter', sans-serif; }
+  .status-badge { display: inline-flex; align-items: center; border-radius: 999px; padding: 4px 10px; font-size: 10px; font-weight: 800; font-family: sans-serif; }
   .status-badge.active { background: #dcfce7; color: #166534; }
   .status-badge.ready { background: #fef3c7; color: #92400e; }
   .status-badge.selected { background: #dbeafe; color: #1d4ed8; }
