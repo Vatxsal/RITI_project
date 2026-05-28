@@ -252,7 +252,7 @@ export async function fetchAspirationsKpis(params: { areaType?: 'rural' | 'urban
   }
 
   try {
-    const PAGE_SIZE = 2000;
+    const PAGE_SIZE = 1000;
     let allRows: AspirationSectorEntry[] = [];
     let from = 0;
     let keepFetching = true;
