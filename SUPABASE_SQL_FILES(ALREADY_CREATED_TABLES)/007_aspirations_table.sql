@@ -66,6 +66,15 @@ CREATE TABLE IF NOT EXISTS aspirations (
   zone                  TEXT   -- 'Plains', 'Desert', 'Tribal'
 );
 
+-- This is a plain TEXT column we will populate ourselves from JS
+ALTER TABLE aspirations ADD COLUMN IF NOT EXISTS natural_key TEXT;
+
+-- The base_natural_key is now the true upsert key — must be unique
+ALTER TABLE aspirations ADD CONSTRAINT aspirations_base_natural_key_unique UNIQUE (base_natural_key);
+
+ALTER TABLE aspirations ADD COLUMN IF NOT EXISTS base_natural_key TEXT;
+CREATE INDEX IF NOT EXISTS idx_asp_base_natural_key ON aspirations(base_natural_key);
+
 -- Upload batches metadata table
 CREATE TABLE IF NOT EXISTS aspiration_batches (
   batch_id          TEXT PRIMARY KEY,

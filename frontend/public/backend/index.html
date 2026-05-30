@@ -1,3 +1,6 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5.0, user-scalable=yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1236,6 +1239,7 @@
             }
         }
     </style>
+</head>
 <body>
     <div class="login-container" id="loginContainer" style="display: flex;">
                     <div class="login-card">
@@ -2328,17 +2332,13 @@
                 reasons.push('Priority level is 0 (Low) but 2030 target is set. Likely data entry error — upgrade priority to 2 if genuinely needed by 2030. | प्राथमिकता स्तर 0 (न्यूनतम) है लेकिन 2030 का लक्ष्य निर्धारित है।');
             }
 
-            // R7 — Duplicate Detection (Exact 1-1 Match across all provided fields)
-            const dupObj = {
-                district: record.district, block: record.block, gp: record.gp, city: record.city, ward: record.ward, village: record.village,
-                item: record.item, sector: record.sector, dept: record.dept,
-                qty_2030: record.qty_2030, qty_2035: record.qty_2035, qty_2047: record.qty_2047, priority: record.priority,
-                funded: record.funded, scheme: record.scheme, lat: record.lat, lng: record.lng,
-                is_financial: record.is_financial, is_financial_approved: record.is_financial_approved, scheme_id: record.scheme_id,
-                is_applicable: record.is_applicable, unit_id: record.unit_id, sub_indicator_id: record.sub_indicator_id,
-                landmark: record.landmark, address_eng: record.address_eng, area_type: record.area_type
-            };
-            const dupKey = JSON.stringify(dupObj);
+            // R7 — Duplicate Detection using the same natural key as the DB upsert.
+            // Two records are duplicates only if ALL planning-relevant fields match,
+            // including district, block, gp, village, ward, item, sector, dept,
+            // priority, quantities, funded status, and GPS coordinates.
+            // aspiration_id is intentionally excluded — the same Rajdhara ID can
+            // appear across different villages under the same GP.
+            const dupKey = buildNaturalKey(record);
             
             if (seenSet.has(dupKey)) {
                 // Exact duplicate -> explicit REJECT
@@ -2434,9 +2434,14 @@
             const saveBtn = document.getElementById('saveToSupabaseBtn');
             if (saveBtn) {
                 const actionableCount = DATA.filter(r => r.status !== 'REJECT').length;
+                const totalRecords = DATA.length;
+                const rejectedCount = DATA.filter(r => r.status === 'REJECT').length;
+                const dupeCount = DATA.filter(r => r.status === 'REJECT' && r.status_codes.includes('R7-DUPL')).length;
                 saveBtn.style.display = 'block';
                 saveBtn.disabled = actionableCount === 0;
-                saveBtn.textContent = `☁️ Save ${actionableCount.toLocaleString()} Records to Supabase`;
+                saveBtn.textContent = dupeCount > 0
+                    ? `☁️ Save ${actionableCount.toLocaleString()} Records to Supabase (${dupeCount} exact duplicate${dupeCount > 1 ? 's' : ''} excluded)`
+                    : `☁️ Save ${actionableCount.toLocaleString()} Records to Supabase`;
                 saveBtn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
             }
         }
@@ -2460,113 +2465,122 @@
             const saveBtn = document.getElementById('saveToSupabaseBtn');
             if (saveBtn) {
                 saveBtn.disabled = true;
-                saveBtn.textContent = `⏳ Saving 0 / ${recordsToSave.length}...`;
             }
 
             try {
-                // STEP A: Delete all existing records for the same planning years being uploaded
-                // This is the fast replace strategy — delete by planning_year first
                 const yearsInThisUpload = [...new Set(recordsToSave.map(r => r.planning_year).filter(Boolean))];
 
-                for (const year of yearsInThisUpload) {
-                    const deleteRes = await fetch(
-                        `${SUPABASE_URL}/rest/v1/aspirations?planning_year=eq.${year}`,
-                        {
-                            method: 'DELETE',
-                            headers: {
-                                'apikey': SUPABASE_KEY,
-                                'Authorization': `Bearer ${SUPABASE_KEY}`,
-                                'Content-Type': 'application/json'
-                            }
-                        }
-                    );
-                    if (!deleteRes.ok) {
-                        const err = await deleteRes.text();
-                        throw new Error(`Delete failed for year ${year}: ${err}`);
-                    }
-                }
+                // Build every row with a guaranteed-unique natural_key
+                // base_natural_key holds the logical key for duplicate analysis
+                const validRows = recordsToSave.map((r, idx) => {
+                    const isUrban = String(r.area_type || 'Rural').trim().toLowerCase() === 'urban';
+                    const baseParts = [
+                        String(r.planning_year || '').trim(),
+                        isUrban ? 'urban' : 'rural',
+                        String(r.district || '').trim().toLowerCase(),
+                        String(r.block || '').trim().toLowerCase(),
+                        String(r.gp || '').trim().toLowerCase(),
+                        String(r.village || '').trim().toLowerCase(),
+                        isUrban ? String(r.city || r.ulb || r.block || '').trim().toLowerCase() : '',
+                        String(r.ward || '').trim().toLowerCase(),
+                        String(r.item || '').trim().toLowerCase(),
+                        String(r.sector || '').trim().toLowerCase(),
+                        String(r.dept || '').trim().toLowerCase(),
+                        String(r.priority || 0),
+                        String(r.qty_2030 || 0),
+                        String(r.qty_2035 || 0),
+                        String(r.qty_2047 || 0),
+                        String(r.funded || 'NO').toLowerCase(),
+                        String(r.lat || ''),
+                        String(r.lng || '')
+                    ];
+                    const baseKey = baseParts.join('|');
 
-                console.log(`Deleted existing records for years: ${yearsInThisUpload.join(', ')}`);
-
-                // STEP B: Insert in chunks of BATCH_SIZE_INSERT
-                let saved = 0;
-                const chunks = [];
-                for (let i = 0; i < recordsToSave.length; i += BATCH_SIZE_INSERT) {
-                    chunks.push(recordsToSave.slice(i, i + BATCH_SIZE_INSERT));
-                }
-
-                for (let ci = 0; ci < chunks.length; ci++) {
-                    const chunk = chunks[ci];
-                    const rows = chunk.map(r => ({
+                    return {
+                        natural_key:           baseKey,
+                        base_natural_key:      baseKey,
                         aspiration_id:         r.aspiration_id || null,
                         rajdhara_ref:          r.rajdhara_ref || null,
-                        planning_year:         r.planning_year || '2047',
+                        planning_year:         String(r.planning_year || '2047'),
                         upload_batch_id:       currentBatchId,
-
                         district:              r.district || null,
                         block:                 r.block || null,
-                        gram_panchayat:        r.gp || null,
+                        gram_panchayat:        isUrban ? null : (r.gp || null),
                         village:               r.village || null,
-                        ulb:                   r.ulb || null,
+                        ulb:                   null,
                         ward:                  r.ward || null,
-                        city:                  r.city || null,
+                        city:                  isUrban ? (r.city || r.ulb || r.block || null) : null,
                         area_type:             r.area_type || 'Rural',
-
                         sector:                r.sector || null,
                         dept:                  r.dept || null,
                         item:                  r.item || '',
                         priority:              r.priority || 0,
-
                         qty_2030:              r.qty_2030 || 0,
                         qty_2035:              r.qty_2035 || 0,
                         qty_2047:              r.qty_2047 || 0,
-
                         funded:                r.funded || 'NO',
                         scheme:                r.scheme || null,
                         is_financial:          r.is_financial || false,
                         is_financial_approved: r.is_financial_approved || false,
-
                         lat:                   r.lat || null,
                         lng:                   r.lng || null,
                         landmark:              r.landmark || null,
                         address_eng:           r.address_eng || null,
-
                         status:                r.status,
                         status_codes:          r.status_codes || [],
                         reasons:               r.reasons || [],
                         fast_track:            r.fastTrack || false,
-
                         budget_2030:           r.budget_2030 || 0,
                         budget_2035:           r.budget_2035 || 0,
                         budget_2047:           r.budget_2047 || 0,
                         total_budget:          r.total_budget || 0,
-
                         baseline_population:   findBaselineEntry(r)?.population || 0,
                         zone:                  getZone(r.district)
-                    }));
+                    };
+                }).filter(r => r.natural_key);
 
-                    const insertRes = await fetch(
-                        `${SUPABASE_URL}/rest/v1/aspirations`,
+                if (validRows.length === 0) {
+                    throw new Error('No valid rows to save.');
+                }
+
+                // Simple fixed-size chunks — no collision possible since every key is unique
+                const chunks = [];
+                for (let i = 0; i < validRows.length; i += BATCH_SIZE_INSERT) {
+                    chunks.push(validRows.slice(i, i + BATCH_SIZE_INSERT));
+                }
+                const totalToSave = validRows.length;
+
+                if (saveBtn) {
+                    saveBtn.textContent = `⏳ Saving 0 / ${totalToSave.toLocaleString()}...`;
+                }
+
+                let saved = 0;
+
+                for (let ci = 0; ci < chunks.length; ci++) {
+                    const chunk = chunks[ci];
+
+                    const upsertRes = await fetch(
+                        `${SUPABASE_URL}/rest/v1/aspirations?on_conflict=base_natural_key`,
                         {
                             method: 'POST',
                             headers: {
                                 'apikey': SUPABASE_KEY,
                                 'Authorization': `Bearer ${SUPABASE_KEY}`,
                                 'Content-Type': 'application/json',
-                                'Prefer': 'return=minimal'
+                                'Prefer': 'resolution=merge-duplicates,return=minimal'
                             },
-                            body: JSON.stringify(rows)
+                            body: JSON.stringify(chunk)
                         }
                     );
 
-                    if (!insertRes.ok) {
-                        const err = await insertRes.text();
-                        throw new Error(`Insert chunk ${ci + 1} failed: ${err}`);
+                    if (!upsertRes.ok) {
+                        const err = await upsertRes.text();
+                        throw new Error(`Upsert chunk ${ci + 1} failed: ${err}`);
                     }
 
                     saved += chunk.length;
                     if (saveBtn) {
-                        saveBtn.textContent = `⏳ Saving ${saved.toLocaleString()} / ${recordsToSave.length.toLocaleString()}...`;
+                        saveBtn.textContent = `⏳ Upserting ${saved.toLocaleString()} / ${totalToSave.toLocaleString()}...`;
                     }
                 }
 
@@ -2596,16 +2610,16 @@
                     }])
                 });
 
-                showToast(`✅ ${saved.toLocaleString()} records saved to Supabase successfully!`);
+                showToast(`✅ ${saved.toLocaleString()} records upserted to Supabase successfully!`);
                 if (saveBtn) {
-                    saveBtn.textContent = `✅ Saved ${saved.toLocaleString()} records`;
+                    saveBtn.textContent = `✅ Upserted ${saved.toLocaleString()} records`;
                     saveBtn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
                 }
 
                 const statusDiv = document.getElementById('supabaseSaveStatus');
                 if (statusDiv) {
                     statusDiv.style.display = 'block';
-                    statusDiv.textContent = `Last saved: ${new Date().toLocaleString('en-IN')} · Batch: ${currentBatchId}`;
+                    statusDiv.textContent = `Last saved: ${new Date().toLocaleString('en-IN')} · Batch: ${currentBatchId} · ${saved.toLocaleString()} upserted`;
                 }
             } catch (err) {
                 console.error('Supabase save error:', err);
@@ -2882,6 +2896,31 @@
         }
 
         // ==================== UTILITIES ====================
+        function buildNaturalKey(r) {
+            const isUrban = String(r.area_type || '').toLowerCase() === 'urban';
+            const parts = [
+                String(r.planning_year || '').trim(),
+                isUrban ? 'urban' : 'rural',
+                String(r.district || '').trim().toLowerCase(),
+                String(r.block || '').trim().toLowerCase(),
+                String(r.gp || '').trim().toLowerCase(),
+                String(r.village || '').trim().toLowerCase(),
+                isUrban ? String(r.city || r.ulb || r.block || '').trim().toLowerCase() : '',
+                String(r.ward || '').trim().toLowerCase(),
+                String(r.item || '').trim().toLowerCase(),
+                String(r.sector || '').trim().toLowerCase(),
+                String(r.dept || '').trim().toLowerCase(),
+                String(r.priority || 0),
+                String(r.qty_2030 || 0),
+                String(r.qty_2035 || 0),
+                String(r.qty_2047 || 0),
+                String(r.funded || 'NO').toLowerCase(),
+                String(r.lat || ''),
+                String(r.lng || '')
+            ];
+            return parts.join('|');
+        }
+
         function formatCurrency(amount) {
             if (amount >= 10000000) {
                 return '₹' + (amount / 10000000).toFixed(2) + ' Cr';
