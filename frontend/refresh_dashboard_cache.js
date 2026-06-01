@@ -1,6 +1,7 @@
 const { createClient } = require('@supabase/supabase-js');
-const SUPABASE_URL = "https://snumetzplgwbwovbpkaj.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNudW1ldHpwbGd3YndvdmJwa2FqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyNjAyNTgsImV4cCI6MjA5MjgzNjI1OH0.Zo2oM1ddUI8XyfMvhDP3ixmLP2RlYjjCRgD-fnhvo2o";
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "https://jnzhmcngxigtptztdjhl.supabase.co";
+const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpuemhtY25neGlndHB0enRkamhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyNDM0MDgsImV4cCI6MjA5NTgxOTQwOH0.wCsBF-uTxmyJXLa2SRm0pZ0XwiWwKAXC26qSHZ9wux8";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 

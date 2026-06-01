@@ -1545,8 +1545,8 @@
         let baselineMap = null;
         let baselineMapPromise = null;
         let isBaselineLoading = false;
-        const SUPABASE_URL = "https://snumetzplgwbwovbpkaj.supabase.co";
-        const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNudW1ldHpwbGd3YndvdmJwa2FqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyNjAyNTgsImV4cCI6MjA5MjgzNjI1OH0.Zo2oM1ddUI8XyfMvhDP3ixmLP2RlYjjCRgD-fnhvo2o";
+        const SUPABASE_URL = "https://jnzhmcngxigtptztdjhl.supabase.co";
+        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpuemhtY25neGlndHB0enRkamhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyNDM0MDgsImV4cCI6MjA5NTgxOTQwOH0.wCsBF-uTxmyJXLa2SRm0pZ0XwiWwKAXC26qSHZ9wux8";
         const BASELINE_CACHE_KEY = 'backend_baseline_map_v2';
         const BATCH_SIZE_INSERT = 500;  // Supabase insert chunk size
         let currentBatchId = null;      // Set fresh per upload session
@@ -1643,7 +1643,7 @@
         async function fetchAllSupabase(table, select) {
             let all = [];
             let offset = 0;
-            const headers = { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` };
+            const headers = { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` };
             while(true) {
                 const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=${select}&offset=${offset}&limit=1000`, { headers });
                 const data = await res.json();
@@ -2564,8 +2564,8 @@
                         {
                             method: 'POST',
                             headers: {
-                                'apikey': SUPABASE_KEY,
-                                'Authorization': `Bearer ${SUPABASE_KEY}`,
+                                'apikey': SUPABASE_ANON_KEY,
+                                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
                                 'Content-Type': 'application/json',
                                 'Prefer': 'resolution=merge-duplicates,return=minimal'
                             },
@@ -2592,8 +2592,8 @@
                 await fetch(`${SUPABASE_URL}/rest/v1/aspiration_batches`, {
                     method: 'POST',
                     headers: {
-                        'apikey': SUPABASE_KEY,
-                        'Authorization': `Bearer ${SUPABASE_KEY}`,
+                        'apikey': SUPABASE_ANON_KEY,
+                        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
                         'Content-Type': 'application/json',
                         'Prefer': 'return=minimal'
                     },

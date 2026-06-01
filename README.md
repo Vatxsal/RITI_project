@@ -1,13 +1,13 @@
 # Manthaan OS - Planning Intelligence for Viksit Rajasthan 2047
 
-A comprehensive planning intelligence system combining data pipeline, spatial analysis, and budget intelligence for aspirational governance planning.
+A planning intelligence platform for aspirational governance that combines Supabase-backed data services, GIS visualization, authentication, ETL tooling, and dashboard analytics.
 
 ## 📁 Project Structure
 
 ```
 .
-├── frontend/                  # Next.js 14 frontend application
-│   ├── app/                   # App directory (Next.js 14)
+├── frontend/                  # Next.js frontend application
+│   ├── app/                   # App directory
 │   ├── components/            # React components
 │   ├── lib/                   # Utilities, types, API clients
 │   ├── store/                 # Zustand state management
@@ -18,9 +18,11 @@ A comprehensive planning intelligence system combining data pipeline, spatial an
 │   └── tsconfig.json          # TypeScript config
 │
 ├── ETL/                       # Data pipeline scripts (Python)
-│   ├── aspiration_mapper.py
+│   ├── export_to_csv.py       # Generate import-ready CSVs from Excel baselines
+│   ├── enrich_csv_with_ids.py # Add Supabase IDs to fact CSVs
 │   ├── rural_baseline_pipeline.py
 │   ├── urban_baseline_pipeline.py
+│   ├── simple_csv_import.py   # Direct CSV import helper
 │   ├── requirements.txt        # Python dependencies
 │   ├── .env                    # 🔐 LOCAL ONLY (not in git)
 │   └── .env.example            # 📋 TEMPLATE for .env
@@ -98,7 +100,7 @@ pip install -r requirements.txt
 Create `.env` in `ETL/` directory (copy from `.env.example`):
 ```env
 SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_KEY=your-service-role-key-here
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here
 DATABASE_URL=postgresql://user:password@db.supabase.co:5432/postgres
 GEMINI_API_KEY=your-gemini-api-key-here
 ```
@@ -116,14 +118,17 @@ GEMINI_API_KEY=your-gemini-api-key-here
    2. 002_indicator_master.sql
    3. 003_urban_baseline_foundations.sql
    4. 004_aspiration_storage.sql
+   5. 005_auth_sessions_rbac.sql
+   6. 006_dashboard_kpi_cache.sql
    ```
 
 2. **Load baseline data** - Run ETL pipelines:
    ```bash
    cd ETL
+   python export_to_csv.py
+   python enrich_csv_with_ids.py
    python rural_baseline_pipeline.py
    python urban_baseline_pipeline.py
-   python aspiration_mapper.py
    ```
 
 ### 5️⃣ Run Application
@@ -141,8 +146,16 @@ npm run dev
 - `/gp-ranking` - GP performance ranking
 - `/budget-engine` - Budget allocation engine
 - `/gis-map` - Spatial data visualization
+- `/gis-map-new` - Alternate GIS/data exploration view
 - `/gp-baseline` - Baseline data viewer
+- `/districts` - District summary and scores
+- `/ai-chat` - Gemini-powered planning assistant
+- `/login` - Admin sign-in
+- `/reports` - Reports view
+- `/sector/[sector]` - Sector detail pages with baseline + aspiration analytics
 - `/upload` - CSV data upload
+- `/backend` - Backend upload portal
+- `/dashboard/backend` - Backend dashboard portal
 
 ## 🔐 Environment Variables & Security
 
@@ -180,7 +193,7 @@ Create `ETL/.env.example`:
 
 ```env
 SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_KEY=your_service_role_key_here
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_here
 DATABASE_URL=postgresql://user:password@host:5432/postgres
 GEMINI_API_KEY=your_gemini_api_key_here
 ```
@@ -199,7 +212,7 @@ GEMINI_API_KEY=your_gemini_api_key_here
 ## 🛠️ Development
 
 ### Frontend Stack
-- **Framework:** Next.js 14 (App Router)
+- **Framework:** Next.js (App Router)
 - **Styling:** Tailwind CSS
 - **State Management:** Zustand
 - **Charts:** Recharts
@@ -212,21 +225,22 @@ GEMINI_API_KEY=your_gemini_api_key_here
 - **Data Processing:** Rule engine, CNI scoring
 
 ### Key Features
-- **Rule Engine** - 8-filter aspiration validation
-- **CNI Engine** - Composite Need Index calculation
-- **Budget Engine** - Cost estimation & allocation
-- **GIS Integration** - Spatial data mapping
-- **CSV Upload** - Batch data import with preview
+- **Authentication** - Admin login/logout with session tracking backed by Supabase auth session tables.
+- **Dashboard command center** - Overview page with KPI cards, sector summaries, district scores, and cached baseline coverage data.
+- **Aspirations analytics** - Aspirations-first views with sector mix, top strategic aspirations, coverage bars, timelines, density, and district-aware filtering.
+- **GIS maps** - Interactive GIS pages with layered filters and alternate map exploration views.
+- **AI chat** - Gemini-powered planning assistant for data-aware responses.
+- **Upload pipeline** - CSV upload portal, backend upload portal, Supabase-backed storage, and batch import/export helpers.
+- **ETL tooling** - Excel to CSV export, ID enrichment, baseline validation, and import helpers for rural and urban data.
+- **Cache and API routes** - Server-side KPI routes, warm/cache helpers, and Supabase RPC-backed aggregation for faster dashboard loads.
 
-### Implemented Features (Recent)
-- **GIS map redesign**: Split-panel GIS page with left-side filters and a compact, full-height map view. Map component accepts `compact`, `predicates`, and `activeLayers` props for filtering and overlays.
-- **Sector page — aspirations-first dashboard**: Reworked sector page to surface Hero KPIs, baseline snapshot cards, aspiration mix, coverage bars, aspiration timeline and density list, and a right-column `P-1 Priority Aspirations` card.
-- **District-aware data**: `selectedDistrict` from the global `FilterContext` is threaded through `fetchSectorPageData`, cache keys, and Supabase queries so sector views respect district-level filtering.
-- **Baseline aggregation fixes**: Added averaged baseline columns, corrected metric interpretation, and consistent rounding for coverage and baseline KPIs.
-- **Aspiration matching improvements**: Broadened aspiration matching to use exact database sector names and aspiration keywords while avoiding false positives for specific sectors (e.g., Water Security).
-- **AI insights (Gemini) reliability**: Multi-model retry/fallback, increased output token limit, hardened JSON parsing and repair for truncated responses, user-visible error/fallback UI, and debug logging for troubleshooting.
-- **Budget UI removal**: Removed misleading on-page budget summaries (₹ display) from the sector UI while preserving budget fields in cache for future use.
-- **Cache & aggregation**: `frontend/lib/cache/refresh_cache_dashboard.ts` updated to be district-aware, include averaged columns, and finalize baseline metrics with rounding.
+### Implemented Features (Current)
+- **Frontend routes**: `/overview`, `/aspirations`, `/districts`, `/gp-ranking`, `/budget-engine`, `/gis-map`, `/gis-map-new`, `/gp-baseline`, `/reports`, `/login`, `/ai-chat`, `/upload`, `/backend`, and `/dashboard/backend` are implemented.
+- **Supabase API layer**: App routes exist for chat, compliance norms, dashboard KPIs, GP search, GP baseline, sidebar stats, stats, auth login/logout, and other dashboard queries.
+- **Auth and RBAC**: Login/logout routes store session records and rely on the service-role key server-side only.
+- **Data processing**: The ETL folder includes Excel export, CSV enrichment with IDs, direct CSV import, timing diagnostics, and validation helpers.
+- **Environment cleanup**: The repo now uses `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` instead of the older `SUPABASE_KEY` naming.
+- **Deployment readiness**: `npm run build` passes in the frontend, so the app is currently buildable for Vercel deployment.
 
 ### Deployment & Checklist Notes
 - `.env` and `.env.local` files must remain uncommitted and are correctly ignored.
