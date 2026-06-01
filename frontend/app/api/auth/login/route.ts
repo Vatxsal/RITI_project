@@ -47,10 +47,7 @@ export async function POST(req: Request) {
     });
 
     if (error) {
-      return NextResponse.json(
-        { error: 'Unable to create session record', details: error.message },
-        { status: 500 }
-      );
+      console.error('[auth/login] unable to create session record', error);
     }
   }
 
