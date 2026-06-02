@@ -59,27 +59,43 @@ const SECTOR_SECONDARY_BASELINE_LABEL: Record<string, string> = {
   env: 'Toilet Coverage',
 };
 
+function getPrimaryBaselineLabel(sectorId: string, areaType: AreaType): string {
+  if (sectorId === 'water') {
+    if (areaType === 'all') return 'Rural + Urban Tap Coverage';
+    return areaType === 'urban' ? 'Urban Tap Connection Coverage' : 'Rural FHTC Coverage';
+  }
+  return SECTOR_PRIMARY_BASELINE_LABEL[sectorId] || 'Baseline Metric';
+}
+
+function getSecondaryBaselineLabel(sectorId: string, areaType: AreaType): string {
+  if (sectorId === 'water') {
+    if (areaType === 'all') return 'Avg Groundwater Depth';
+    return areaType === 'urban' ? 'Urban Groundwater Depth' : 'Avg Groundwater Depth';
+  }
+  return SECTOR_SECONDARY_BASELINE_LABEL[sectorId] || 'Baseline Metric';
+}
+
 const SECTOR_PRIMARY_BASELINE_COLUMN: Record<string, string> = {
   water: 'tap_connection_pct',
   health: 'allopathic_centers',
-  agri: 'total_farmers_count',
-  dairy: 'total_livestock_count',
-  edu: 'total_schools_count',
+  agri: 'total_farmers',
+  dairy: 'total_livestock',
+  edu: 'total_schools',
   employ: 'active_shg_count',
   women: 'women_in_shgs',
   welfare: 'old_age_pensioners',
   infra: 'road_length_km',
-  tourism: 'cultural_assets_count',
-  env: 'forest_area_hectare',
+  tourism: 'cultural_assets',
+  env: 'forest_area_ha',
 };
 
 const SECTOR_SECONDARY_BASELINE_COLUMN: Record<string, string> = {
   water: 'groundwater_depth_meters',
   health: 'health_center_beds',
-  agri: 'irrigated_area_hectare',
-  dairy: 'daily_milk_prod_litres',
+  agri: 'irrigated_area_ha',
+  dairy: 'daily_milk_litres',
   edu: 'total_enrolled_students',
-  employ: 'lakhpati_didis_count',
+  employ: 'lakhpati_didis',
   women: 'active_shg_count',
   welfare: 'widow_pensioners',
   infra: 'houses_with_electricity',
@@ -99,9 +115,9 @@ function formatBaselineMetricValue(column: string | undefined, value: number | u
   if (column === 'road_length_km' || column === 'dist_bus_stand_km' || column === 'dist_main_market_km' || column === 'dist_railway_station_km' || column === 'phc_dist_km' || column === 'chc_dist_km') {
     return `${Number(value).toFixed(1)} km`;
   }
-  if (column === 'daily_milk_prod_litres') return `${formatMetricNumber(value)} L/day`;
+  if (column === 'daily_milk_litres') return `${formatMetricNumber(value)} L/day`;
   if (column === 'total_waste_daily_kg' || column === 'wet_waste_daily_kg' || column === 'dry_waste_daily_kg') return `${formatMetricNumber(value)} kg`;
-  if (column === 'forest_area_hectare' || column === 'pasture_land_hectare' || column === 'cultivable_land_hectare' || column === 'irrigated_area_hectare') return `${formatMetricNumber(value)} ha`;
+  if (column === 'forest_area_ha' || column === 'pasture_land_ha' || column === 'cultivable_land_ha' || column === 'irrigated_area_ha') return `${formatMetricNumber(value)} ha`;
   return formatMetricNumber(value);
 }
 
@@ -116,9 +132,9 @@ function getBaselineMetricCards(sectorId: string, metrics: Record<string, number
     water: [
       { label: 'Tap Coverage', col: 'tap_connection_pct', note: 'Rural + urban FHTC' },
       { label: 'Groundwater Depth', col: 'groundwater_depth_meters', note: 'Average depth' },
-      { label: 'Overhead Tanks', col: 'overhead_tanks_count', note: 'Storage infra' },
-      { label: 'HP/TW HH', col: 'handpump_tubewell_only_houses', note: 'Dependency gap' },
-      { label: 'Tanker HH', col: 'tanker_only_supply_houses', note: 'Critical supply' },
+      { label: 'Overhead Tanks', col: 'overhead_tanks', note: 'Storage infra' },
+      { label: 'HP/TW HH', col: 'handpump_only_houses', note: 'Dependency gap' },
+      { label: 'Tanker HH', col: 'tanker_only_houses', note: 'Critical supply' },
       { label: 'RO Facilities', col: 'ro_facilities', note: 'Water quality support' },
     ],
     health: [
@@ -126,47 +142,47 @@ function getBaselineMetricCards(sectorId: string, metrics: Record<string, number
       { label: 'AYUSH Centers', col: 'ayush_centers', note: 'Complementary care' },
       { label: 'Health Beds', col: 'health_center_beds', note: 'Treatment capacity' },
       { label: 'Working Staff', col: 'working_health_staff', note: 'Active workforce' },
-      { label: 'Ayushman Ben.', col: 'ayushman_arogya_beneficiaries', note: 'Scheme coverage' },
-      { label: 'TB Patients', col: 'tb_patients_count', note: 'Active caseload' },
+      { label: 'Ayushman Ben.', col: 'ayushman_beneficiaries', note: 'Scheme coverage' },
+      { label: 'TB Patients', col: 'tb_patients', note: 'Active caseload' },
     ],
     agri: [
-      { label: 'Cultivable Land', col: 'cultivable_land_hectare', note: 'Ha · total scope' },
-      { label: 'Irrigated Area', col: 'irrigated_area_hectare', note: 'Watered acreage' },
-      { label: 'Total Farmers', col: 'total_farmers_count', note: 'Producer base' },
-      { label: 'KCC Holders', col: 'kcc_holders_count', note: 'Credit access' },
+      { label: 'Cultivable Land', col: 'cultivable_land_ha', note: 'Ha · total scope' },
+      { label: 'Irrigated Area', col: 'irrigated_area_ha', note: 'Watered acreage' },
+      { label: 'Total Farmers', col: 'total_farmers', note: 'Producer base' },
+      { label: 'KCC Holders', col: 'kcc_holders', note: 'Credit access' },
       { label: 'PM-Kisan Ben.', col: 'pm_cm_kisan_beneficiaries', note: 'Income support' },
-      { label: 'Solar Pumps', col: 'solar_pumps_count', note: 'Green irrigation' },
+      { label: 'Solar Pumps', col: 'solar_pumps', note: 'Green irrigation' },
     ],
     dairy: [
-      { label: 'Total Livestock', col: 'total_livestock_count', note: 'Asset base' },
-      { label: 'Milch Animals', col: 'milch_animals_count', note: 'Productive stock' },
-      { label: 'Daily Milk LPD', col: 'daily_milk_prod_litres', note: 'Production volume' },
+      { label: 'Total Livestock', col: 'total_livestock', note: 'Asset base' },
+      { label: 'Milch Animals', col: 'milch_animals', note: 'Productive stock' },
+      { label: 'Daily Milk LPD', col: 'daily_milk_litres', note: 'Production volume' },
       { label: 'Milk Centers', col: 'milk_collection_centers', note: 'Collection infra' },
-      { label: 'Goat Farms', col: 'goat_farms_count', note: 'Small ruminants' },
-      { label: 'Poultry Farms', col: 'poultry_farms_count', note: 'Protein economy' },
+      { label: 'Goat Farms', col: 'goat_farms', note: 'Small ruminants' },
+      { label: 'Poultry Farms', col: 'poultry_farms', note: 'Protein economy' },
     ],
     edu: [
-      { label: 'Govt Schools', col: 'govt_schools_count', note: 'Public system' },
-      { label: 'Pvt Schools', col: 'pvt_schools_count', note: 'Private sector' },
-      { label: 'Total Schools', col: 'total_schools_count', note: 'Education supply' },
+      { label: 'Govt Schools', col: 'govt_schools', note: 'Public system' },
+      { label: 'Pvt Schools', col: 'pvt_schools', note: 'Private sector' },
+      { label: 'Total Schools', col: 'total_schools', note: 'Education supply' },
       { label: 'Working Teachers', col: 'working_teachers', note: 'Active workforce' },
-      { label: 'Dropouts', col: 'dropout_children_prev_year', note: 'Retention gap' },
+      { label: 'Dropouts', col: 'dropout_children', note: 'Retention gap' },
       { label: 'Enrolled Students', col: 'total_enrolled_students', note: 'Demand base' },
     ],
     employ: [
       { label: 'Active SHGs', col: 'active_shg_count', note: 'Community groups' },
       { label: 'Women in SHGs', col: 'women_in_shgs', note: 'Collective power' },
-      { label: 'Lakhpati Didis', col: 'lakhpati_didis_count', note: 'Income milestone' },
+      { label: 'Lakhpati Didis', col: 'lakhpati_didis', note: 'Income milestone' },
       { label: 'Mudra Loans', col: 'mudra_loan_beneficiaries', note: 'MSME credit' },
-      { label: 'Local Artisans', col: 'local_artisans_count', note: 'Craft economy' },
+      { label: 'Local Artisans', col: 'local_artisans', note: 'Craft economy' },
       { label: 'Large Industries', col: 'large_industrial_units', note: 'Industrial base' },
     ],
     women: [
       { label: 'Women in SHGs', col: 'women_in_shgs', note: 'Organized collective' },
       { label: 'Active SHGs', col: 'active_shg_count', note: 'Group count' },
-      { label: 'Lakhpati Didis', col: 'lakhpati_didis_count', note: 'Economic milestone' },
+      { label: 'Lakhpati Didis', col: 'lakhpati_didis', note: 'Economic milestone' },
       { label: 'Mudra Loans', col: 'mudra_loan_beneficiaries', note: 'Access to credit' },
-      { label: 'Local Artisans', col: 'local_artisans_count', note: 'Micro enterprise' },
+      { label: 'Local Artisans', col: 'local_artisans', note: 'Micro enterprise' },
       { label: 'Industrial Units', col: 'large_industrial_units', note: 'Employment base' },
     ],
     welfare: [
@@ -183,23 +199,23 @@ function getBaselineMetricCards(sectorId: string, metrics: Record<string, number
       { label: 'Street Lights', col: 'total_street_lights', note: 'Public lighting' },
       { label: 'Public Toilets', col: 'public_toilets', note: 'Sanitation infra' },
       { label: 'Solar Homes', col: 'solar_installed_houses', note: 'Green energy' },
-      { label: 'Govt Banks', col: 'govt_banks_count', note: 'Financial access' },
+      { label: 'Govt Banks', col: 'govt_banks', note: 'Financial access' },
     ],
     tourism: [
-      { label: 'Heritage Sites', col: 'cultural_assets_count', note: 'Asset base' },
-      { label: 'Annual Fairs', col: 'annual_fairs_count', note: 'Cultural calendar' },
+      { label: 'Heritage Sites', col: 'cultural_assets', note: 'Asset base' },
+      { label: 'Annual Fairs', col: 'annual_fairs', note: 'Cultural calendar' },
       { label: 'Daily Footfall', col: 'avg_daily_footfall_cultural_sites', note: 'Site traffic' },
       { label: 'Fair Footfall', col: 'avg_fair_footfall_daily', note: 'Event volume' },
       { label: 'Trained Guides', col: 'registered_trained_guides', note: 'Tourism workforce' },
-      { label: 'Fair Employment', col: 'fair_related_employment', note: 'Livelihood from fairs' },
+      { label: 'Fair Employment', col: 'fair_employment', note: 'Livelihood from fairs' },
     ],
     env: [
-      { label: 'Forest Area', col: 'forest_area_hectare', note: 'Conservation asset' },
-      { label: 'Pasture Land', col: 'pasture_land_hectare', note: 'Commons base' },
+      { label: 'Forest Area', col: 'forest_area_ha', note: 'Conservation asset' },
+      { label: 'Pasture Land', col: 'pasture_land_ha', note: 'Commons base' },
       { label: 'Toilet Coverage', col: 'houses_with_toilets', note: 'ODF coverage' },
-      { label: 'Biogas Plants', col: 'biogas_plants_count', note: 'Renewable energy' },
-      { label: 'Compost Pits', col: 'govt_compost_pits_count', note: 'Waste management' },
-      { label: 'PM Surya Ghar', col: 'pm_surya_ghar_solar_houses', note: 'Solar homes' },
+      { label: 'Biogas Plants', col: 'biogas_plants', note: 'Renewable energy' },
+      { label: 'Compost Pits', col: 'govt_compost_pits', note: 'Waste management' },
+      { label: 'PM Surya Ghar', col: 'pm_surya_ghar_houses', note: 'Solar homes' },
     ],
   };
 
@@ -465,8 +481,8 @@ Write 3 planning intelligence insights in proper Hindi (Devanagari). Mix of patt
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
-        <HeroKpiCard label={SECTOR_PRIMARY_BASELINE_LABEL[sector.v]} value={sectorLoading ? '—' : formatHeroBaselineKpi(sector.v, sectorData?.baselineMetrics, 'primary')} sub="Baseline · All Rajasthan" accentColor="#1e3a5f" badge="BASELINE" />
-        <HeroKpiCard label={SECTOR_SECONDARY_BASELINE_LABEL[sector.v]} value={sectorLoading ? '—' : formatHeroBaselineKpi(sector.v, sectorData?.baselineMetrics, 'secondary')} sub="Baseline · All Rajasthan" accentColor="#1e3a5f" badge="BASELINE" />
+        <HeroKpiCard label={getPrimaryBaselineLabel(sector.v, areaType)} value={sectorLoading ? '—' : formatHeroBaselineKpi(sector.v, sectorData?.baselineMetrics, 'primary')} sub="Baseline · All Rajasthan" accentColor="#1e3a5f" badge="BASELINE" />
+        <HeroKpiCard label={getSecondaryBaselineLabel(sector.v, areaType)} value={sectorLoading ? '—' : formatHeroBaselineKpi(sector.v, sectorData?.baselineMetrics, 'secondary')} sub="Baseline · All Rajasthan" accentColor="#1e3a5f" badge="BASELINE" />
         <HeroKpiCard label="2030 Aspiration Target" value={sectorLoading ? '—' : formatMetricNumber(sectorData?.aspQty2030 || 0)} sub={`${formatMetricNumber(sectorData?.aspTotalCount || 0)} total aspirations`} accentColor="#e85d04" badge="ASPIRATIONS" />
         <HeroKpiCard label="Strategic Priority Items" value={sectorLoading ? '—' : formatMetricNumber((sectorData?.aspFunded || 0) + (sectorData?.aspFastTrack || 0))} sub={`${formatMetricNumber(sectorData?.aspFunded || 0)} funded · ${formatMetricNumber(sectorData?.aspFastTrack || 0)} fast-track`} accentColor="#16a34a" badge="FUNDED + FAST-TRACK" />
       </div>

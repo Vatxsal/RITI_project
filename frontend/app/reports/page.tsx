@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { fetchBlocksForDistrict, fetchGpsForBlock, fetchUlbsForDistrict, fetchWardsForUlb } from '@/lib/cache/refresh_cache_dashboard';
+import { DISTRICT_EN_TO_HI, fetchBlocksForDistrict, fetchGpsForBlock, fetchUlbsForDistrict, fetchWardsForUlb } from '@/lib/cache/refresh_cache_dashboard';
 
 const DISTRICTS_EN = [
   'Ajmer', 'Alwar', 'Balotara', 'Banswara', 'Baran', 'Barmer', 'Beawar',
@@ -293,436 +293,145 @@ export default function ReportsPage() {
   }
 
   async function fetchScopedReportData(scope: any) {
-    const S = (dataset: any, col: string) => (dataset?.data || []).reduce((a: number, r: any) => a + (Number(r[col]) || 0), 0);
-    const A = (dataset: any, col: string) => {
-      const vals = (dataset?.data || []).map((r: any) => Number(r[col])).filter((v: number) => v > 0);
-      return vals.length ? (vals.reduce((a: number, b: number) => a + b, 0) / vals.length) : 0;
+    // Sum a numeric column across a plain array of rows
+    const S = (rows: any[], col: string) => rows.reduce((a: number, r: any) => a + (Number(r[col]) || 0), 0);
+    // Average a numeric column (positive values only)
+    const A = (rows: any[], col: string) => {
+      const vals = rows.map((r: any) => Number(r[col])).filter((v: number) => v > 0);
+      return vals.length ? vals.reduce((a: number, b: number) => a + b, 0) / vals.length : 0;
     };
 
+    const dbDistrict = DISTRICT_EN_TO_HI[scope.district] || scope.district;
+
     if (scope.type === 'rural') {
-      let gpQuery = supabase.from('dim_rural_gps').select('gp_id, gram_panchayat, block').eq('district', scope.district);
-      if (scope.block) gpQuery = gpQuery.eq('block', scope.block);
-      if (scope.gpId) gpQuery = gpQuery.eq('gp_id', scope.gpId);
-
-      const { data: gps } = await gpQuery;
-      const gpIds = (gps || []).map((r: any) => r.gp_id);
-      const blocks = [...new Set((gps || []).map((r: any) => r.block))].filter(Boolean);
-
-      if (gpIds.length === 0) throw new Error(`Koi data nahi mila — ${scope.gpName || scope.block || scope.district} ke liye`);
-
-      const [admin, water, livelihood, health, education, social, economy, infra, environment, tourism, governance] = await Promise.all([
-        supabase.from('fact_rural_admin').select('*').in('gp_id', gpIds),
-        supabase.from('fact_rural_water').select('*').in('gp_id', gpIds),
-        supabase.from('fact_rural_livelihood').select('*').in('gp_id', gpIds),
-        supabase.from('fact_rural_health').select('*').in('gp_id', gpIds),
-        supabase.from('fact_rural_education').select('*').in('gp_id', gpIds),
-        supabase.from('fact_rural_social').select('*').in('gp_id', gpIds),
-        supabase.from('fact_rural_economy').select('*').in('gp_id', gpIds),
-        supabase.from('fact_rural_infra').select('*').in('gp_id', gpIds),
-        supabase.from('fact_rural_environment').select('*').in('gp_id', gpIds),
-        supabase.from('fact_rural_tourism').select('*').in('gp_id', gpIds),
-        supabase.from('fact_rural_governance').select('*').in('gp_id', gpIds),
-      ]);
-
-      let aspirationsData: any[] = [];
-      try {
-        let aspQuery = supabase
-          .from('aspirations')
-          .select('district, block, gram_panchayat, village, ulb, ward, city, area_type, item, sector, dept, priority, qty_2030, qty_2035, qty_2047, status, total_budget, scheme, planning_year, fast_track')
-          .in('status', ['ACCEPT', 'FUNDED', 'REVIEW'])
-          .eq('area_type', 'Rural')
-          .limit(1000);
-
-        aspQuery = aspQuery.ilike('district', scope.district);
-        if (scope.block) aspQuery = aspQuery.ilike('block', scope.block);
-        if (scope.gpName) aspQuery = aspQuery.ilike('gram_panchayat', scope.gpName);
-
-        const { data: aspData, error: aspError } = await aspQuery;
-        console.log(`[Aspirations] District: ${scope.district} | Found: ${aspData?.length || 0} rows | Error: ${aspError?.message || 'none'}`);
-        if (aspError) {
-          console.warn('[Aspirations] Fetch failed:', aspError.message);
-        }
-        aspirationsData = aspData || [];
-      } catch (err) {
-        console.warn('[Aspirations] Fetch failed:', err);
-        aspirationsData = [];
-      }
+      let query = supabase.from('baseline_rural').select('*').eq('district', dbDistrict);
+      if (scope.block) query = query.eq('block', scope.block);
+      if (scope.gpName) query = query.ilike('gram_panchayat', scope.gpName);
+      
+      const { data, error } = await query;
+      if (error || !data || data.length === 0) throw new Error('No rural data found.');
 
       return {
         scopeType: 'rural',
-        scopeLabel: scope.gpName
-          ? `GP: ${scope.gpName}, ${scope.block}, ${scope.district}`
-          : scope.block
-            ? `${scope.block} Block, ${scope.district} District`
-            : `${scope.district} District`,
-        meta: {
-          district: scope.district,
-          block: scope.block || null,
-          gpName: scope.gpName || null,
-          gpCount: gpIds.length,
-          blockCount: blocks.length,
-          blocks,
-          wardCount: 0,
-          ulbCount: 0,
-          ulbs: [],
-          wardName: null,
-        },
-        population: {
-          total: S(admin, 'pop_2026_est'),
-          male: S(admin, 'male_pop_2026'),
-          female: S(admin, 'female_pop_2026'),
-          children06: S(admin, 'children_0_6_2026'),
-          children614: S(admin, 'children_6_14_2026'),
-          seniors: S(admin, 'senior_citizens_2026'),
-          pwd: S(admin, 'pwd_pop_2026'),
-          totalFamilies: S(admin, 'total_families_2026'),
-          bplFamilies: S(admin, 'bpl_families_count'),
-          puccaHouses: S(admin, 'pucca_houses_2026'),
-          kutchaHouses: S(admin, 'kutcha_houses_2026'),
-          urbanPop: 0,
-        },
-        water: {
-          ruralFhtcAvg: A(water, 'tap_connection_pct').toFixed(1),
-          gpsBelow30Fhtc: (water?.data || []).filter((r: any) => r.tap_connection_pct < 30).length,
-          overheadTanks: S(water, 'overhead_tanks_count'),
-          groundwaterDepth: A(water, 'groundwater_depth_meters').toFixed(1),
-          roFacilities: S(water, 'ro_facilities'),
-          handpumpTubewellOnlyHouses: S(water, 'handpump_tubewell_only_houses'),
-          tankerOnlySupplyHouses: S(water, 'tanker_only_supply_houses'),
-          urbanFhtcAvg: '0',
-        },
-        aspirations: aspirationsData || [],
-        agriculture: {
-          cultivableHa: S(livelihood, 'cultivable_land_hectare'),
-          irrigatedHa: S(livelihood, 'irrigated_area_hectare'),
-          irrigationPct: S(livelihood, 'cultivable_land_hectare') > 0 ? ((S(livelihood, 'irrigated_area_hectare') / S(livelihood, 'cultivable_land_hectare')) * 100).toFixed(1) : 0,
-          grossSownArea: S(livelihood, 'gross_sown_area'),
-          totalFarmers: S(livelihood, 'total_farmers_count'),
-          kccHolders: S(livelihood, 'kcc_holders_count'),
-          pmKisan: S(livelihood, 'pm_cm_kisan_beneficiaries'),
-          soilCards: S(livelihood, 'soil_health_cards_valid'),
-          cropInsurance: S(livelihood, 'crop_insurance_farmers'),
-          fpos: S(livelihood, 'fpo_count'),
-          solarPumps: S(livelihood, 'solar_pumps_count'),
-        },
-        dairy: {
-          totalLivestock: S(livelihood, 'total_livestock_count'),
-          milchAnimals: S(livelihood, 'milch_animals_count'),
-          dailyMilkLpd: S(livelihood, 'daily_milk_prod_litres'),
-          annualDairyValueCr: (S(livelihood, 'daily_milk_prod_litres') * 365 * 50 / 10000000).toFixed(0),
-          milkCenters: S(livelihood, 'milk_collection_centers'),
-          goatFarms: S(livelihood, 'goat_farms_count'),
-          poultryFarms: S(livelihood, 'poultry_farms_count'),
-        },
-        health: {
-          allopathicCenters: S(health, 'allopathic_centers'),
-          ayushCenters: S(health, 'ayush_centers'),
-          healthBeds: S(health, 'health_center_beds'),
-          healthStaff: S(health, 'working_health_staff'),
-          ayushmanBen: S(health, 'ayushman_arogya_beneficiaries'),
-          tbPatients: S(health, 'tb_patients_count'),
-          anemicPregnant: S(health, 'anemic_pregnant_women'),
-          samChildren: S(education, 'sam_children_count'),
-          ashaWorkers: S(education, 'asha_sahyogini_count'),
-          awcCenters: S(education, 'anganwadi_centers'),
-          urbanHealthBeds: 0,
-          urbanAyushman: 0,
-        },
-        education: {
-          dataAvailable: false,
-          totalSchools: 0,
-          govtSchools: 0,
-          pvtSchools: 0,
-          workingTeachers: 0,
-          sanctionedTeachers: 0,
-          enrolledStudents: 0,
-          dropouts: 0,
-          skillCenters: 0,
-          colleges: 0,
-          awcCenters: S(education, 'anganwadi_centers'),
-          ashaWorkers: S(education, 'asha_sahyogini_count'),
-          samChildren: S(education, 'sam_children_count'),
-          urbanGovtSchools: 0,
-          urbanPvtSchools: 0,
-          urbanTeachers: 0,
-        },
-        social: {
-          oldAgePensioners: S(social, 'old_age_pensioners'),
-          widowPensioners: S(social, 'widow_pensioners'),
-          pwdPensioners: S(social, 'pwd_pensioners_est'),
-          ujjwalaBen: S(social, 'pm_ujjwala_beneficiaries'),
-          awasBen: S(social, 'pm_cm_awas_beneficiaries'),
-          urbanWidow: 0,
-          urbanAwas: 0,
-        },
-        economy: {
-          activeShgs: S(economy, 'active_shg_count'),
-          shgWomen: S(economy, 'women_in_shgs'),
-          lakhpatiDidis: S(economy, 'lakhpati_didis_count'),
-          millionaireDidis: S(economy, 'millionaire_didis_count'),
-          mudraLoan: S(economy, 'mudra_loan_beneficiaries'),
-          artisans: S(economy, 'local_artisans_count'),
-          urbanShgs: 0,
-          urbanIndustries: 0,
-        },
-        infrastructure: {
-          electricityHouses: S(infra, 'houses_with_electricity'),
-          roadKm: S(infra, 'road_length_km'),
-          streetLights: S(infra, 'total_street_lights'),
-          govtBanks: S(infra, 'govt_banks_count'),
-          postOffices: S(infra, 'post_offices_count'),
-          publicToilets: S(infra, 'public_toilets'),
-          solarHomes: S(infra, 'solar_installed_houses'),
-        },
-        environment: {
-          forestHa: S(environment, 'forest_area_hectare'),
-          pastureHa: S(environment, 'pasture_land_hectare'),
-          biogasPlants: S(environment, 'biogas_plants_count'),
-          govtCompostPits: S(environment, 'govt_compost_pits_count'),
-          pvtCompostPits: S(environment, 'pvt_compost_pits_count'),
-          suryaGharHomes: S(environment, 'pm_surya_ghar_solar_houses'),
-          wasteKgDay: S(environment, 'total_waste_daily_kg'),
-          housesWithToilets: S(environment, 'houses_with_toilets'),
-        },
-        tourism: {
-          heritageSites: S(tourism, 'cultural_assets_count'),
-          annualFairs: S(tourism, 'annual_fairs_count'),
-          dailyFootfall: S(tourism, 'avg_daily_footfall_cultural_sites'),
-          avgFairFootfallDaily: S(tourism, 'avg_fair_footfall_daily'),
-          localProductStalls: S(tourism, 'local_product_stalls'),
-          trainedGuides: S(tourism, 'registered_trained_guides'),
-          fairEmployment: S(tourism, 'fair_related_employment'),
-        },
-        governance: {
-          distPoliceKm: A(governance, 'dist_police_station_km'),
-          distEmitraKm: A(governance, 'dist_emitra_km'),
-          distLpgKm: A(governance, 'dist_lpg_distributor_km'),
-          urbanPoliceKm: 0,
-          urbanEmitraKm: 0,
-        },
+        scopeLabel: `${scope.gpName || scope.block || scope.district} Rural`,
+        meta: { district: scope.district, gpCount: [...new Set(data.map((r: any) => r.gram_panchayat))].length, blockCount: [...new Set(data.map((r: any) => r.block))].length, blocks: [...new Set(data.map((r: any) => r.block))] },
+        population: { total: S(data, 'pop_2026_est'), male: S(data, 'male_pop_2026'), female: S(data, 'female_pop_2026'), children06: S(data, 'children_0_6_2026'), children614: S(data, 'children_6_14_2026'), seniors: S(data, 'senior_citizens_2026'), pwd: S(data, 'pwd_pop_2026'), totalFamilies: S(data, 'total_families_2026'), bplFamilies: S(data, 'bpl_families_2026'), puccaHouses: S(data, 'pucca_houses_2026'), kutchaHouses: S(data, 'kutcha_houses_2026'), urbanPop: 0 },
+        water: { ruralFhtcAvg: A(data, 'tap_connection_pct').toFixed(1), gpsBelow30Fhtc: data.filter((r: any) => r.tap_connection_pct < 30).length, overheadTanks: S(data, 'overhead_tanks_count'), groundwaterDepth: A(data, 'groundwater_depth_meters').toFixed(1), roFacilities: S(data, 'ro_facilities'), urbanFhtcAvg: '0' },
+        agriculture: { cultivableHa: S(data, 'cultivable_land_hectare'), irrigatedHa: S(data, 'irrigated_area_hectare'), irrigationPct: S(data, 'cultivable_land_hectare') > 0 ? ((S(data, 'irrigated_area_hectare') / S(data, 'cultivable_land_hectare')) * 100).toFixed(1) : 0, totalFarmers: S(data, 'total_farmers_count'), kccHolders: S(data, 'kcc_holders_count'), pmKisan: S(data, 'pm_cm_kisan_beneficiaries'), soilCards: S(data, 'soil_health_cards_valid'), cropInsurance: S(data, 'crop_insurance_farmers_count'), fpos: S(data, 'fpo_count'), solarPumps: S(data, 'solar_pumps_count') },
+        dairy: { totalLivestock: S(data, 'total_livestock_count'), milchAnimals: S(data, 'milch_animals_count'), dailyMilkLpd: S(data, 'daily_milk_prod_litres'), annualDairyValueCr: (S(data, 'daily_milk_prod_litres') * 365 * 50 / 10000000).toFixed(0), milkCenters: S(data, 'milk_collection_centers'), goatFarms: S(data, 'goat_farms_count'), poultryFarms: S(data, 'poultry_farms_count') },
+        health: { allopathicCenters: S(data, 'allopathic_centers'), ayushCenters: S(data, 'ayush_centers'), healthBeds: S(data, 'health_center_beds'), healthStaff: S(data, 'working_health_staff'), ayushmanBen: S(data, 'ayushman_arogya_beneficiaries'), tbPatients: S(data, 'tb_patients_count'), anemicPregnant: S(data, 'anemic_pregnant_women_count'), samChildren: S(data, 'sam_children_count'), ashaWorkers: S(data, 'asha_workers_count'), awcCenters: S(data, 'anganwadi_centers_count'), urbanHealthBeds: 0, urbanAyushman: 0 },
+        social: { oldAgePensioners: S(data, 'old_age_pensioners'), widowPensioners: S(data, 'widow_pensioners'), pwdPensioners: S(data, 'pwd_pensioners_est'), ujjwalaBen: S(data, 'pm_ujjwala_beneficiaries'), awasBen: S(data, 'pm_cm_awas_beneficiaries') },
+        economy: { activeShgs: S(data, 'active_shg_count'), shgWomen: S(data, 'women_in_shgs'), lakhpatiDidis: S(data, 'lakhpati_didis_count'), millionaireDidis: S(data, 'millionaire_didis_count'), mudraLoan: S(data, 'mudra_loan_beneficiaries'), artisans: S(data, 'local_artisans_count') },
+        infrastructure: { electricityHouses: S(data, 'houses_with_electricity'), roadKm: S(data, 'road_length_km'), streetLights: S(data, 'total_street_lights'), govtBanks: S(data, 'govt_banks_count'), postOffices: S(data, 'post_offices_count'), publicToilets: S(data, 'public_toilets'), solarHomes: S(data, 'solar_installed_houses') },
+        environment: { forestHa: S(data, 'forest_area_hectare'), pastureHa: S(data, 'pasture_land_hectare'), biogasPlants: S(data, 'biogas_plants_count'), govtCompostPits: S(data, 'govt_compost_pits_count'), pvtCompostPits: S(data, 'pvt_compost_pits_count'), suryaGharHomes: S(data, 'pm_surya_ghar_solar_houses'), wasteKgDay: S(data, 'total_waste_daily_kg'), housesWithToilets: S(data, 'houses_with_toilets') },
+        tourism: { heritageSites: S(data, 'cultural_assets_count'), annualFairs: S(data, 'annual_fairs_count'), dailyFootfall: S(data, 'avg_daily_footfall_cultural_sites'), trainedGuides: S(data, 'registered_trained_guides'), fairEmployment: S(data, 'fair_related_employment') },
+        governance: { distPoliceKm: A(data, 'dist_police_station_km'), distEmitraKm: A(data, 'dist_emitra_km'), distLpgKm: A(data, 'dist_lpg_distributor_km') }
+      };
+    } else {
+      let query = supabase.from('baseline_urban').select('*').eq('district', dbDistrict);
+      if (scope.ulb) query = query.eq('ulb', scope.ulb);
+      if (scope.wardName) query = query.eq('ward', scope.wardName);
+      
+      const { data, error } = await query;
+      if (error || !data || data.length === 0) throw new Error('No urban data found.');
+
+      return {
+        scopeType: 'urban',
+        scopeLabel: `${scope.wardName || scope.ulb || scope.district} Urban`,
+        meta: { district: scope.district, wardCount: data.length, ulbCount: [...new Set(data.map((r: any) => r.ulb))].length, ulbs: [...new Set(data.map((r: any) => r.ulb))] },
+        population: { male: S(data, 'male_pop_2026'), female: S(data, 'female_pop_2026'), children06: S(data, 'children_0_6_2026'), children614: S(data, 'children_6_14_2026'), seniors: S(data, 'senior_citizens_2026'), pwd: S(data, 'pwd_pop_2026'), puccaHouses: S(data, 'pucca_houses_2026'), kutchaHouses: S(data, 'kutcha_houses_2026'), urbanPop: S(data, 'pop_2026_est') },
+        water: { overheadTanks: S(data, 'overhead_tanks_count'), groundwaterDepth: A(data, 'groundwater_depth_meters').toFixed(1), urbanFhtcAvg: A(data, 'tap_connection_pct').toFixed(1) },
+        health: { allopathicCenters: S(data, 'allopathic_centers'), ayushCenters: S(data, 'ayush_centers'), healthBeds: S(data, 'health_center_beds'), healthStaff: S(data, 'working_health_staff'), privateHealthCenters: S(data, 'private_health_centers'), tbPatients: S(data, 'tb_patients_count'), anemicPregnant: S(data, 'anemic_pregnant_women_count'), hypertensionScreening2025_26: S(data, 'bp_screened_fy2526'), diabetesScreening2025_26: S(data, 'diabetes_screened_fy2526'), urbanHealthBeds: S(data, 'health_center_beds'), urbanAyushman: S(data, 'ayushman_arogya_beneficiaries'), samChildren: S(data, 'sam_children_count'), ashaWorkers: S(data, 'asha_workers_count'), awcCenters: S(data, 'anganwadi_centers_count'), snpRecipients: S(data, 'snp_children_6_72m') },
+        education: { totalSchools: S(data, 'total_schools_count'), govtSchools: S(data, 'govt_schools_count'), pvtSchools: S(data, 'pvt_schools_count'), workingTeachers: S(data, 'working_teachers'), sanctionedTeachers: S(data, 'sanctioned_teachers'), enrolledStudents: S(data, 'total_enrolled_students'), dropouts: S(data, 'dropout_children_prev_year'), awcCenters: S(data, 'anganwadi_centers_count'), ashaWorkers: S(data, 'asha_workers_count'), samChildren: S(data, 'sam_children_count'), snpRecipients672Months: S(data, 'snp_children_6_72m'), anganwadiEnrolledChildren: S(data, 'anganwadi_enrolled_children') },
+        social: { oldAgePensioners: S(data, 'old_age_pensioners'), pwdPensioners: S(data, 'pwd_pensioners_est'), ujjwalaBen: S(data, 'pm_ujjwala_beneficiaries'), urbanWidow: S(data, 'widow_pensioners'), urbanAwas: S(data, 'pm_cm_awas_beneficiaries') },
+        economy: { activeShgs: S(data, 'active_shg_count'), artisans: S(data, 'local_artisans_count'), largeIndustrialUnits: S(data, 'large_industrial_units'), smallScaleIndustries: S(data, 'small_scale_industries'), urbanShgs: S(data, 'active_shg_count'), urbanIndustries: S(data, 'large_industrial_units') + S(data, 'small_scale_industries') },
+        infrastructure: { electricityHouses: S(data, 'houses_with_electricity'), roadKm: S(data, 'road_length_km'), govtBanks: S(data, 'govt_banks_count'), privateBanks: S(data, 'private_banks_count'), publicToilets: S(data, 'public_toilets_functional'), solarHomes: S(data, 'solar_installed_houses'), distMainMarketKm: A(data, 'dist_main_market_km'), distBusStandKm: A(data, 'dist_bus_stand_km'), distRailwayStationKm: A(data, 'dist_railway_station_km') },
+        environment: { housesWithoutToilets: S(data, 'houses_without_toilets'), govtCompostPits: S(data, 'govt_compost_pits_count'), govtNurseries: S(data, 'govt_nurseries_count'), nurserySaplingsAvailable: S(data, 'nursery_plants_count') },
+        tourism: { dailyFootfall: S(data, 'avg_fair_footfall_daily'), avgFairFootfallDaily: S(data, 'avg_fair_footfall_daily'), localProductStalls: S(data, 'fair_product_stalls_count'), trainedGuides: S(data, 'registered_trained_guides'), fairEmployment: S(data, 'fair_shg_stalls_count') },
+        governance: { urbanPoliceKm: 0, urbanEmitraKm: 0 }
       };
     }
-
-    let wardQuery = supabase.from('dim_urban_wards').select('ward_id, ward, ulb').eq('district', scope.district);
-    if (scope.ulb) wardQuery = wardQuery.eq('ulb', scope.ulb);
-    if (scope.wardId) wardQuery = wardQuery.eq('ward_id', scope.wardId);
-
-    const { data: wards } = await wardQuery;
-    const wardIds = (wards || []).map((r: any) => r.ward_id);
-    const ulbs = [...new Set((wards || []).map((r: any) => r.ulb))].filter(Boolean);
-
-    if (wardIds.length === 0) throw new Error(`Koi urban data nahi mila — ${scope.wardName || scope.ulb || scope.district} ke liye`);
-
-    const [uAdmin, uHealth, uWater, uSocial, uEconomy, uEducation, uInfra, uEnv, uTourism] = await Promise.all([
-      supabase.from('fact_urban_admin').select('*').in('ward_id', wardIds),
-      supabase.from('fact_urban_health').select('*').in('ward_id', wardIds),
-      supabase.from('fact_urban_water').select('*').in('ward_id', wardIds),
-      supabase.from('fact_urban_social').select('*').in('ward_id', wardIds),
-      supabase.from('fact_urban_economy').select('*').in('ward_id', wardIds),
-      supabase.from('fact_urban_education').select('*').in('ward_id', wardIds),
-      supabase.from('fact_urban_infra').select('*').in('ward_id', wardIds),
-      supabase.from('fact_urban_environment').select('*').in('ward_id', wardIds),
-      supabase.from('fact_urban_tourism').select('*').in('ward_id', wardIds),
-    ]);
-
-    let aspirationsData: any[] = [];
-    try {
-      let aspQuery = supabase
-        .from('aspirations')
-        .select('district, block, gram_panchayat, village, ulb, ward, city, area_type, item, sector, dept, priority, qty_2030, qty_2035, qty_2047, status, total_budget, scheme, planning_year, fast_track')
-        .in('status', ['ACCEPT', 'FUNDED', 'REVIEW'])
-        .eq('area_type', 'Urban')
-        .limit(1000);
-
-      aspQuery = aspQuery.ilike('district', scope.district);
-      if (scope.ulb) aspQuery = aspQuery.ilike('city', scope.ulb);
-      if (scope.wardName) {
-        const wardNum = scope.wardName.replace(/[^0-9]/g, '').replace(/^0+/, '') || scope.wardName;
-        aspQuery = aspQuery.ilike('ward', `%${wardNum}%`);
-      }
-
-      const { data: aspData, error: aspError } = await aspQuery;
-      const rawData = aspData || [];
-      if (aspError) {
-        console.warn('[Aspirations] Fetch failed:', aspError.message);
-      }
-
-      aspirationsData = rawData; // area_type = 'Urban' filter already applied at DB level
-      console.log(`[Urban Aspirations] District: ${scope.district} | city: ${scope.ulb || 'all'} | ward: ${scope.wardName || 'all'} | wardNum used: ${scope.wardName ? scope.wardName.replace(/[^0-9]/g, '').replace(/^0+/, '') : 'none'} | Found: ${aspirationsData.length} rows`);
-    } catch (err) {
-      console.warn('[Aspirations] Fetch failed:', err);
-      aspirationsData = [];
-    }
-
-    return {
-      scopeType: 'urban',
-      scopeLabel: scope.wardName
-        ? `Ward: ${scope.wardName}, ${scope.ulb}, ${scope.district}`
-        : scope.ulb
-          ? `${scope.ulb} ULB, ${scope.district} District`
-          : `${scope.district} District (Urban)`,
-      meta: {
-        district: scope.district,
-        block: null,
-        gpName: null,
-        wardName: scope.wardName || null,
-        gpCount: 0,
-        blockCount: 0,
-        blocks: [],
-        wardCount: wardIds.length,
-        ulbCount: ulbs.length,
-        ulbs,
-      },
-      population: {
-        total: 0,
-        male: S(uAdmin, 'male_pop_2026'),
-        female: S(uAdmin, 'female_pop_2026'),
-        children06: S(uAdmin, 'children_0_6_2026'),
-        children614: S(uAdmin, 'children_6_14_2026'),
-        seniors: S(uAdmin, 'senior_citizens_2026'),
-        pwd: S(uAdmin, 'pwd_pop_2026'),
-        totalFamilies: 0,
-        bplFamilies: 0,
-        puccaHouses: S(uAdmin, 'pucca_houses_2026'),
-        kutchaHouses: S(uAdmin, 'kutcha_houses_2026'),
-        urbanPop: S(uAdmin, 'pop_2026_est'),
-      },
-      water: {
-        ruralFhtcAvg: '0',
-        gpsBelow30Fhtc: 0,
-        overheadTanks: S(uWater, 'overhead_tanks_count'),
-        groundwaterDepth: A(uWater, 'groundwater_depth_meters').toFixed(1),
-        roFacilities: 0,
-        urbanFhtcAvg: A(uWater, 'tap_connection_pct').toFixed(1),
-      },
-      aspirations: aspirationsData || [],
-      agriculture: {
-        cultivableHa: 0,
-        irrigatedHa: 0,
-        irrigationPct: 0,
-        totalFarmers: 0,
-        kccHolders: 0,
-        pmKisan: 0,
-        soilCards: 0,
-        cropInsurance: 0,
-        fpos: 0,
-        solarPumps: 0,
-      },
-      dairy: {
-        totalLivestock: 0,
-        milchAnimals: 0,
-        dailyMilkLpd: 0,
-        annualDairyValueCr: '0',
-        milkCenters: 0,
-        goatFarms: 0,
-        poultryFarms: 0,
-      },
-      health: {
-        allopathicCenters: S(uHealth, 'allopathic_centers'),
-        ayushCenters: S(uHealth, 'ayush_centers'),
-        healthBeds: S(uHealth, 'health_center_beds'),
-        healthStaff: S(uHealth, 'working_health_staff'),
-        ayushmanBen: 0,
-          privateHealthCenters: S(uHealth, 'pvt_health_centers'),
-        tbPatients: S(uHealth, 'tb_patients_count'),
-        anemicPregnant: S(uHealth, 'anemic_pregnant_women'),
-          hypertensionScreening2025_26: S(uHealth, 'hypertension_screening_2025_26'),
-          diabetesScreening2025_26: S(uHealth, 'diabetes_screening_2025_26'),
-        samChildren: S(uEducation, 'sam_children_count'),
-        ashaWorkers: S(uEducation, 'asha_sahyogini_count'),
-        awcCenters: S(uEducation, 'anganwadi_centers'),
-        urbanHealthBeds: S(uHealth, 'health_center_beds'),
-        urbanAyushman: S(uHealth, 'ayushman_arogya_beneficiaries'),
-          snpRecipients: S(uEducation, 'snp_recipients_6_72_months'),
-      },
-      education: {
-        dataAvailable: false,
-        totalSchools: S(uEducation, 'total_schools_count'),
-        govtSchools: S(uEducation, 'govt_schools_count'),
-        pvtSchools: S(uEducation, 'pvt_schools_count'),
-        workingTeachers: S(uEducation, 'working_teachers'),
-        sanctionedTeachers: S(uEducation, 'sanctioned_teachers_count'),
-        enrolledStudents: S(uEducation, 'total_enrolled_students'),
-        dropouts: S(uEducation, 'dropout_children_prev_year'),
-        skillCenters: 0,
-        colleges: 0,
-        awcCenters: S(uEducation, 'anganwadi_centers'),
-        ashaWorkers: S(uEducation, 'asha_sahyogini_count'),
-        samChildren: S(uEducation, 'sam_children_count'),
-          snpRecipients672Months: S(uEducation, 'snp_recipients_6_72_months'),
-          anganwadiEnrolledChildren: S(uEducation, 'anganwadi_enrolled_children'),
-        urbanGovtSchools: S(uEducation, 'govt_schools_count'),
-        urbanPvtSchools: S(uEducation, 'pvt_schools_count'),
-        urbanTeachers: S(uEducation, 'working_teachers'),
-      },
-      social: {
-        oldAgePensioners: S(uSocial, 'old_age_pensioners'),
-        widowPensioners: 0,
-        pwdPensioners: S(uSocial, 'pwd_pensioners_est'),
-        ujjwalaBen: S(uSocial, 'pm_ujjwala_beneficiaries'),
-        awasBen: 0,
-        urbanWidow: S(uSocial, 'widow_pensioners'),
-        urbanAwas: S(uSocial, 'pm_cm_awas_beneficiaries'),
-      },
-      economy: {
-        activeShgs: S(uEconomy, 'active_shg_count'),
-        shgWomen: 0,
-        lakhpatiDidis: 0,
-        millionaireDidis: 0,
-        mudraLoan: 0,
-        artisans: S(uEconomy, 'local_artisans_count'),
-          largeIndustrialUnits: S(uEconomy, 'large_industrial_units'),
-          smallScaleIndustries: S(uEconomy, 'small_scale_industries'),
-        urbanShgs: S(uEconomy, 'active_shg_count'),
-        urbanIndustries: S(uEconomy, 'large_industrial_units') + S(uEconomy, 'small_scale_industries'),
-      },
-      infrastructure: {
-        electricityHouses: S(uInfra, 'houses_with_electricity'),
-        roadKm: S(uInfra, 'road_length_km'),
-        streetLights: 0,
-        govtBanks: S(uInfra, 'govt_banks_count'),
-          privateBanks: S(uInfra, 'private_banks_count'),
-        postOffices: 0,
-        publicToilets: S(uInfra, 'public_toilets_functional'),
-        solarHomes: S(uInfra, 'solar_installed_houses'),
-          distMainMarketKm: A(uInfra, 'dist_main_market_km'),
-          distBusStandKm: A(uInfra, 'dist_bus_stand_km'),
-          distRailwayStationKm: A(uInfra, 'dist_railway_station_km'),
-      },
-      environment: {
-        forestHa: 0,
-        pastureHa: 0,
-        biogasPlants: 0,
-          housesWithoutToilets: S(uEnv, 'houses_without_toilets'),
-          govtCompostPits: S(uEnv, 'govt_compost_pits_count'),
-          govtNurseries: S(uEnv, 'govt_nurseries_count'),
-          nurserySaplingsAvailable: S(uEnv, 'nursery_saplings_available'),
-        suryaGharHomes: 0,
-        wasteKgDay: 0,
-        housesWithToilets: 0,
-      },
-      tourism: {
-        heritageSites: 0,
-        annualFairs: 0,
-        dailyFootfall: S(uTourism, 'avg_fair_footfall_daily'),
-          avgFairFootfallDaily: S(uTourism, 'avg_fair_footfall_daily'),
-          localProductStalls: S(uTourism, 'local_product_stalls'),
-        trainedGuides: S(uTourism, 'registered_trained_guides'),
-        fairEmployment: S(uTourism, 'shg_operated_stalls'),
-      },
-      governance: {
-        distPoliceKm: 0,
-        distEmitraKm: 0,
-        distLpgKm: 0,
-        urbanPoliceKm: 0,
-        urbanEmitraKm: 0,
-      },
-    };
   }
 
   // STEP 3 — Gemini narrative generation
   async function generateNarrative(data: any, scope: any) {
-    const d = data;
+    const d = {
+      scopeType: data.scopeType || '',
+      scopeLabel: data.scopeLabel || '',
+      meta: {
+        district: '', gpCount: 0, blockCount: 0, blocks: [],
+        wardCount: 0, ulbCount: 0, ulbs: [],
+        ...(data.meta || {})
+      },
+      population: {
+        total: 0, male: 0, female: 0, children06: 0, children614: 0,
+        seniors: 0, pwd: 0, totalFamilies: 0, bplFamilies: 0,
+        puccaHouses: 0, kutchaHouses: 0, urbanPop: 0,
+        ...(data.population || {})
+      },
+      water: {
+        ruralFhtcAvg: 0, gpsBelow30Fhtc: 0, overheadTanks: 0,
+        groundwaterDepth: 0, roFacilities: 0, urbanFhtcAvg: 0,
+        ...(data.water || {})
+      },
+      agriculture: {
+        cultivableHa: 0, irrigatedHa: 0, irrigationPct: 0,
+        totalFarmers: 0, kccHolders: 0, pmKisan: 0,
+        soilCards: 0, cropInsurance: 0, fpos: 0, solarPumps: 0,
+        ...(data.agriculture || {})
+      },
+      dairy: {
+        totalLivestock: 0, milchAnimals: 0, dailyMilkLpd: 0,
+        annualDairyValueCr: 0, milkCenters: 0, goatFarms: 0, poultryFarms: 0,
+        ...(data.dairy || {})
+      },
+      health: {
+        allopathicCenters: 0, ayushCenters: 0, healthBeds: 0,
+        healthStaff: 0, ayushmanBen: 0, tbPatients: 0,
+        anemicPregnant: 0, samChildren: 0, ashaWorkers: 0,
+        awcCenters: 0, urbanHealthBeds: 0, urbanAyushman: 0,
+        ...(data.health || {})
+      },
+      education: {
+        totalSchools: 0, govtSchools: 0, pvtSchools: 0,
+        workingTeachers: 0, sanctionedTeachers: 0, enrolledStudents: 0,
+        dropouts: 0, awcCenters: 0, ashaWorkers: 0,
+        samChildren: 0, snpRecipients672Months: 0, anganwadiEnrolledChildren: 0,
+        ...(data.education || {})
+      },
+      social: {
+        oldAgePensioners: 0, widowPensioners: 0, pwdPensioners: 0,
+        ujjwalaBen: 0, awasBen: 0, urbanWidow: 0, urbanAwas: 0,
+        ...(data.social || {})
+      },
+      economy: {
+        activeShgs: 0, shgWomen: 0, lakhpatiDidis: 0,
+        millionaireDidis: 0, mudraLoan: 0, artisans: 0,
+        urbanShgs: 0, urbanIndustries: 0,
+        ...(data.economy || {})
+      },
+      infrastructure: {
+        electricityHouses: 0, roadKm: 0, streetLights: 0,
+        govtBanks: 0, postOffices: 0, publicToilets: 0, solarHomes: 0,
+        ...(data.infrastructure || {})
+      },
+      environment: {
+        forestHa: 0, pastureHa: 0, biogasPlants: 0,
+        govtCompostPits: 0, pvtCompostPits: 0, suryaGharHomes: 0,
+        wasteKgDay: 0, housesWithToilets: 0,
+        ...(data.environment || {})
+      },
+      tourism: {
+        heritageSites: 0, annualFairs: 0, dailyFootfall: 0,
+        trainedGuides: 0, fairEmployment: 0,
+        ...(data.tourism || {})
+      },
+      governance: {
+        distPoliceKm: 0, distEmitraKm: 0, distLpgKm: 0,
+        urbanPoliceKm: 0, urbanEmitraKm: 0,
+        ...(data.governance || {})
+      }
+    };
     const scopeName = scope.gpName || scope.wardName || scope.ulb || scope.block || scope.district || d.meta.district;
     const scopeTypeLabel = scope.type === 'urban' ? 'urban ward' : scope.gpName || scope.block ? 'rural local geography' : 'district';
     const prompt = `LANGUAGE INSTRUCTION (MOST IMPORTANT — follow strictly):
@@ -749,8 +458,8 @@ export default function ReportsPage() {
 Generate a ${scopeTypeLabel} planning intelligence brief for ${scopeName}, within ${d.meta.district} district, using ONLY the numbers below. Do not invent figures. Do not include Vision 2047 targets or aspiration data — this is a baseline-only report.
 
 DISTRICT PROFILE:
-GPs: ${d.meta.gpCount} | Blocks: ${d.meta.blockCount} (${d.meta.blocks.slice(0,5).join(', ')}${d.meta.blocks.length > 5 ? '...' : ''})
-Urban Wards: ${d.meta.wardCount} | ULBs: ${d.meta.ulbCount} (${d.meta.ulbs.slice(0,4).join(', ')}${d.meta.ulbs.length > 4 ? '...' : ''})
+GPs: ${d.meta.gpCount || 0} | Blocks: ${d.meta.blockCount || 0} (${(d.meta.blocks || []).slice(0,5).join(', ')}${(d.meta.blocks || []).length > 5 ? '...' : ''})
+Urban Wards: ${d.meta.wardCount || 0} | ULBs: ${d.meta.ulbCount || 0} (${(d.meta.ulbs || []).slice(0,4).join(', ')}${(d.meta.ulbs || []).length > 4 ? '...' : ''})
 
 POPULATION:
 Rural: ${d.population.total.toLocaleString()} | Urban: ${d.population.urbanPop.toLocaleString()} | Total: ${(d.population.total + d.population.urbanPop).toLocaleString()}
