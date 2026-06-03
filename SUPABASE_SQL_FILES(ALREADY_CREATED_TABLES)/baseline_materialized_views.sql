@@ -444,3 +444,20 @@ WHERE status IN ('ACCEPT', 'FUNDED', 'REVIEW')
 GROUP BY district, area_type, sector, dept, item, status, fast_track, planning_year;
 
 CREATE UNIQUE INDEX idx_mv_asp_summary ON mv_aspirations_summary(district, area_type, sector, dept, item, status, fast_track, planning_year);
+
+CREATE OR REPLACE FUNCTION refresh_materialized_views()
+RETURNS void AS $$
+BEGIN
+  REFRESH MATERIALIZED VIEW mv_baseline_rural_district_kpis;
+  REFRESH MATERIALIZED VIEW mv_baseline_urban_district_kpis;
+  REFRESH MATERIALIZED VIEW mv_aspirations_summary;
+END;
+$$ LANGUAGE plpgsql;
+
+-- New function for fast aspirations refresh
+CREATE OR REPLACE FUNCTION refresh_aspirations_summary()
+RETURNS void AS $$
+BEGIN
+  REFRESH MATERIALIZED VIEW mv_aspirations_summary;
+END;
+$$ LANGUAGE plpgsql;

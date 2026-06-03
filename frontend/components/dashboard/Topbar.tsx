@@ -195,6 +195,24 @@ export default function TopBar({
           <span className="desktop-text">Ask Planning Intelligence</span>
           <span className="mobile-text">Ask AI</span>
         </button>
+        <button 
+          className="btn btn-ghost header-desktop-only" 
+          style={{ color: '#64748b', fontSize: '12px', fontWeight: 600, background: 'transparent', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '6px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }} 
+          onClick={async () => {
+            const btn = document.getElementById('refresh-btn');
+            if (btn) btn.innerText = 'Refreshing...';
+            try {
+              await fetch('/api/dashboard/refresh', { method: 'POST' });
+              window.location.reload();
+            } catch (err) {
+              console.error(err);
+              if (btn) btn.innerText = '↻ Refresh Data';
+            }
+          }}
+          id="refresh-btn"
+        >
+          ↻ Refresh Data
+        </button>
         <button className="btn btn-ghost header-desktop-only" style={{ color: '#94a3b8', fontSize: '12px', fontWeight: 600, background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }} onClick={handleLogout}>
           Sign out
         </button>
