@@ -1,9 +1,3 @@
-if (typeof window === 'undefined') {
-  const dotenv = require('dotenv');
-  dotenv.config({ path: '.env.local' });
-  dotenv.config();
-}
-
 import { fetchAll, supabase } from '@/lib/supabase';
 import type { AreaType } from '@/lib/dashboard-kpis';
 
@@ -62,6 +56,10 @@ export const DISTRICT_EN_TO_HI: Record<string, string> = {
   'Udaipur': 'उदयपुर'
 };
 
+export const DISTRICT_HI_TO_EN: Record<string, string> = Object.fromEntries(
+  Object.entries(DISTRICT_EN_TO_HI).map(([en, hi]) => [hi, en])
+);
+
 function getGeoStorage(): GeoStorage {
   if (typeof window === 'undefined' || !window.sessionStorage) return null;
   return window.sessionStorage;
@@ -91,20 +89,45 @@ export async function cacheUrbanDistricts(): Promise<string[]> {
   return unique;
 }
 
-export async function fetchBlocksForDistrict(district: string): Promise<string[]> {
+export async function fetchBlocksForDistrict(districtEn: string): Promise<{hi: string, en: string}[]> {
   const storage = getGeoStorage();
-  const cacheKey = `geo_rural_blocks_${district}`;
+  const cacheKey = `geo_rural_blocks_${districtEn}_paired`;
   const cached = storage?.getItem(cacheKey);
   if (cached) return JSON.parse(cached);
 
-  const dbDistrict = DISTRICT_EN_TO_HI[district] || district;
-  const { data, error } = await supabase
-    .from('baseline_rural')
-    .select('block')
-    .eq('district', dbDistrict);
-  if (error) throw error;
+  const dbDistrict = DISTRICT_EN_TO_HI[districtEn] || districtEn;
+  
+  const [baseRes, aspRes] = await Promise.all([
+    supabase.from('baseline_rural').select('block').eq('district', dbDistrict),
+    supabase.from('aspirations').select('block').eq('district', districtEn)
+  ]);
 
-  const unique = uniqueSorted((data || []).map((row: any) => row.block));
+  if (baseRes.error || !baseRes.data) return [];
+  
+  const hiBlocks = [...new Set(baseRes.data.map((r: any) => r.block))].filter(Boolean) as string[];
+  const enBlocks = [...new Set((aspRes.data || []).map((r: any) => r.block))].filter(Boolean) as string[];
+
+  const transliterate = (hi: string) => {
+    const map: Record<string, string> = { 'अ':'a', 'आ':'aa', 'इ':'i', 'ई':'ee', 'उ':'u', 'ऊ':'oo', 'ए':'e', 'ऐ':'ai', 'ओ':'o', 'औ':'au', 'क':'k', 'ख':'kh', 'ग':'g', 'घ':'gh', 'च':'ch', 'छ':'chh', 'ज':'j', 'झ':'jh', 'ट':'t', 'ठ':'th', 'ड':'d', 'ढ':'dh', 'त':'t', 'थ':'th', 'द':'d', 'ध':'dh', 'न':'n', 'प':'p', 'फ':'f', 'ब':'b', 'भ':'bh', 'म':'m', 'य':'y', 'र':'r', 'ल':'l', 'व':'v', 'श':'sh', 'ष':'sh', 'स':'s', 'ह':'h', 'ा':'a', 'ि':'i', 'ी':'ee', 'ु':'u', 'ू':'oo', 'े':'e', 'ै':'ai', 'ो':'o', 'ौ':'au', 'ं':'n', 'ँ':'n', '्':'', '़':'', 'रूरल':'rural', 'अर्बन':'urban', ' ':' ' };
+    let res = '';
+    for (let char of hi) res += map[char] || char;
+    return res.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
+  };
+
+  const pairObjects = hiBlocks.map(hi => {
+    const hiTrans = transliterate(hi);
+    let bestEn = '';
+    for (const en of enBlocks) {
+      const enClean = en.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
+      if (hiTrans.includes(enClean) || enClean.includes(hiTrans) || (hiTrans.substring(0,3) === enClean.substring(0,3) && hiTrans.length > 2)) {
+        bestEn = en;
+        break;
+      }
+    }
+    return { hi, en: bestEn };
+  });
+
+  const unique = pairObjects.sort((a, b) => a.hi.localeCompare(b.hi, 'hi-IN'));
   storage?.setItem(cacheKey, JSON.stringify(unique));
   return unique;
 }
@@ -127,30 +150,52 @@ export async function fetchUlbsForDistrict(district: string): Promise<string[]> 
   return unique;
 }
 
-export async function fetchGpsForBlock(district: string, block: string): Promise<RuralGpRow[]> {
+export async function fetchGpsForBlock(district: string, blockHi: string): Promise<{gp_id: number; gram_panchayat: {hi: string, en: string}; block: string}[]> {
   const storage = getGeoStorage();
-  const cacheKey = `geo_rural_gps_${district}_${block}`;
+  const cacheKey = `geo_rural_gps_${district}_${blockHi}_paired`;
   const cached = storage?.getItem(cacheKey);
   if (cached) return JSON.parse(cached);
 
   const dbDistrict = DISTRICT_EN_TO_HI[district] || district;
-  let query = supabase
-    .from('baseline_rural')
-    .select('gram_panchayat, block')
-    .eq('district', dbDistrict);
+  
+  // We need to fetch the English block name corresponding to blockHi to query aspirations
+  const blocks = await fetchBlocksForDistrict(district);
+  const blockEn = blocks.find(b => b.hi === blockHi)?.en || '';
 
-  if (block) query = query.eq('block', block);
+  const [baseRes, aspRes] = await Promise.all([
+    supabase.from('baseline_rural').select('gram_panchayat, block').eq('district', dbDistrict).eq('block', blockHi),
+    blockEn ? supabase.from('aspirations').select('location').eq('district', district).eq('block', blockEn) : { data: [] }
+  ]);
 
-  const { data, error } = await query;
-  if (error) throw error;
+  if (baseRes.error) throw baseRes.error;
 
-  const uniqueGps = uniqueSorted((data || []).map((row: any) => row.gram_panchayat));
+  const uniqueGpsHi = uniqueSorted((baseRes.data || []).map((row: any) => row.gram_panchayat));
+  const uniqueGpsEn = uniqueSorted((aspRes.data || []).map((row: any) => row.location));
 
-  const result: RuralGpRow[] = uniqueGps.map((gpName, idx) => ({
-    gp_id: idx + 1,
-    gram_panchayat: gpName,
-    block: block
-  }));
+  const transliterate = (hi: string) => {
+    const map: Record<string, string> = { 'अ':'a', 'आ':'aa', 'इ':'i', 'ई':'ee', 'उ':'u', 'ऊ':'oo', 'ए':'e', 'ऐ':'ai', 'ओ':'o', 'औ':'au', 'क':'k', 'ख':'kh', 'ग':'g', 'घ':'gh', 'च':'ch', 'छ':'chh', 'ज':'j', 'झ':'jh', 'ट':'t', 'ठ':'th', 'ड':'d', 'ढ':'dh', 'त':'t', 'थ':'th', 'द':'d', 'ध':'dh', 'न':'n', 'प':'p', 'फ':'f', 'ब':'b', 'भ':'bh', 'म':'m', 'य':'y', 'र':'r', 'ल':'l', 'व':'v', 'श':'sh', 'ष':'sh', 'स':'s', 'ह':'h', 'ा':'a', 'ि':'i', 'ी':'ee', 'ु':'u', 'ू':'oo', 'े':'e', 'ै':'ai', 'ो':'o', 'ौ':'au', 'ं':'n', 'ँ':'n', '्':'', '़':'' };
+    let res = '';
+    for (let char of hi) res += map[char] || char;
+    return res.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
+  };
+
+  const result = uniqueGpsHi.map((hiName, idx) => {
+    const hiTrans = transliterate(hiName);
+    let bestEn = '';
+    for (const en of uniqueGpsEn) {
+      const enClean = en.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
+      if (hiTrans.includes(enClean) || enClean.includes(hiTrans) || (hiTrans.substring(0,3) === enClean.substring(0,3) && hiTrans.length > 2)) {
+        bestEn = en;
+        break;
+      }
+    }
+    
+    return {
+      gp_id: idx + 1,
+      gram_panchayat: { hi: hiName, en: bestEn },
+      block: blockHi
+    };
+  });
 
   storage?.setItem(cacheKey, JSON.stringify(result));
   return result;
@@ -380,7 +425,9 @@ export async function fetchAspirationsKpis(params: { areaType?: 'rural' | 'urban
           .range(from, from + PAGE_SIZE - 1);
 
         if (district !== 'all') {
-          pageQuery = pageQuery.ilike('district', params.district || '');
+          const rawDistrict = params.district || '';
+          const englishDistrict = DISTRICT_HI_TO_EN[rawDistrict] || rawDistrict;
+          pageQuery = pageQuery.ilike('district', englishDistrict);
         }
 
         if (areaType === 'rural') {
@@ -711,7 +758,8 @@ async function fetchAspirationsBySector(sectorId: string, areaType: AreaType, di
       .range(from, from + PAGE_SIZE - 1);
 
     if (district) {
-      query = query.ilike('district', district);
+      const englishDistrict = DISTRICT_HI_TO_EN[district] || district;
+      query = query.ilike('district', englishDistrict);
     }
 
     if (areaType === 'rural') query = query.eq('area_type', 'Rural');

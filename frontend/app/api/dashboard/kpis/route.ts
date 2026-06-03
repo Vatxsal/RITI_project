@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { DashboardKpiPayload, formatCrore, formatLakh, formatPct, getEmptyDashboardPayload } from '@/lib/dashboard-kpis';
+import { DISTRICT_EN_TO_HI } from '@/lib/cache/refresh_cache_dashboard';
 
 type AnyRow = Record<string, any>;
 
@@ -382,8 +383,9 @@ export async function GET(req: NextRequest) {
     let urbanQ = supabase.from('mv_baseline_urban_district_kpis').select('*');
 
     if (districtFilter && districtFilter !== 'all') {
-      ruralQ = ruralQ.ilike('district', districtFilter);
-      urbanQ = urbanQ.ilike('district', districtFilter);
+      const hiDistrict = DISTRICT_EN_TO_HI[districtFilter] || districtFilter;
+      ruralQ = ruralQ.ilike('district', hiDistrict);
+      urbanQ = urbanQ.ilike('district', hiDistrict);
     }
 
     const [ruralRes, urbanRes] = await Promise.all([

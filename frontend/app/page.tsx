@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -20,6 +19,13 @@ const LIGHT_CARD_STYLE = {
 
 function formatCount(value: number | null | undefined) {
   if (value === null || value === undefined || Number.isNaN(value)) return '—';
+  return value.toLocaleString('en-IN');
+}
+
+function formatCompact(value: number): string {
+  if (value >= 10000000) return `${(value / 10000000).toFixed(1)}Cr`;
+  if (value >= 100000)   return `${(value / 100000).toFixed(1)}L`;
+  if (value >= 1000)     return `${(value / 1000).toFixed(1)}k`;
   return value.toLocaleString('en-IN');
 }
 
@@ -502,7 +508,7 @@ export default function CommandCenterPage() {
                     <th style={{ padding: '12px 10px', borderBottom: '1px solid #f1f5f9', textAlign: 'left', width: '29%' }}>Area</th>
                     <th style={{ padding: '12px 10px', borderBottom: '1px solid #f1f5f9', textAlign: 'left', width: '22%' }}>Sector</th>
                     <th style={{ padding: '12px 10px', borderBottom: '1px solid #f1f5f9', textAlign: 'center', width: '7%' }}>P</th>
-                    <th style={{ padding: '12px 10px', borderBottom: '1px solid #f1f5f9', textAlign: 'right', width: '8%' }}>{aspirationYearFilter} Qty (Total)</th>
+                    <th style={{ padding: '12px 10px', borderBottom: '1px solid #f1f5f9', textAlign: 'right', width: '8%', whiteSpace: 'nowrap' }}>{aspirationYearFilter} Qty</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -564,7 +570,7 @@ export default function CommandCenterPage() {
                               P-{Number(entry.priority || 0)}
                             </span>
                           </td>
-                          <td style={{ padding: '14px 10px', textAlign: 'right', verticalAlign: 'top', color: '#1a2744', fontWeight: 800, whiteSpace: 'nowrap' }}>{formatCount(Number((entry as any)[aspirationQtyKey] || 0))}</td>
+                          <td style={{ padding: '14px 10px', textAlign: 'right', verticalAlign: 'top', color: '#1a2744', fontWeight: 800, whiteSpace: 'nowrap' }}>{formatCompact(Number((entry as any)[aspirationQtyKey] || 0))}</td>
                       </tr>
                     );
                   })}
@@ -584,7 +590,7 @@ export default function CommandCenterPage() {
                   <div style={{ position: 'relative', width: '100%', minHeight: 320, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <div style={{ width: 260, height: 260, borderRadius: '50%', background: `conic-gradient(${sectorConicGradient})`, boxShadow: 'inset 0 0 0 1px #e2e8f0' }} />
                     <div style={{ position: 'absolute', width: 118, height: 118, borderRadius: '50%', background: '#ffffff', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
-                      <div style={{ fontSize: 28, fontWeight: 900, color: '#1a2744', lineHeight: 1 }}>{formatCount(totalShownAspirations)}</div>
+                      <div style={{ fontSize: 20, fontWeight: 900, color: '#1a2744', lineHeight: 1 }}>{formatCompact(totalShownAspirations)}</div>
                       <div style={{ marginTop: 2, fontSize: 11, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Total count</div>
                     </div>
                   </div>
@@ -612,7 +618,7 @@ export default function CommandCenterPage() {
               <div style={{ position: 'relative', width: '100%', minHeight: 260, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <div style={{ width: 220, height: 220, borderRadius: '50%', background: `conic-gradient(${statusMixConicGradient})`, boxShadow: 'inset 0 0 0 1px #e2e8f0' }} />
                 <div style={{ position: 'absolute', width: 104, height: 104, borderRadius: '50%', background: '#ffffff', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
-                  <div style={{ fontSize: 26, fontWeight: 900, color: '#1a2744', lineHeight: 1 }}>{formatCount(aspKpis?.totalCount || 0)}</div>
+                  <div style={{ fontSize: 20, fontWeight: 900, color: '#1a2744', lineHeight: 1 }}>{formatCompact(aspKpis?.totalCount || 0)}</div>
                   <div style={{ marginTop: 2, fontSize: 11, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Total</div>
                 </div>
               </div>
