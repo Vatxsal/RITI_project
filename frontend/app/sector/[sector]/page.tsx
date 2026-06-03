@@ -609,7 +609,7 @@ Write 3 planning intelligence insights in proper Hindi (Devanagari). Mix of patt
                 {insightLoading ? 'Analyzing...' : insightFetched ? 'Refresh AI Insights' : 'Generate AI Insights'}
               </button>
             </div>
-            <div className="cs">Baseline + Aspirations pattern recognition · Gemini 2.0 · Hindi</div>
+            <div className="cs">Baseline + Aspirations pattern recognition</div>
 
             {insightLoading && (
               <div style={{ marginTop: 14, color: '#64748b', fontStyle: 'italic', fontSize: 13 }}>

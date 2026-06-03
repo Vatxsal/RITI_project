@@ -49,11 +49,7 @@ const DISTRICT_ALIASES: Record<string, string> = {
 const DISTRICT_COORDS = Object.fromEntries(
   DISTRICTS.map((district) => [
     district.n.toLowerCase(),
-    {
-      name: district.n,
-      lat: district.lat,
-      lon: district.lon,
-    },
+    { name: district.n, lat: district.lat, lon: district.lon },
   ])
 ) as Record<string, { name: string; lat: number; lon: number }>;
 
@@ -68,131 +64,153 @@ function resolveDistrictName(name: string) {
 
 function getDistrictCoords(name: string) {
   const resolved = resolveDistrictName(name);
-  const coords = DISTRICT_COORDS[normalizeDistrictName(resolved)];
-  return coords ?? null;
+  return DISTRICT_COORDS[normalizeDistrictName(resolved)] ?? null;
 }
 
 export default function Map({ compact = false, style }: MapProps) {
-  const ref = useRef<HTMLDivElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  // Store the Leaflet map instance and L module so marker effect can access them
+  const mapRef = useRef<any>(null);
+  const leafletRef = useRef<any>(null);
+  const markersRef = useRef<any[]>([]);
+
   const [payload, setPayload] = useState<DashboardKpiPayload>(getEmptyDashboardPayload());
 
   useEffect(() => {
     let alive = true;
-
     fetchDashboardKpis()
-      .then((nextPayload) => {
-        if (alive) setPayload(nextPayload ?? getEmptyDashboardPayload());
-      })
-      .catch(() => {
-        if (alive) setPayload(getEmptyDashboardPayload());
-      });
-
-    return () => {
-      alive = false;
-    };
+      .then((next) => { if (alive) setPayload(next ?? getEmptyDashboardPayload()); })
+      .catch(() => { if (alive) setPayload(getEmptyDashboardPayload()); });
+    return () => { alive = false; };
   }, []);
 
   const districtMarkers = useMemo(() => {
     return payload.districtScores
-      .map((district) => {
-        const coords = getDistrictCoords(district.n);
+      .map((d) => {
+        const coords = getDistrictCoords(d.n);
         if (!coords) return null;
-        return {
-          ...district,
-          lat: coords.lat,
-          lon: coords.lon,
-        } as DistrictScore;
+        return { ...d, lat: coords.lat, lon: coords.lon } as DistrictScore;
       })
       .filter(Boolean) as DistrictScore[];
   }, [payload]);
 
   const totals = useMemo(() => {
-    const green = districtMarkers.filter((district) => district.dev >= 55).length;
-    const yellow = districtMarkers.filter((district) => district.dev >= 45 && district.dev < 55).length;
-    const red = districtMarkers.filter((district) => district.dev < 45).length;
-    const top = [...districtMarkers].sort((left, right) => right.dev - left.dev)[0] ?? null;
-    const bottom = [...districtMarkers].sort((left, right) => left.dev - right.dev)[0] ?? null;
-
+    const green  = districtMarkers.filter((d) => d.dev >= 55).length;
+    const yellow = districtMarkers.filter((d) => d.dev >= 45 && d.dev < 55).length;
+    const red    = districtMarkers.filter((d) => d.dev < 45).length;
+    const top    = [...districtMarkers].sort((a, b) => b.dev - a.dev)[0] ?? null;
+    const bottom = [...districtMarkers].sort((a, b) => a.dev - b.dev)[0] ?? null;
     return { green, yellow, red, top, bottom };
   }, [districtMarkers]);
 
+  // ── Effect 1: initialise Leaflet map once on mount ────────────────────────
   useEffect(() => {
-    const container = ref.current;
+    const container = containerRef.current;
     if (!container) return;
-    if (!districtMarkers.length) return;
 
-    let map: any = null;
     let disposed = false;
 
     (async () => {
       const leafletModule = await import('leaflet');
       const L = (leafletModule as any).default ?? leafletModule;
 
-      // remove any existing leaflet container(s) to avoid "already initialized" errors
-      try {
-        const existing = container.querySelectorAll('.leaflet-container');
-        existing.forEach((el) => el.remove());
-      } catch (e) {}
+      if (disposed) return;
 
+      // Remove any stale Leaflet containers left from HMR
       try {
-        map = L.map(container, { zoomControl: true });
-        // ensure a sensible initial view so tiles start loading
+        container.querySelectorAll('.leaflet-container').forEach((el) => el.remove());
+      } catch (_) {}
+
+      let map: any;
+      try {
+        map = L.map(container, { zoomControl: true, preferCanvas: true });
         map.setView([26.8, 74.5], 6);
-      } catch (err) {
+      } catch (_) {
         return;
       }
 
-      // Use a stable OSM tile source for consistent rendering in dev
-      const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap contributors',
         maxZoom: 13,
         tileSize: 256,
         detectRetina: false,
       }).addTo(map);
 
-      const points = districtMarkers.filter((district) => typeof district.lat === 'number' && typeof district.lon === 'number');
-      const maxP = Math.max(...points.map((district) => district.pop), 1);
-      const bounds = L.latLngBounds(points.map((district) => [district.lat, district.lon] as [number, number]));
+      mapRef.current = map;
+      leafletRef.current = L;
 
-      points.forEach((district) => {
-        const col = district.dev >= 55 ? '#22C55E' : district.dev >= 45 ? '#F59E0B' : '#EF4444';
-        const r = Math.max(8, Math.sqrt(district.pop / maxP) * 34);
-        const marker = L.circleMarker([district.lat, district.lon], {
-          radius: r,
-          fillColor: col,
-          color: 'rgba(255,255,255,.75)',
-          weight: 1,
-          fillOpacity: 1,
-          opacity: 1,
-        }).addTo(map!);
-
-        marker.bindTooltip(`${district.n} · ${district.dev}/100`, { direction: 'top', sticky: true });
-        marker.bindPopup(
-          `<div style="font-weight:800;font-size:13px;margin-bottom:4px">${district.n}</div>` +
-            `<div style="font-size:12px;color:#475569;line-height:1.5">Score: ${district.dev}/100<br/>Population: ${district.pop}L<br/>GPs: ${district.gps}<br/>Blocks: ${district.blks}</div>`
-        );
-      });
-
-      requestAnimationFrame(() => {
-        if (disposed || !map) return;
-        map.invalidateSize();
-
-        if (bounds.isValid()) {
-          // add padding so markers are clearly visible inside the card
-          map.fitBounds(bounds.pad(0.08), { animate: false, padding: [60, 60] });
-        } else {
-          map.setView([26.5, 73.5], 6);
+      // Use ResizeObserver so invalidateSize is called whenever the
+      // container actually gains/changes size (solves the 0-height race).
+      const ro = new ResizeObserver(() => {
+        if (!disposed && map) {
+          map.invalidateSize();
         }
-
-        map.invalidateSize();
       });
+      ro.observe(container);
+
+      // Also fire once after a short delay as a safety net
+      setTimeout(() => { if (!disposed && map) map.invalidateSize(); }, 300);
+      setTimeout(() => { if (!disposed && map) map.invalidateSize(); }, 800);
+
+      // Store cleanup on the ref so effect 2 can reference it
+      (mapRef as any)._ro = ro;
     })();
 
     return () => {
       disposed = true;
-      map?.remove();
-      map = null;
+      const ro = (mapRef as any)._ro as ResizeObserver | undefined;
+      ro?.disconnect();
+      mapRef.current?.remove();
+      mapRef.current = null;
     };
+  }, []); // run once on mount
+
+  // ── Effect 2: add/update district markers whenever data changes ───────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !districtMarkers.length) return;
+
+    // Clear previous markers
+    markersRef.current.forEach((m) => m.remove());
+    markersRef.current = [];
+
+    const L = leafletRef.current;
+    if (!L) return;
+
+    const points = districtMarkers.filter(
+      (d) => typeof d.lat === 'number' && typeof d.lon === 'number'
+    );
+    const maxP = Math.max(...points.map((d) => d.pop), 1);
+
+    points.forEach((d) => {
+      const col = d.dev >= 55 ? '#22C55E' : d.dev >= 45 ? '#F59E0B' : '#EF4444';
+      const r = Math.max(8, Math.sqrt(d.pop / maxP) * 34);
+      const marker = L.circleMarker([d.lat, d.lon], {
+        radius: r,
+        fillColor: col,
+        color: 'rgba(255,255,255,.75)',
+        weight: 1,
+        fillOpacity: 1,
+        opacity: 1,
+      }).addTo(map);
+
+      marker.bindTooltip(`${d.n} · ${d.dev}/100`, { direction: 'top', sticky: true });
+      marker.bindPopup(
+        `<div style="font-weight:800;font-size:13px;margin-bottom:4px">${d.n}</div>` +
+        `<div style="font-size:12px;color:#475569;line-height:1.5">Score: ${d.dev}/100<br/>Population: ${d.pop}L<br/>GPs: ${d.gps}<br/>Blocks: ${d.blks}</div>`
+      );
+      markersRef.current.push(marker);
+    });
+
+    // Fit bounds once markers are placed
+    try {
+      const bounds = L.latLngBounds(points.map((d) => [d.lat, d.lon] as [number, number]));
+      if (bounds.isValid()) {
+        map.fitBounds(bounds.pad(0.08), { animate: false, padding: [60, 60] });
+      }
+    } catch (_) {}
+
+    map.invalidateSize();
   }, [districtMarkers]);
 
   return (
@@ -223,7 +241,17 @@ export default function Map({ compact = false, style }: MapProps) {
         </div>
       )}
 
-      <div id="mapwrap" ref={ref} style={{ height: compact ? '100%' : 440, width: '100%', borderRadius: compact ? 0 : 12, overflow: 'hidden' }} />
+      <div
+        ref={containerRef}
+        style={{
+          height: compact ? '100%' : 440,
+          width: '100%',
+          borderRadius: compact ? 0 : 12,
+          overflow: 'hidden',
+          // Ensure minimum height so Leaflet has something to paint into
+          minHeight: compact ? 200 : 440,
+        }}
+      />
     </div>
   );
 }

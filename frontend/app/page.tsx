@@ -319,7 +319,7 @@ export default function CommandCenterPage() {
     {
       label: 'STRATEGIC PRIORITIES',
       value: aspKpis ? formatCount(strategicCount) : '—',
-      subLabel: aspKpis ? `Planning years: ${formatCount(aspKpis.count2030)} · ${formatCount(aspKpis.count2035)} · ${formatCount(aspKpis.count2047)}` : '— loading —',
+      subLabel: aspKpis ? `Planning years: 2030 · 2035 · 2047` : '— loading —',
       accent: '#16a34a',
       hidden: false,
     },
