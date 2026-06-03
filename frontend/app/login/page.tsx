@@ -38,7 +38,7 @@ function LoginContent() {
   };
 
   useEffect(() => {
-    if (user?.user_type === 'admin') {
+    if (user?.user_type === 'admin' || user?.user_type === 'super_admin') {
       router.replace('/');
     }
   }, [user, router]);
@@ -107,6 +107,7 @@ function LoginContent() {
               style={{ width: '100%', padding: '12px 14px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 14, color: '#1a2744', background: '#f8fafc', transition: 'all 0.15s', outline: 'none' }}
             >
               <option value="admin">admin</option>
+              <option value="super_admin">super_admin</option>
             </select>
           </div>
 
@@ -121,7 +122,10 @@ function LoginContent() {
               <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#94a3b8', marginBottom: 6 }}>For this development env, these are the credentials</div>
               <div><span style={{ color: '#475569' }}>username:</span> <strong style={{ color: '#1a2744' }}>sakshamaasvaa</strong></div>
               <div><span style={{ color: '#475569' }}>password:</span> <strong style={{ color: '#1a2744' }}>Aasvaa@2026</strong></div>
-              <div><span style={{ color: '#475569' }}>user_type:</span> <strong style={{ color: '#1a2744' }}>admin</strong></div>
+              <div><span style={{ color: '#475569' }}>user_type:</span> <strong style={{ color: '#1a2744' }}>admin</strong> or <strong style={{ color: '#e85d04' }}>super_admin</strong></div>
+              <div style={{ marginTop: 6, padding: '6px 8px', background: '#fff7ed', borderRadius: 6, border: '1px solid #fed7aa', color: '#9a3412', fontSize: 11 }}>
+                ⚠️ <strong>super_admin</strong> role required to access the Backend Portal
+              </div>
             </div>
           </div>
         </form>

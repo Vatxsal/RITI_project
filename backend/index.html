@@ -968,6 +968,38 @@
     </div>
 
     <script>
+        // ── ACCESS GUARD ─────────────────────────────────────────────────────
+        // This page must only be reached via /backend (Next.js gate).
+        // The gate writes 'riti_backend_token' into sessionStorage.
+        // If the token is missing or expired, redirect to login immediately.
+        (function() {
+            function denied() {
+                document.body.innerHTML = '';
+                window.location.replace('/login?next=/backend');
+            }
+            try {
+                var token = sessionStorage.getItem('riti_backend_token');
+                if (!token) { denied(); return; }
+                // token = btoa("super_admin:<expiresAt ISO string>")
+                var decoded = atob(token);
+                var parts = decoded.split(':');
+                // parts[0] = "super_admin", rest = ISO date
+                if (parts[0] !== 'super_admin') { denied(); return; }
+                var expiresAt = parts.slice(1).join(':');
+                if (!expiresAt || Date.now() >= new Date(expiresAt).getTime()) {
+                    sessionStorage.removeItem('riti_backend_token');
+                    denied();
+                    return;
+                }
+                // Valid — consume the token so a page refresh forces re-auth
+                sessionStorage.removeItem('riti_backend_token');
+            } catch(e) {
+                denied();
+            }
+        })();
+        // ─────────────────────────────────────────────────────────────────────
+    </script>
+    <script>
         // ==================== GLOBAL STATE ====================
         let isAuthenticated = false;
         let DATA = [];

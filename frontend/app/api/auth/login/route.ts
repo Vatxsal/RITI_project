@@ -5,8 +5,10 @@ import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 const VALID_CREDENTIALS = {
   username: 'sakshamaasvaa',
   password: 'Aasvaa@2026',
-  user_type: 'admin',
 };
+
+// Both admin and super_admin use the same credentials
+const VALID_USER_TYPES = ['admin', 'super_admin'];
 
 const SESSION_DURATION_SECONDS = 30 * 60;
 
@@ -19,7 +21,7 @@ export async function POST(req: Request) {
   const isValid =
     username === VALID_CREDENTIALS.username &&
     password === VALID_CREDENTIALS.password &&
-    userType === VALID_CREDENTIALS.user_type;
+    VALID_USER_TYPES.includes(userType);
 
   if (!isValid) {
     return NextResponse.json({ error: 'Invalid credentials or role' }, { status: 401 });

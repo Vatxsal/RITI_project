@@ -19,7 +19,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const isBackendPortalPage = pathname === '/backend' || pathname === '/dashboard/backend';
   const isChromeLessPage = isLoginPage || isBackendPortalPage;
 
-  const isAuthorized = !!user && user.user_type === 'admin';
+  const isAuthorized = !!user && (user.user_type === 'admin' || user.user_type === 'super_admin');
 
   useEffect(() => {
     if (isChromeLessPage) return;
