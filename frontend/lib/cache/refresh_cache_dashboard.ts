@@ -91,7 +91,7 @@ export async function cacheUrbanDistricts(): Promise<string[]> {
 
 export async function fetchBlocksForDistrict(districtEn: string): Promise<{hi: string, en: string}[]> {
   const storage = getGeoStorage();
-  const cacheKey = `geo_rural_blocks_${districtEn}_paired`;
+  const cacheKey = `geo_rural_blocks_${districtEn}_paired_v2`;
   const cached = storage?.getItem(cacheKey);
   if (cached) return JSON.parse(cached);
 
@@ -152,7 +152,7 @@ export async function fetchUlbsForDistrict(district: string): Promise<string[]> 
 
 export async function fetchGpsForBlock(district: string, blockHi: string): Promise<{gp_id: number; gram_panchayat: {hi: string, en: string}; block: string}[]> {
   const storage = getGeoStorage();
-  const cacheKey = `geo_rural_gps_${district}_${blockHi}_paired`;
+  const cacheKey = `geo_rural_gps_${district}_${blockHi}_paired_v2`;
   const cached = storage?.getItem(cacheKey);
   if (cached) return JSON.parse(cached);
 
