@@ -16,7 +16,7 @@ export const DISTRICT_EN_TO_HI: Record<string, string> = {
   'Ajmer': 'अजमेर',
   'Alwar': 'अलवर',
   'Balotara': 'बालोतरा',
-  'Banswara': 'बांसवाड़ा',
+  'Banswara': 'बांसवाडा',
   'Baran': 'बारां',
   'Barmer': 'बाड़मेर',
   'Beawar': 'ब्यावर',
@@ -36,17 +36,17 @@ export const DISTRICT_EN_TO_HI: Record<string, string> = {
   'Jaisalmer': 'जैसलमेर',
   'Jalore': 'जालोर',
   'Jhalawar': 'झालावाड़',
-  'Jhunjhunu': 'झुंझुनू',
+  'Jhunjhunu': 'झुन्झुनू',
   'Jodhpur': 'जोधपुर',
   'Karauli': 'करौली',
-  'Khairthal-Tijara': 'खैरथल',
+  'Khairthal-Tijara': 'खैरथल -तिजारा',
   'Kota': 'कोटा',
-  'Kotputli-Behror': 'कोटपुतली',
+  'Kotputli-Behror': 'कोटपूतली-बहरोड',
   'Nagaur': 'नागौर',
   'Pali': 'पाली',
   'Phalodi': 'फलोदी',
   'Pratapgarh': 'प्रतापगढ़',
-  'Rajsamand': 'राजसमंद',
+  'Rajsamand': 'राजसमन्द',
   'Salumbar': 'सलूम्बर',
   'Sawai Madhopur': 'सवाई माधोपुर',
   'Sikar': 'सीकर',
@@ -390,7 +390,10 @@ async function fetchBaselineRows(table: 'baseline_rural' | 'baseline_urban', col
   let query = supabase.from(mvTable).select(selectCols);
 
   if (district) {
-    query = query.ilike('district', district);
+    // The MV tables store district names in Hindi; the incoming district is English.
+    // Translate to Hindi before filtering so "Ajmer" correctly matches "अजमेर".
+    const districtHi = DISTRICT_EN_TO_HI[district] || district;
+    query = query.ilike('district', districtHi);
   }
 
   const { data, error } = await query;
@@ -894,14 +897,20 @@ export async function fetchSectorPageData(params: { sectorId: string; areaType: 
       mergeBaselineRows(baselineConfig, areaType, district),
       areaType === 'urban'
         ? Promise.resolve([])
-        : district
-          ? supabase.from('dim_rural_gps').select('gp_id, district, block, gram_panchayat').ilike('district', district).then(({ data }: { data: any[] | null }) => data || [])
-          : fetchAll('dim_rural_gps', {}, 'gp_id, district, block, gram_panchayat'),
+        : (() => {
+            const districtHi = district ? (DISTRICT_EN_TO_HI[district] || district) : null;
+            let q = supabase.from('baseline_rural').select('district, block, gram_panchayat');
+            if (districtHi) q = q.eq('district', districtHi);
+            return q.then(({ data }: { data: any[] | null }) => data || []);
+          })(),
       areaType === 'rural'
         ? Promise.resolve([])
-        : district
-          ? supabase.from('dim_urban_wards').select('ward_id, district, ulb, ward').ilike('district', district).then(({ data }: { data: any[] | null }) => data || [])
-          : fetchAll('dim_urban_wards', {}, 'ward_id, district, ulb, ward'),
+        : (() => {
+            const districtHi = district ? (DISTRICT_EN_TO_HI[district] || district) : null;
+            let q = supabase.from('baseline_urban').select('district, ulb, ward');
+            if (districtHi) q = q.eq('district', districtHi);
+            return q.then(({ data }: { data: any[] | null }) => data || []);
+          })(),
     ]);
 
     const aspTotalCount = aspRows.reduce((sum: number, row: any) => sum + toNumber(row.total_count), 0);
@@ -967,14 +976,14 @@ export async function fetchSectorPageData(params: { sectorId: string; areaType: 
     }
     const baselineMetrics = finalizeBaselineMetrics(baselineMetricAcc);
 
-    // Count distinct GP entries (district + block + gram_panchayat)
+    // Count distinct GP entries (district + block + gram_panchayat) from baseline_rural
   const uniqueRuralGPs = new Set<string>();
   for (const row of ruralGpsRows) {
     const key = `${row.district}|||${row.block}|||${row.gram_panchayat}`;
     uniqueRuralGPs.add(key);
   }
   baselineMetrics.rural_gp_count = uniqueRuralGPs.size;
-  // Count distinct Urban Ward entries (district + ulb/city + ward)
+  // Count distinct Urban Ward entries (district + ulb + ward) from baseline_urban
   const uniqueUrbanWards = new Set<string>();
   for (const row of urbanWardRows) {
     const ulbOrCity = row.ulb || row.city || '';
