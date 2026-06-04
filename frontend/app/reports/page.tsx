@@ -1737,7 +1737,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
       `, 'thematic-page');
     }).join('');
 
-    const strategicRows = [
+    const strategicRows = isRural ? [
       {
         indicator: 'FHTC · ग्रामीण',
         current: fmtPct(d.water?.ruralFhtcAvg),
@@ -1780,14 +1780,63 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
         phase2: 'Integrated citizen services',
         phase2047: 'Paperless district',
       },
+    ] : [
+      {
+        indicator: 'FHTC · शहरी',
+        current: fmtPct(d.water?.urbanFhtcAvg),
+        phase1: `${fmt(d.meta?.ulbCount || 0)} ULBs AMRUT 2.0`,
+        phase2: 'सीवरेज नेटवर्क विस्तार',
+        phase2047: 'सार्वभौमिक जल + सीवरेज',
+      },
+      {
+        indicator: 'शौचालय रहित घर',
+        current: fmt(d.environment?.housesWithoutToilets || 0) + ' घर',
+        phase1: 'SBM Phase 2 — शहरी ODF+',
+        phase2: 'सामुदायिक शौचालय उन्नयन',
+        phase2047: '100% स्वच्छ शहरी आवास',
+      },
+      {
+        indicator: 'PM Surya Ghar (शहरी)',
+        current: fmt(d.environment?.suryaGharHomes || 0) + ' घर',
+        phase1: 'PM Surya Ghar Phase-I',
+        phase2: 'Additional rooftop solar',
+        phase2047: 'हरित शहरी ऊर्जा नेटवर्क',
+      },
+      {
+        indicator: 'शहरी सड़क नेटवर्क',
+        current: fmtKm(d.infrastructure?.roadKm || 0),
+        phase1: 'AMRUT 2.0 road component',
+        phase2: 'All-weather urban connectivity',
+        phase2047: 'Smart road infrastructure',
+      },
+      {
+        indicator: 'सक्रिय SHG · उद्योग',
+        current: `${fmt(d.economy?.activeShgs || 0)} SHG · ${fmt(Number(d.economy?.largeIndustrialUnits || 0) + Number(d.economy?.smallScaleIndustries || 0))} units`,
+        phase1: 'SRLM + MSME cluster linkage',
+        phase2: 'Urban enterprise hubs',
+        phase2047: 'आत्मनिर्भर शहरी अर्थव्यवस्था',
+      },
+      {
+        indicator: 'डिजिटल शासन / e-Mitra',
+        current: fmtKm(d.governance?.distEmitraKm || d.governance?.urbanEmitraKm || 0),
+        phase1: 'Urban service point mapping',
+        phase2: 'Integrated citizen portal',
+        phase2047: 'Paperless smart city',
+      },
     ];
 
-    const schemeRows = [
+    const schemeRows = isRural ? [
       ['जल एवं स्वच्छता', 'JJM / AMRUT 2.0', 'Tap + sewerage completion', 'सक्रिय'],
       ['कृषि एवं credit', 'PMKSY / KCC', 'Irrigation + credit saturation', 'योजना-तैयार'],
       ['आजीविका', 'SRLM / MSME', 'SHG + enterprise linkage', 'स्थल चयनित'],
       ['अवसंरचना', 'PMGSY / 15th FC', 'Road + sanitation linkage', 'सक्रिय'],
       ['पर्यावरण एवं विरासत', 'SBM / Swadesh Darshan 2.0', 'Nursery + heritage circuit', 'अवधारणा स्तर'],
+    ] as const : [
+      ['जल एवं सीवरेज', 'AMRUT 2.0 / JJM Urban', 'FHTC + sewerage saturation', 'सक्रिय'],
+      ['स्वास्थ्य एवं पोषण', 'NHM / POSHAN 2.0', 'AWC + health centre upgrade', 'सक्रिय'],
+      ['शहरी आजीविका', 'SRLM / PM SVANidhi', 'SHG + street vendor linkage', 'योजना-तैयार'],
+      ['अवसंरचना एवं स्वच्छता', 'SBM Urban / 15th FC', 'Toilet + road + solar', 'स्थल चयनित'],
+      ['पर्यावरण एवं विरासत', 'Swadesh Darshan 2.0 / HRIDAY', 'Heritage + nursery circuit', 'अवधारणा स्तर'],
     ] as const;
 
     const strategicPageNo = `${totalPages} / ${totalPages}`;
