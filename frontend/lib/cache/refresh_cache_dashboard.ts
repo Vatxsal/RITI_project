@@ -734,20 +734,21 @@ function statusRank(status: string) {
 }
 
 const SECTOR_DB_NAMES: Record<string, string[]> = {
-  water:   ['Water Security'],
-  health:  ['Health and Wellness'],
-  agri:    ['Agriculture and Livelihoods'],
-  dairy:   ['Agriculture and Livelihoods'],
-  edu:     ['Education and Knowledge'],
-  employ:  ['Industry and Economic Development'],
-  women:   ['Social Empowerment'],
+  water: ['Water Security'],
+  health: ['Health and Wellness'],
+  agri: ['Agriculture and Livelihoods'],
+  dairy: ['Agriculture and Livelihoods'],
+  edu: ['Education and Knowledge'],
+  employ: ['Industry and Economic Development', 'Social Empowerment'],
+  women: ['Social Empowerment'],
   welfare: ['Social Empowerment'],
-  infra:   ['Key Infrastructure'],
+  infra: ['Key Infrastructure'],
   tourism: ['Tourism and Cultural Development'],
-  env:     ['Environment and Climate'],
+  env: ['Environment and Climate'],
 };
 
 async function fetchAspirationsBySector(sectorId: string, areaType: AreaType, district?: string | null) {
+  const keywords = SECTOR_ASPIRATION_KEYWORDS[sectorId] || [];
   const PAGE_SIZE = 1000;
   const rows: any[] = [];
   let from = 0;
@@ -768,9 +769,15 @@ async function fetchAspirationsBySector(sectorId: string, areaType: AreaType, di
     if (areaType === 'urban') query = query.eq('area_type', 'Urban');
 
     const sectorDbNames = SECTOR_DB_NAMES[sectorId] || [];
+    const uniqueKeywords = [...new Set([...keywords, ...sectorDbNames])].slice(0, 15);
 
-    if (sectorDbNames.length > 0) {
-      query = query.in('dept', sectorDbNames);
+    if (uniqueKeywords.length) {
+      const clauses = uniqueKeywords.flatMap((keyword) => [
+        `sector.ilike.%${keyword}%`,
+        `dept.ilike.%${keyword}%`,
+        `item.ilike.%${keyword}%`,
+      ]);
+      query = query.or(clauses.join(','));
     }
 
     const { data, error } = await query;
@@ -784,30 +791,6 @@ async function fetchAspirationsBySector(sectorId: string, areaType: AreaType, di
     }
   }
 
-  if (sectorId === 'agri') {
-    const dairyTerms = ['dairy', 'dugdh', 'दुग्ध', 'livestock', 'pashu', 'पशु', 'milk', 'goat',
-                        'poultry', 'saras', 'rcdf', 'milch', 'veterinary', 'पशुपालन'];
-    return rows.filter((row: any) => {
-      const text = [row.item || '', row.sector || ''].join(' ').toLowerCase();
-      return !dairyTerms.some(term => text.includes(term.toLowerCase()));
-    });
-  }
-  if (sectorId === 'dairy') {
-    const dairyTerms = ['dairy', 'dugdh', 'दुग्ध', 'livestock', 'pashu', 'पशु', 'milk', 'goat',
-                        'poultry', 'saras', 'rcdf', 'milch', 'veterinary', 'पशुपालन'];
-    return rows.filter((row: any) => {
-      const text = [row.item || '', row.sector || ''].join(' ').toLowerCase();
-      return dairyTerms.some(term => text.includes(term.toLowerCase()));
-    });
-  }
-  if (sectorId === 'welfare') {
-    const welfareTerms = ['pension', 'awas', 'housing', 'ujjwala', 'pwd', 'divyang',
-                          'bpl', 'nfsa', 'old age', 'vridha', 'widow', 'pmay'];
-    return rows.filter((row: any) => {
-      const text = [row.item || '', row.sector || ''].join(' ').toLowerCase();
-      return welfareTerms.some(term => text.includes(term.toLowerCase()));
-    });
-  }
   return rows;
 }
 
