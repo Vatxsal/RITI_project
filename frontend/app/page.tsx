@@ -319,7 +319,7 @@ export default function CommandCenterPage() {
     {
       label: 'STRATEGIC PRIORITIES',
       value: aspKpis ? formatCount(strategicCount) : '—',
-      subLabel: aspKpis ? `Fast-Track + Funded` : '— loading —',
+      subLabel: aspKpis ? `fast-track + funded` : '— loading —',
       accent: '#16a34a',
       hidden: false,
     },
