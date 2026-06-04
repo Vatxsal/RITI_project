@@ -2860,46 +2860,35 @@ ${closingHtml}
                   )}
 
                   {ruralBlock.hi && (
-                    <div style={{ position: 'relative' }}>
-                      <input
-                        type="text"
-                        className="fs"
-                        placeholder={loadingGps ? 'GPs load ho rahe hain...' : `3. GP search karo (${ruralGps.length} available)`}
-                        value={gpSearch}
-                        onChange={(e) => {
-                          setGpSearch(e.target.value);
+                    <select
+                      className="fs"
+                      value={ruralGpId ?? ''}
+                      onChange={(e) => {
+                        const selectedId = Number(e.target.value);
+                        const gp = ruralGps.find(g => g.gp_id === selectedId);
+                        if (gp) {
+                          setRuralGpId(gp.gp_id);
+                          setRuralGpName(gp.gram_panchayat);
+                          setGpSearch(gp.gram_panchayat.hi);
+                        } else {
                           setRuralGpId(null);
                           setRuralGpName({ hi: '', en: '' });
-                        }}
-                        disabled={generating || loadingGps}
-                        style={{ width: '100%' }}
-                      />
-                      {gpSearch && !ruralGpId && (
-                        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', maxHeight: '200px', overflowY: 'auto', zIndex: 10 }}>
-                          {ruralGps
-                            .filter((gp) => gp.gram_panchayat.hi.toLowerCase().includes(gpSearch.toLowerCase()))
-                            .slice(0, 20)
-                            .map((gp) => (
-                              <div
-                                key={gp.gp_id}
-                                onClick={() => {
-                                  setRuralGpId(gp.gp_id);
-                                  setRuralGpName(gp.gram_panchayat);
-                                  setGpSearch(gp.gram_panchayat.hi);
-                                }}
-                                style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: '#e2e8f0', borderBottom: '1px solid #1e293b' }}
-                                onMouseEnter={(e) => (e.currentTarget.style.background = '#1e293b')}
-                                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                              >
-                                {gp.gram_panchayat.hi}
-                              </div>
-                            ))}
-                          {ruralGps.filter((gp) => gp.gram_panchayat.hi.toLowerCase().includes(gpSearch.toLowerCase())).length === 0 && (
-                            <div style={{ padding: '8px 12px', color: '#64748b', fontSize: '13px' }}>Koi GP nahi mila</div>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                          setGpSearch('');
+                        }
+                      }}
+                      disabled={generating || loadingGps}
+                    >
+                      <option value="">
+                        {loadingGps
+                          ? 'GPs load ho rahe hain...'
+                          : `3. GP select karo (${ruralGps.length} available)`}
+                      </option>
+                      {ruralGps.map((gp) => (
+                        <option key={gp.gp_id} value={gp.gp_id}>
+                          {gp.gram_panchayat.hi}
+                        </option>
+                      ))}
+                    </select>
                   )}
                 </div>
               )}
@@ -2923,46 +2912,35 @@ ${closingHtml}
                   )}
 
                   {urbanUlb && (
-                    <div style={{ position: 'relative' }}>
-                      <input
-                        type="text"
-                        className="fs"
-                        placeholder={loadingWards ? 'Wards load ho rahe hain...' : `3. Ward search karo (${urbanWards.length} available)`}
-                        value={wardSearch}
-                        onChange={(e) => {
-                          setWardSearch(e.target.value);
+                    <select
+                      className="fs"
+                      value={urbanWardId ?? ''}
+                      onChange={(e) => {
+                        const selectedId = Number(e.target.value);
+                        const ward = urbanWards.find(w => w.ward_id === selectedId);
+                        if (ward) {
+                          setUrbanWardId(ward.ward_id);
+                          setUrbanWardName(ward.ward);
+                          setWardSearch(ward.ward);
+                        } else {
                           setUrbanWardId(null);
                           setUrbanWardName('');
-                        }}
-                        disabled={generating || loadingWards}
-                        style={{ width: '100%' }}
-                      />
-                      {wardSearch && !urbanWardId && (
-                        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', maxHeight: '200px', overflowY: 'auto', zIndex: 10 }}>
-                          {urbanWards
-                            .filter((ward) => ward.ward.toLowerCase().includes(wardSearch.toLowerCase()))
-                            .slice(0, 20)
-                            .map((ward) => (
-                              <div
-                                key={ward.ward_id}
-                                onClick={() => {
-                                  setUrbanWardId(ward.ward_id);
-                                  setUrbanWardName(ward.ward);
-                                  setWardSearch(ward.ward);
-                                }}
-                                style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: '#e2e8f0', borderBottom: '1px solid #1e293b' }}
-                                onMouseEnter={(e) => (e.currentTarget.style.background = '#1e293b')}
-                                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                              >
-                                {ward.ward} — {ward.ulb}
-                              </div>
-                            ))}
-                          {urbanWards.filter((ward) => ward.ward.toLowerCase().includes(wardSearch.toLowerCase())).length === 0 && (
-                            <div style={{ padding: '8px 12px', color: '#64748b', fontSize: '13px' }}>Koi Ward nahi mila</div>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                          setWardSearch('');
+                        }
+                      }}
+                      disabled={generating || loadingWards}
+                    >
+                      <option value="">
+                        {loadingWards
+                          ? 'Wards load ho rahe hain...'
+                          : `3. Ward select karo (${urbanWards.length} available)`}
+                      </option>
+                      {urbanWards.map((ward) => (
+                        <option key={ward.ward_id} value={ward.ward_id}>
+                          {ward.ward} — {ward.ulb}
+                        </option>
+                      ))}
+                    </select>
                   )}
                 </div>
               )}
