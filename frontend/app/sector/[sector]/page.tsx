@@ -483,8 +483,8 @@ Write 3 planning intelligence insights in proper Hindi (Devanagari). Mix of patt
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
         <HeroKpiCard label={getPrimaryBaselineLabel(sector.v, areaType)} value={sectorLoading ? '—' : formatHeroBaselineKpi(sector.v, sectorData?.baselineMetrics, 'primary')} sub="Baseline · All Rajasthan" accentColor="#1e3a5f" badge="BASELINE" />
         <HeroKpiCard label={getSecondaryBaselineLabel(sector.v, areaType)} value={sectorLoading ? '—' : formatHeroBaselineKpi(sector.v, sectorData?.baselineMetrics, 'secondary')} sub="Baseline · All Rajasthan" accentColor="#1e3a5f" badge="BASELINE" />
-        <HeroKpiCard label="2030 Aspiration Target" value={sectorLoading ? '—' : formatMetricNumber(sectorData?.aspQty2030 || 0)} sub={`${formatMetricNumber(sectorData?.aspTotalCount || 0)} total aspirations`} accentColor="#e85d04" badge="ASPIRATIONS" />
-        <HeroKpiCard label="Strategic Priority Items" value={sectorLoading ? '—' : formatMetricNumber((sectorData?.aspFunded || 0) + (sectorData?.aspFastTrack || 0))} sub={`${formatMetricNumber(sectorData?.aspFunded || 0)} funded · ${formatMetricNumber(sectorData?.aspFastTrack || 0)} fast-track`} accentColor="#16a34a" badge="FUNDED + FAST-TRACK" />
+        <HeroKpiCard label="2030 Aspiration Count" value={sectorLoading ? '—' : formatMetricNumber(sectorData?.aspQty2030 || 0)} sub={`${formatMetricNumber(sectorData?.aspTotalCount || 0)} total aspirations`} accentColor="#e85d04" badge="ASPIRATIONS" />
+        <HeroKpiCard label="Strategic Priority Data" value={sectorLoading ? '—' : formatMetricNumber((sectorData?.aspFunded || 0) + (sectorData?.aspFastTrack || 0))} sub={`${formatMetricNumber(sectorData?.aspFunded || 0)} funded · ${formatMetricNumber(sectorData?.aspFastTrack || 0)} fast-track`} accentColor="#16a34a" badge="FUNDED + FAST-TRACK" />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, alignItems: 'start' }}>
@@ -570,8 +570,26 @@ Write 3 planning intelligence insights in proper Hindi (Devanagari). Mix of patt
             {sectorLoading ? (
               <div style={{ color: '#94a3b8', fontStyle: 'italic', marginTop: 12 }}>Loading...</div>
             ) : (
-              <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {coverageBars.map((bar) => (
+              <div>
+                <div style={{
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 8,
+                  padding: '10px 14px',
+                  marginBottom: 12,
+                  fontSize: 11,
+                  color: '#64748b',
+                }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 16px' }}>
+                    <div><span style={{ color: '#1a2744', fontWeight: 600 }}>Current %</span> — CDO baseline survey</div>
+                    <div><span style={{ color: '#1a2744', fontWeight: 600 }}>Target %</span> — VR 2047 benchmark</div>
+                    <div><span style={{ color: '#1a2744', fontWeight: 600 }}>Funded</span> — FUNDED ÷ total accepted</div>
+                    <div><span style={{ color: '#1a2744', fontWeight: 600 }}>Fast-track</span> — flagged ÷ total</div>
+                    <div><span style={{ color: '#1a2744', fontWeight: 600 }}>Review cleared</span> — (ACCEPT+FUNDED) ÷ submitted</div>
+                  </div>
+                </div>
+                <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  {coverageBars.map((bar) => (
                   <div key={bar.label}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5, fontSize: 12 }}>
                       <span style={{ fontWeight: 700, color: '#1a2744' }}>{bar.label}</span>
@@ -584,6 +602,7 @@ Write 3 planning intelligence insights in proper Hindi (Devanagari). Mix of patt
                   </div>
                 ))}
               </div>
+            </div>
             )}
           </div>
         </div>
@@ -709,17 +728,17 @@ Write 3 planning intelligence insights in proper Hindi (Devanagari). Mix of patt
 
           <div style={{ ...LIGHT_CARD_STYLE, padding: 20 }}>
             <div className="ct">P-1 Priority Aspirations</div>
-            <div className="cs">High-priority demand items · {sector.label}</div>
+            <div className="cs">High-priority demand · {sector.label}</div>
             {sectorLoading ? (
               <div style={{ color: '#94a3b8', fontStyle: 'italic', marginTop: 12 }}>Loading...</div>
             ) : (
               <div style={{ marginTop: 14 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, marginBottom: 16 }}>
                   {[
-                    { label: 'P-1 Items', value: sectorData?.aspP1 || 0, color: '#dc2626', bg: '#fef2f2' },
-                    { label: 'Fast-track', value: sectorData?.aspFastTrack || 0, color: '#e85d04', bg: '#fff7ed' },
                     { label: 'Funded', value: sectorData?.aspFunded || 0, color: '#16a34a', bg: '#f0fdf4' },
-                    { label: 'Total', value: sectorData?.aspTotalCount || 0, color: '#1e3a5f', bg: '#eff6ff' },
+                    { label: 'Fast-track', value: sectorData?.aspFastTrack || 0, color: '#e85d04', bg: '#fff7ed' },
+                    { label: 'P-1 DATA', value: sectorData?.aspP1 || 0, color: '#dc2626', bg: '#fef2f2' },
+                    { label: 'TOTAL', value: sectorData?.aspTotalCount || 0, color: '#1e3a5f', bg: '#eff6ff' },
                   ].map((item) => (
                     <div key={item.label} style={{ background: item.bg, borderRadius: 10, padding: '10px 12px' }}>
                       <div style={{ fontSize: 18, fontWeight: 900, color: item.color }}>{formatMetricNumber(item.value)}</div>

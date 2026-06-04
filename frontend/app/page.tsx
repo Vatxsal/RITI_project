@@ -277,13 +277,13 @@ export default function CommandCenterPage() {
     {
       label: 'ASPIRATIONS · 2030',
       value: aspKpis ? formatCount(year2030Count) : '—',
-      subLabel: 'short-horizon',
+      subLabel: 'short-term',
       accent: '#e85d04',
     },
     {
       label: 'ASPIRATIONS · 2035',
       value: aspKpis ? formatCount(year2035Count) : '—',
-      subLabel: 'structural',
+      subLabel: 'mid-term',
       accent: '#e85d04',
     },
     {
@@ -635,6 +635,23 @@ export default function CommandCenterPage() {
                     </div>
                   );
                 })}
+              </div>
+              <div style={{
+                marginTop: 14,
+                padding: '10px 14px',
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                borderRadius: 8,
+                fontSize: 11,
+                color: '#64748b',
+                lineHeight: 1.7,
+              }}>
+                <div style={{ fontWeight: 700, color: '#475569', marginBottom: 4, fontSize: 11 }}>
+                  ℹ️ Status Definitions (Rules Engine)
+                </div>
+                <div><span style={{ color: '#16a34a', fontWeight: 700 }}>● Funded</span> — Aspiration has financial approval + scheme name linked in Rajdhara</div>
+                <div><span style={{ color: '#e85d04', fontWeight: 700 }}>● Fast-track</span> — Critical sector (Water / Health / Sanitation) — auto-approved regardless of documentation gaps</div>
+                <div><span style={{ color: '#64748b', fontWeight: 700 }}>● Review</span> — Passed basic checks but has minor issues (missing GPS, priority mismatch, etc.) — needs officer review before funding</div>
               </div>
             </div>
           </div>
