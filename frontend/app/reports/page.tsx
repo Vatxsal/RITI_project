@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { DISTRICT_EN_TO_HI, fetchBlocksForDistrict, fetchGpsForBlock, fetchUlbsForDistrict, fetchWardsForUlb } from '@/lib/cache/refresh_cache_dashboard';
+import { GP_HI_TO_EN } from '@/lib/cache/gp_name_map';
 
 const DISTRICTS_EN = [
   'Ajmer', 'Alwar', 'Balotara', 'Banswara', 'Baran', 'Barmer', 'Beawar',
@@ -353,145 +354,60 @@ export default function ReportsPage() {
             // Block-level or district-level: return everything fetched
             ruralAspData = allRural;
           } else {
-            // GP-level: filter allRural by matching gram_panchayat
-            // ── STRATEGY ──
-            // Priority 1: If gpNameEn (English GP name from cache) is populated → direct exact match
-            // Priority 2: If gpNameEn is empty → first-letter transliteration + length heuristic
-            // Priority 3: Fallback → transliteration + prefix matching (original approach)
-            const targetGpEn = String(scope.gpNameEn || '').trim().toLowerCase().replace(/[^a-z0-9 ]/g, '');
-            const targetGpHi = String(scope.gpName || '').trim().toLowerCase();
+            // ── GP-level filtering using pre-built Hindi→English lookup ──
+            // Strategy:
+            // 1. Use GP_HI_TO_EN to convert scope.gpName (Hindi) → English
+            // 2. Match aspirations.gram_panchayat (English) against the English name
+            // 3. Fallback to fuzzy prefix match if lookup misses
 
-            const transliterateHi = (hi: string): string => {
-              const map: Record<string, string> = {
-                'अ': 'a', 'आ': 'aa', 'इ': 'i', 'ई': 'ee', 'उ': 'u', 'ऊ': 'oo', 'ए': 'e', 'ऐ': 'ai', 'ओ': 'o', 'औ': 'au',
-                'क': 'k', 'ख': 'kh', 'ग': 'g', 'घ': 'gh', 'च': 'ch', 'छ': 'chh', 'ज': 'j', 'झ': 'jh',
-                'ट': 't', 'ठ': 'th', 'ड': 'd', 'ढ': 'dh', 'त': 't', 'थ': 'th', 'द': 'd', 'ध': 'dh', 'न': 'n',
-                'प': 'p', 'फ': 'f', 'ब': 'b', 'भ': 'bh', 'म': 'm', 'य': 'y', 'र': 'r', 'ल': 'l', 'व': 'v',
-                'श': 'sh', 'ष': 'sh', 'स': 's', 'ह': 'h',
-                'ा': 'a', 'ि': 'i', 'ी': 'ee', 'ु': 'u', 'ू': 'oo', 'े': 'e', 'ै': 'ai', 'ो': 'o', 'ौ': 'au',
-                'ं': 'n', 'ँ': 'n', '्': '', '़': '',
-              };
-              let res = '';
-              for (const ch of hi) res += map[ch] || ch;
-              return res.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
-            };
+            const targetGpHiLower = String(scope.gpName || '').trim().toLowerCase();
+            const targetGpEnFromMap = targetGpHiLower ? GP_HI_TO_EN[targetGpHiLower] : null;
 
-            const baselineGpNames = [...new Set(
-              data.map((r: any) => String(r.gram_panchayat || '').trim()).filter(Boolean)
-            )] as string[];
-            const baselineGpNamesTrans = baselineGpNames.map((n) => transliterateHi(n)).filter(Boolean);
-            const baselineGpNamesClean = baselineGpNames.map((n) =>
-              n.toLowerCase().replace(/[^a-z0-9 ]/g, '')
-            ).filter(Boolean);
+            // Also use gpNameEn from scope if available (from dim_rural_gps)
+            const targetGpEnDirect = String(scope.gpNameEn || '').trim().toLowerCase().replace(/[^a-z0-9 ]/g, '');
+            const targetGpEnMapped = targetGpEnFromMap
+              ? targetGpEnFromMap.trim().toLowerCase().replace(/[^a-z0-9 ]/g, '')
+              : null;
 
-            if (targetGpEn) {
-              // ── APPROACH 1: English GP name is available → direct normalized match ──
-              console.log(`[Rural Asp GP] Using gpNameEn direct match: "${targetGpEn}"`);
+            console.log(`[Rural Asp GP] gpName="${scope.gpName}" | lookup="${targetGpEnMapped || 'MISS'}" | gpNameEn="${targetGpEnDirect || 'none'}"`);
+
+            // Try all available English name candidates
+            const candidates = [targetGpEnMapped, targetGpEnDirect].filter(Boolean) as string[];
+
+            if (candidates.length > 0) {
               ruralAspData = allRural.filter((asp: any) => {
                 const aspGp = String(asp.gram_panchayat || '').trim().toLowerCase().replace(/[^a-z0-9 ]/g, '');
-                return aspGp === targetGpEn || aspGp.includes(targetGpEn) || targetGpEn.includes(aspGp);
+                if (!aspGp) return false;
+                return candidates.some(c =>
+                  aspGp === c ||
+                  aspGp.includes(c) ||
+                  c.includes(aspGp) ||
+                  (aspGp.length > 3 && c.length > 3 && aspGp.substring(0, 4) === c.substring(0, 4))
+                );
               });
-              console.log(`[Rural Asp GP] gpNameEn direct match → ${ruralAspData.length}`);
-            } else {
-              // ── APPROACH 2: gpNameEn empty → first-letter + length heuristic ──
-              const targetGpHiTrans = targetGpHi ? transliterateHi(targetGpHi) : '';
+              console.log(`[Rural Asp GP] Lookup match → ${ruralAspData.length} records`);
+            }
 
-              // Collect unique English GP names from all fetched aspirations
-              const uniqueAspGps = [...new Set(
-                allRural.map((a: any) => String(a.gram_panchayat || '').trim()).filter(Boolean)
+            // Fallback: if lookup gave nothing, try baseline GP names from the fetched data
+            if (ruralAspData.length === 0) {
+              const baselineGpNames = [...new Set(
+                data.map((r: any) => String(r.gram_panchayat || '').trim()).filter(Boolean)
               )] as string[];
 
-              // First-letter transliteration map (simplified — no vowel length distinction)
-              const firstLetterTrans = (() => {
-                const flMap: Record<string, string> = {
-                  'अ': 'a', 'आ': 'a', 'इ': 'i', 'ई': 'i', 'उ': 'u', 'ऊ': 'u',
-                  'ए': 'e', 'ऐ': 'e', 'ओ': 'o', 'औ': 'o',
-                  'क': 'k', 'ख': 'k', 'ग': 'g', 'घ': 'g', 'च': 'c', 'छ': 'c',
-                  'ज': 'j', 'झ': 'j', 'ट': 't', 'ठ': 't', 'ड': 'd', 'ढ': 'd',
-                  'त': 't', 'थ': 't', 'द': 'd', 'ध': 'd', 'न': 'n',
-                  'प': 'p', 'फ': 'p', 'ब': 'b', 'भ': 'b', 'म': 'm',
-                  'य': 'y', 'र': 'r', 'ल': 'l', 'व': 'v',
-                  'श': 's', 'ष': 's', 'स': 's', 'ह': 'h',
-                };
-                const first = targetGpHi.charAt(0);
-                return flMap[first] || first.toLowerCase().replace(/[^a-z0-9]/g, '');
-              })();
+              console.log(`[Rural Asp GP] Lookup gave 0, trying baseline GP names:`, baselineGpNames);
 
-              const hiNameChars = targetGpHi.replace(/[^a-z0-9\u0900-\u097F ]/g, '').length;
-
-              console.log(`[Rural Asp GP] gpNameEn empty | targetGpHi="${targetGpHi}" | firstLetterTrans="${firstLetterTrans}" | hiNameChars=${hiNameChars} | uniqueAspGps=${uniqueAspGps.length} | allRural=${allRural.length}`);
-              console.log(`[Rural Asp GP] sample asp.gram_panchayat:`, allRural.slice(0, 8).map((a: any) => a.gram_panchayat));
-
-              // Find candidates: first letter matches + length within 30%
-              const candidates = uniqueAspGps.filter((engName: string) => {
-                const engClean = engName.toLowerCase().replace(/[^a-z0-9]/g, '');
-                const engFirst = engClean.charAt(0);
-                const engLen = engClean.length;
-                if (engFirst !== firstLetterTrans) return false;
-                const maxLen = Math.max(engLen, hiNameChars);
-                const minLen = Math.min(engLen, hiNameChars);
-                if (minLen > 0 && maxLen / minLen > 1.3) return false;
-                return true;
+              ruralAspData = allRural.filter((asp: any) => {
+                const aspGp = String(asp.gram_panchayat || '').trim().toLowerCase().replace(/[^a-z0-9 ]/g, '');
+                if (!aspGp) return false;
+                return baselineGpNames.some(bgp => {
+                  const bgpClean = bgp.toLowerCase().replace(/[^a-z0-9 ]/g, '');
+                  return aspGp === bgpClean ||
+                    aspGp.includes(bgpClean) ||
+                    bgpClean.includes(aspGp) ||
+                    (aspGp.length > 3 && bgpClean.length > 3 && aspGp.substring(0, 4) === bgpClean.substring(0, 4));
+                });
               });
-
-              console.log(`[Rural Asp GP] First-letter+length candidates:`, candidates);
-
-              if (candidates.length > 0) {
-                ruralAspData = allRural.filter((asp: any) => {
-                  const aspGp = String(asp.gram_panchayat || '').trim();
-                  return candidates.includes(aspGp);
-                });
-                console.log(`[Rural Asp GP] Candidate match → ${ruralAspData.length}`);
-              } else {
-                // Fallback: transliteration + prefix matching (original approach)
-                console.log(`[Rural Asp GP] No heuristic candidates, using transliteration fallback`);
-
-                ruralAspData = allRural.filter((asp: any) => {
-                  const aspGp = String(asp.gram_panchayat || '').trim().toLowerCase();
-                  const aspGpClean = aspGp.replace(/[^a-z0-9 ]/g, '');
-
-                  // Hindi scope name directly against asp name
-                  if (targetGpHi) {
-                    if (aspGp === targetGpHi || aspGp.includes(targetGpHi) || targetGpHi.includes(aspGp))
-                      return true;
-                  }
-                  // Transliterated Hindi scope name vs English asp name
-                  if (targetGpHiTrans && aspGpClean) {
-                    if (aspGpClean === targetGpHiTrans || aspGpClean.includes(targetGpHiTrans) || targetGpHiTrans.includes(aspGpClean) ||
-                      (aspGpClean.length > 3 && targetGpHiTrans.length > 3 && aspGpClean.substring(0, 4) === targetGpHiTrans.substring(0, 4)))
-                      return true;
-                  }
-                  // Baseline GP name (raw) vs asp name
-                  for (const bc of baselineGpNamesClean) {
-                    if (bc && aspGpClean && (aspGpClean === bc || aspGpClean.includes(bc) || bc.includes(aspGpClean)))
-                      return true;
-                  }
-                  // Transliterated baseline GP name vs English asp name
-                  for (const bt of baselineGpNamesTrans) {
-                    if (bt && aspGpClean && (aspGpClean === bt || aspGpClean.includes(bt) || bt.includes(aspGpClean) ||
-                      (aspGpClean.length > 3 && bt.length > 3 && aspGpClean.substring(0, 4) === bt.substring(0, 4))))
-                      return true;
-                  }
-                  return false;
-                });
-
-                console.log(`[Rural Asp GP] Fallback transliteration → ${ruralAspData.length}`);
-
-                // Last resort: 3-char prefix fallback
-                if (ruralAspData.length === 0) {
-                  const prefixes = [...new Set([
-                    targetGpHiTrans.substring(0, 3),
-                    ...baselineGpNamesTrans.map((n) => n.substring(0, 3)),
-                  ])].filter((p) => p.length >= 3);
-                  if (prefixes.length > 0) {
-                    ruralAspData = allRural.filter((asp: any) => {
-                      const c = String(asp.gram_panchayat || '').trim().toLowerCase().replace(/[^a-z0-9 ]/g, '');
-                      return prefixes.some((p) => c.startsWith(p));
-                    });
-                    console.log(`[Rural Asp GP] Prefix fallback → ${ruralAspData.length}`);
-                  }
-                }
-              }
+              console.log(`[Rural Asp GP] Baseline fallback → ${ruralAspData.length} records`);
             }
           }
         }

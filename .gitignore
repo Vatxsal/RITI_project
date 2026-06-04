@@ -63,6 +63,7 @@ Manthaan_Planning_Intelligence_Tool.html
 
 # Test/Sample files
 sample_upload.csv
+gp_names_updated.xlsx
 test_*.csv
 test_*.json
 test_*.py

@@ -40,8 +40,12 @@ A planning intelligence platform for aspirational governance that combines Supab
 │   ├── 002_indicator_master.sql
 │   ├── 003_urban_baseline_foundations.sql
 │   ├── 004_aspiration_storage.sql
-│   └── 005_auth_sessions_rbac.sql
+│   ├── 005_auth_sessions_rbac.sql
+│   └── 006_dashboard_kpi_cache.sql
+├── SUPABASE_SQL_FILES(ALREADY_CREATED_TABLES)/  # Post-deployment SQL patches
+│   └── baseline_materialized_views.sql
 │
+├── .kiro/                     # Steering docs (product roadmap, architecture, tech decisions)
 ├── .gitignore                 # Excludes sensitive & auto-generated files
 ├── .env                       # 🔐 NOT TRACKED - Root config (backend)
 ├── .env.example               # 📋 TEMPLATE (safe for git)
@@ -236,8 +240,13 @@ GEMINI_API_KEY=your_gemini_api_key_here
 
 ### Implemented Features (Current)
 - **Frontend routes**: `/overview`, `/aspirations`, `/districts`, `/gp-ranking`, `/budget-engine`, `/gis-map`, `/gis-map-new`, `/gp-baseline`, `/reports`, `/login`, `/ai-chat`, `/upload`, `/backend`, and `/dashboard/backend` are implemented.
-- **Supabase API layer**: App routes exist for chat, compliance norms, dashboard KPIs, GP search, GP baseline, sidebar stats, stats, auth login/logout, and other dashboard queries.
+- **Supabase API layer**: App routes exist for chat, compliance norms, dashboard KPIs, GP search, GP baseline, sidebar stats, stats, auth login/logout, dashboard refresh, and other dashboard queries.
 - **Auth and RBAC**: Login/logout routes store session records and rely on the service-role key server-side only.
+- **Reports engine**: Full-featured reports page with dynamic data fetching, filtering, and export capabilities.
+- **Dashboard cache system**: Server-side KPI caching with a dedicated refresh endpoint (`/api/dashboard/refresh`) and refresh button in the Topbar for real-time dashboard updates.
+- **Materialized views**: Baseline data materialized views in Supabase for faster dashboard aggregations.
+- **AI Chat improvements**: Enhanced AI context builder (`aiContext.ts`) for more accurate Gemini-powered responses.
+- **GIS Map updates**: Refined map component with better data rendering and district-aware visualizations.
 - **Data processing**: The ETL folder includes Excel export, CSV enrichment with IDs, direct CSV import, timing diagnostics, and validation helpers.
 - **Environment cleanup**: The repo now uses `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` instead of the older `SUPABASE_KEY` naming.
 - **Deployment readiness**: `npm run build` passes in the frontend, so the app is currently buildable for Vercel deployment.
@@ -249,6 +258,13 @@ GEMINI_API_KEY=your_gemini_api_key_here
 - Frontend build was validated locally: run `cd frontend && npm run build` and ensure the build succeeds before deploying.
 
 If you want, I can commit these README and `.gitignore` changes and push them to `main`.
+## 🗺️ Project Roadmap (.kiro/)
+
+The project includes steering documentation under `.kiro/steering/`:
+- **`product.md`** — Product vision and roadmap
+- **`structure.md`** — Codebase architecture overview
+- **`tech.md`** — Technology decisions and stack rationale
+
 ## 📊 Data Flow
 
 ```
@@ -383,5 +399,5 @@ Private Repository - All rights reserved.
 
 ---
 
-**Last Updated:** May 2026  
+**Last Updated:** June 2026  
 **Status:** Active Development
