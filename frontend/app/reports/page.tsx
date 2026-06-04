@@ -12,7 +12,7 @@ const DISTRICTS_EN = [
   'Karauli', 'Khairthal-Tijara', 'Kota', 'Kotputli-Behror', 'Nagaur',
   'Pali', 'Phalodi', 'Pratapgarh', 'Rajsamand', 'Salumbar', 'Sawai Madhopur',
   'Sikar', 'Sirohi', 'Sri Ganganagar', 'Tonk', 'Udaipur'
- ] as const;
+] as const;
 
 if (DISTRICTS_EN.length !== 41) {
   throw new Error(`DISTRICTS_EN must contain exactly 41 entries, found ${DISTRICTS_EN.length}`);
@@ -38,8 +38,8 @@ export default function ReportsPage() {
   const [ruralBlock, setRuralBlock] = useState({ hi: '', en: '' });
   const [ruralGpId, setRuralGpId] = useState<number | null>(null);
   const [ruralGpName, setRuralGpName] = useState({ hi: '', en: '' });
-  const [ruralBlocks, setRuralBlocks] = useState<{hi: string, en: string}[]>([]);
-  const [ruralGps, setRuralGps] = useState<{ gp_id: number; gram_panchayat: {hi: string, en: string}; block: string }[]>([]);
+  const [ruralBlocks, setRuralBlocks] = useState<{ hi: string, en: string }[]>([]);
+  const [ruralGps, setRuralGps] = useState<{ gp_id: number; gram_panchayat: { hi: string, en: string }; block: string }[]>([]);
   const [gpSearch, setGpSearch] = useState('');
 
   const [urbanDistrict, setUrbanDistrict] = useState('');
@@ -261,25 +261,25 @@ export default function ReportsPage() {
 
     setGenerating(true);
     setGeneratingLabel('Data fetch ho raha hai...');
-    
+
     try {
       const scope = activeTab === 'rural'
         ? {
-            type: 'rural' as const,
-            district: ruralDistrict,
-            block: ruralBlock.hi || null,
-            blockEn: ruralBlock.en || null,
-            gpId: ruralGpId || null,
-            gpName: ruralGpName.hi || null,
-            gpNameEn: ruralGpName.en || null,
-          }
+          type: 'rural' as const,
+          district: ruralDistrict,
+          block: ruralBlock.hi || null,
+          blockEn: ruralBlock.en || null,
+          gpId: ruralGpId || null,
+          gpName: ruralGpName.hi || null,
+          gpNameEn: ruralGpName.en || null,
+        }
         : {
-            type: 'urban' as const,
-            district: urbanDistrict,
-            ulb: urbanUlb || null,
-            wardId: urbanWardId || null,
-            wardName: urbanWardName || null,
-          };
+          type: 'urban' as const,
+          district: urbanDistrict,
+          ulb: urbanUlb || null,
+          wardId: urbanWardId || null,
+          wardName: urbanWardName || null,
+        };
 
       const reportData = await fetchScopedReportData(scope);
       setGeneratingLabel('Manthaan AI report likh raha hai...');
@@ -296,407 +296,479 @@ export default function ReportsPage() {
   }
 
   async function fetchScopedReportData(scope: any) {
-  const S = (rows: any[], col: string) => rows.reduce((a: number, r: any) => a + (Number(r[col]) || 0), 0);
-  const A = (rows: any[], col: string) => {
-    const vals = rows.map((r: any) => Number(r[col])).filter((v: number) => v > 0);
-    return vals.length ? vals.reduce((a: number, b: number) => a + b, 0) / vals.length : 0;
-  };
-
-  const dbDistrict = DISTRICT_EN_TO_HI[scope.district] || scope.district;
-  const ASP_SELECT = 'district, block, gram_panchayat, village, ulb, ward, city, area_type, item, sector, dept, priority, qty_2030, qty_2035, qty_2047, status, total_budget, scheme, planning_year, fast_track';
-
-  if (scope.type === 'rural') {
-    // ── RURAL BASELINE ──────────────────────────────────────────
-    let query = supabase.from('baseline_rural').select('*').eq('district', dbDistrict);
-    if (scope.block) query = query.eq('block', scope.block);
-    if (scope.gpName) query = query.ilike('gram_panchayat', scope.gpName);
-
-    const { data, error } = await query;
-    if (error || !data || data.length === 0) throw new Error('No rural data found.');
-
-    // ── RURAL ASPIRATIONS (fuzzy match) ─────────────────────────
-    // aspirations.district = English, aspirations.block = English,
-    // aspirations.gram_panchayat = English GP name
-    // scope.blockEn = English block, scope.gpNameEn = English GP
-    let ruralAspData: any[] = [];
-    try {
-      let ruralAspQuery = supabase
-        .from('aspirations')
-        .select(ASP_SELECT)
-        .in('status', ['ACCEPT', 'FUNDED', 'REVIEW'])
-        .eq('area_type', 'Rural')
-        .eq('district', scope.district)
-        .limit(3000);
-
-      if (scope.blockEn) {
-        ruralAspQuery = ruralAspQuery.eq('block', scope.blockEn);
-      }
-
-      const { data: rawRuralAsp, error: ruralAspError } = await ruralAspQuery;
-
-      if (ruralAspError) {
-        console.warn('[Rural Asp] fetch error:', ruralAspError.message);
-        ruralAspData = [];
-      } else {
-        const allRural = rawRuralAsp || [];
-
-        if (!scope.gpNameEn && !scope.gpName) {
-          ruralAspData = allRural;
-        } else {
-          const targetGpEn = String(scope.gpNameEn || '').trim().toLowerCase().replace(/[^a-z0-9 ]/g, '');
-          const targetGpHi = String(scope.gpName || '').trim().toLowerCase();
-
-          ruralAspData = allRural.filter((asp: any) => {
-            const aspGp = String(asp.gram_panchayat || '').trim().toLowerCase();
-            const aspGpClean = aspGp.replace(/[^a-z0-9 ]/g, '');
-
-            if (targetGpEn && aspGpClean) {
-              const enMatch = aspGpClean === targetGpEn ||
-                aspGpClean.includes(targetGpEn) ||
-                targetGpEn.includes(aspGpClean) ||
-                (aspGpClean.length > 3 && targetGpEn.length > 3 &&
-                  aspGpClean.substring(0, 4) === targetGpEn.substring(0, 4));
-              if (enMatch) return true;
-            }
-            if (targetGpHi) {
-              return aspGp === targetGpHi ||
-                aspGp.includes(targetGpHi) ||
-                targetGpHi.includes(aspGp);
-            }
-            return false;
-          });
-        }
-
-        console.log(`[Rural Asp] district: ${scope.district} | blockEn: ${scope.blockEn || 'all'} | gpNameEn: ${scope.gpNameEn || 'all'} | fetched: ${allRural.length} | filtered: ${ruralAspData.length}`);
-      }
-    } catch (err) {
-      console.warn('[Rural Asp] exception:', err);
-      ruralAspData = [];
-    }
-
-    return {
-      scopeType: 'rural',
-      scopeLabel: `${scope.gpName || scope.block || scope.district} Rural`,
-      meta: {
-        district: scope.district,
-        gpCount: [...new Set(data.map((r: any) => r.gram_panchayat))].length,
-        blockCount: [...new Set(data.map((r: any) => r.block))].length,
-        blocks: [...new Set(data.map((r: any) => r.block))],
-      },
-      population: {
-        total: S(data, 'pop_2026_est'), male: S(data, 'male_pop_2026'), female: S(data, 'female_pop_2026'),
-        children06: S(data, 'children_0_6_2026'), children614: S(data, 'children_6_14_2026'),
-        seniors: S(data, 'senior_citizens_2026'), pwd: S(data, 'pwd_pop_2026'),
-        totalFamilies: S(data, 'total_families_2026'), bplFamilies: S(data, 'bpl_families_2026'),
-        puccaHouses: S(data, 'pucca_houses_2026'), kutchaHouses: S(data, 'kutcha_houses_2026'), urbanPop: 0,
-      },
-      water: {
-        ruralFhtcAvg: A(data, 'tap_connection_pct').toFixed(1),
-        gpsBelow30Fhtc: data.filter((r: any) => r.tap_connection_pct < 30).length,
-        overheadTanks: S(data, 'overhead_tanks_count'),
-        groundwaterDepth: A(data, 'groundwater_depth_meters').toFixed(1),
-        roFacilities: S(data, 'ro_facilities'), urbanFhtcAvg: '0',
-      },
-      agriculture: {
-        cultivableHa: S(data, 'cultivable_land_hectare'), irrigatedHa: S(data, 'irrigated_area_hectare'),
-        irrigationPct: S(data, 'cultivable_land_hectare') > 0
-          ? ((S(data, 'irrigated_area_hectare') / S(data, 'cultivable_land_hectare')) * 100).toFixed(1) : 0,
-        totalFarmers: S(data, 'total_farmers_count'), kccHolders: S(data, 'kcc_holders_count'),
-        pmKisan: S(data, 'pm_cm_kisan_beneficiaries'), soilCards: S(data, 'soil_health_cards_valid'),
-        cropInsurance: S(data, 'crop_insurance_farmers_count'), fpos: S(data, 'fpo_count'),
-        solarPumps: S(data, 'solar_pumps_count'),
-      },
-      dairy: {
-        totalLivestock: S(data, 'total_livestock_count'), milchAnimals: S(data, 'milch_animals_count'),
-        dailyMilkLpd: S(data, 'daily_milk_prod_litres'),
-        annualDairyValueCr: (S(data, 'daily_milk_prod_litres') * 365 * 50 / 10000000).toFixed(0),
-        milkCenters: S(data, 'milk_collection_centers'), goatFarms: S(data, 'goat_farms_count'),
-        poultryFarms: S(data, 'poultry_farms_count'),
-      },
-      health: {
-        allopathicCenters: S(data, 'allopathic_centers'), ayushCenters: S(data, 'ayush_centers'),
-        healthBeds: S(data, 'health_center_beds'), healthStaff: S(data, 'working_health_staff'),
-        ayushmanBen: S(data, 'ayushman_arogya_beneficiaries'), tbPatients: S(data, 'tb_patients_count'),
-        anemicPregnant: S(data, 'anemic_pregnant_women_count'), samChildren: S(data, 'sam_children_count'),
-        ashaWorkers: S(data, 'asha_workers_count'), awcCenters: S(data, 'anganwadi_centers_count'),
-        urbanHealthBeds: 0, urbanAyushman: 0,
-      },
-      education: {
-        govtSchools: S(data, 'govt_schools_count'), pvtSchools: S(data, 'pvt_schools_count'),
-        totalSchools: S(data, 'total_schools_count'), workingTeachers: S(data, 'working_teachers'),
-        sanctionedTeachers: S(data, 'sanctioned_teachers'), enrolledStudents: S(data, 'total_enrolled_students'),
-        dropouts: S(data, 'dropout_children_prev_year'), skillCenters: S(data, 'skill_training_centers_count'),
-        awcCenters: S(data, 'anganwadi_centers_count'), ashaWorkers: S(data, 'asha_workers_count'),
-        samChildren: S(data, 'sam_children_count'),
-        anganwadiEnrolledChildren: S(data, 'anganwadi_enrolled_children'),
-        dataAvailable: data.length > 0,
-      },
-      social: {
-        oldAgePensioners: S(data, 'old_age_pensioners'), widowPensioners: S(data, 'widow_pensioners'),
-        pwdPensioners: S(data, 'pwd_pensioners_est'), ujjwalaBen: S(data, 'pm_ujjwala_beneficiaries'),
-        awasBen: S(data, 'pm_cm_awas_beneficiaries'), urbanWidow: 0, urbanAwas: 0,
-      },
-      economy: {
-        activeShgs: S(data, 'active_shg_count'), shgWomen: S(data, 'women_in_shgs'),
-        lakhpatiDidis: S(data, 'lakhpati_didis_count'), millionaireDidis: S(data, 'millionaire_didis_count'),
-        mudraLoan: S(data, 'mudra_loan_beneficiaries'), artisans: S(data, 'local_artisans_count'),
-        urbanShgs: 0, urbanIndustries: 0,
-      },
-      infrastructure: {
-        electricityHouses: S(data, 'houses_with_electricity'), roadKm: S(data, 'road_length_km'),
-        streetLights: S(data, 'total_street_lights'), govtBanks: S(data, 'govt_banks_count'),
-        postOffices: S(data, 'post_offices_count'), publicToilets: S(data, 'public_toilets'),
-        solarHomes: S(data, 'solar_installed_houses'),
-      },
-      environment: {
-        forestHa: S(data, 'forest_area_hectare'), pastureHa: S(data, 'pasture_land_hectare'),
-        biogasPlants: S(data, 'biogas_plants_count'), govtCompostPits: S(data, 'govt_compost_pits_count'),
-        pvtCompostPits: S(data, 'pvt_compost_pits_count'),
-        suryaGharHomes: S(data, 'pm_surya_ghar_solar_houses'),
-        wasteKgDay: S(data, 'total_waste_daily_kg'), housesWithToilets: S(data, 'houses_with_toilets'),
-      },
-      tourism: {
-        heritageSites: S(data, 'cultural_assets_count'), annualFairs: S(data, 'annual_fairs_count'),
-        dailyFootfall: A(data, 'avg_daily_footfall_cultural_sites'),
-        avgFairFootfallDaily: A(data, 'avg_fair_footfall_daily'),
-        trainedGuides: S(data, 'registered_trained_guides'), fairEmployment: S(data, 'fair_related_employment'),
-        localProductStalls: S(data, 'fair_product_stalls_count'),
-      },
-      governance: {
-        distPoliceKm: A(data, 'dist_police_station_km'),
-        distEmitraKm: A(data, 'dist_emitra_km'),
-        distLpgKm: A(data, 'dist_lpg_distributor_km'),
-        urbanPoliceKm: 0, urbanEmitraKm: 0,
-      },
-      aspirations: ruralAspData,
+    const S = (rows: any[], col: string) => rows.reduce((a: number, r: any) => a + (Number(r[col]) || 0), 0);
+    const A = (rows: any[], col: string) => {
+      const vals = rows.map((r: any) => Number(r[col])).filter((v: number) => v > 0);
+      return vals.length ? vals.reduce((a: number, b: number) => a + b, 0) / vals.length : 0;
     };
 
-  } else {
-    // ── URBAN BASELINE ──────────────────────────────────────────
-    let query = supabase.from('baseline_urban').select('*').eq('district', dbDistrict);
-    if (scope.ulb) query = query.eq('ulb', scope.ulb);
-    if (scope.wardName) query = query.eq('ward', scope.wardName);
+    const dbDistrict = DISTRICT_EN_TO_HI[scope.district] || scope.district;
+    const ASP_SELECT = 'district, block, gram_panchayat, village, ulb, ward, city, area_type, item, sector, dept, priority, qty_2030, qty_2035, qty_2047, status, total_budget, scheme, planning_year, fast_track';
 
-    const { data, error } = await query;
-    if (error || !data || data.length === 0) throw new Error('No urban data found.');
+    if (scope.type === 'rural') {
+      // ── RURAL BASELINE ──────────────────────────────────────────
+      let query = supabase.from('baseline_rural').select('*').eq('district', dbDistrict);
+      if (scope.block) query = query.eq('block', scope.block);
+      if (scope.gpName) query = query.ilike('gram_panchayat', scope.gpName);
 
-    // ── URBAN ASPIRATIONS ──────────────────────────────────────────────────────
-    // Key facts about urban aspiration data structure:
-    // - aspirations.district = English (e.g. "Bharatpur")  ← matches scope.district
-    // - aspirations.ulb = NULL always (ulb column is empty in source data)
-    // - aspirations.city = Hindi ULB name (e.g. "नाडबई")  ← this IS the ULB identifier
-    // - aspirations.ward = English "Ward No 32" format     ← match by number only
-    // - baseline_urban.ulb = Hindi ULB name (e.g. "नाडबई") ← scope.ulb comes from here
-    // - baseline_urban.ward = Hindi "वार्ड न. 03" format   ← scope.wardName comes from here
-    // Strategy: fetch all urban aspirations for district → filter by city=ulb + ward number
+      const { data, error } = await query;
+      if (error || !data || data.length === 0) throw new Error('No rural data found.');
 
-    let urbanAspData: any[] = [];
-    try {
-      // Always fetch by English district — aspirations.district is always English
-      const { data: rawUrbanAsp, error: urbanAspError } = await supabase
-        .from('aspirations')
-        .select(ASP_SELECT)
-        .in('status', ['ACCEPT', 'FUNDED', 'REVIEW'])
-        .eq('area_type', 'Urban')
-        .eq('district', scope.district)  // English district name
-        .limit(5000);
+      // ── RURAL ASPIRATIONS ─────────────────────────────────────────────────
+      // aspirations.district = English | aspirations.block = English
+      // aspirations.gram_panchayat = English GP name
+      // scope.gpName = Hindi | scope.gpNameEn = English (may be empty)
+      let ruralAspData: any[] = [];
+      try {
+        // When a GP is selected, do NOT filter by blockEn in the query — the block
+        // English name may not match exactly. Instead fetch all for the district and
+        // filter by GP in JS below.  For block-level or district-level, blockEn filter
+        // is still applied to keep the result set manageable.
+        const isGpLevel = !!(scope.gpName || scope.gpNameEn);
 
-      if (urbanAspError) {
-        console.warn('[Urban Asp] fetch error:', urbanAspError.message);
-        urbanAspData = [];
-      } else {
-        const allUrban = rawUrbanAsp || [];
-        console.log(`[Urban Asp] district=${scope.district} | total fetched=${allUrban.length} | scope.ulb=${scope.ulb || 'none'} | scope.wardName=${scope.wardName || 'none'}`);
+        let ruralAspQuery = supabase
+          .from('aspirations')
+          .select(ASP_SELECT)
+          .in('status', ['ACCEPT', 'FUNDED', 'REVIEW'])
+          .eq('area_type', 'Rural')
+          .eq('district', scope.district)
+          .limit(5000);
 
-        // Debug: log unique city values found in aspirations
-        const uniqueCities = [...new Set(allUrban.map((a: any) => String(a.city || a.ulb || '').trim()))].filter(Boolean);
-        console.log(`[Urban Asp] unique city/ulb values in aspirations:`, uniqueCities.slice(0, 10));
+        if (scope.blockEn && !isGpLevel) {
+          ruralAspQuery = ruralAspQuery.eq('block', scope.blockEn);
+        }
 
-        if (!scope.ulb && !scope.wardName) {
-          // District level — return all urban aspirations for this district
-          urbanAspData = allUrban;
+        const { data: rawRuralAsp, error: ruralAspError } = await ruralAspQuery;
+
+        // Always log so we know what happened
+        console.log(`[Rural Asp] district=${scope.district} | blockEn=${scope.blockEn || 'none'} | gpName=${scope.gpName || ''} | gpNameEn=${scope.gpNameEn || ''} | isGpLevel=${isGpLevel} | fetchError=${ruralAspError?.message || 'none'} | rawCount=${rawRuralAsp?.length ?? 'null'}`);
+
+        if (ruralAspError) {
+          console.warn('[Rural Asp] fetch error:', ruralAspError.message);
+          ruralAspData = [];
         } else {
-          // Extract only digits from a ward/number string, strip leading zeros
-          // "वार्ड न. 03" → "3" | "Ward No 03" → "3" | "Ward No 32" → "32" | "वार्ड नंबर 33" → "33"
-          const extractWardNum = (wardStr: string): string => {
-            const digits = String(wardStr || '').replace(/[^0-9]/g, '');
-            return digits.replace(/^0+/, '') || ''; // remove leading zeros, keep "0" if all zeros
-          };
+          const allRural = rawRuralAsp || [];
 
-          // Normalize ULB name for fuzzy matching:
-          // scope.ulb comes from baseline_urban.ulb (Hindi, e.g. "नाडबई")
-          // asp.city contains Hindi ULB name (e.g. "नाडबई")
-          // Also handle cases where asp.city might be slightly different spelling
-          const targetUlbHi = String(scope.ulb || '').trim().toLowerCase();
-          const targetWardNum = scope.wardName ? extractWardNum(scope.wardName) : '';
+          if (!isGpLevel) {
+            // Block-level or district-level: return everything fetched
+            ruralAspData = allRural;
+          } else {
+            // GP-level: filter allRural by matching gram_panchayat
+            const targetGpEn = String(scope.gpNameEn || '').trim().toLowerCase().replace(/[^a-z0-9 ]/g, '');
+            const targetGpHi = String(scope.gpName || '').trim().toLowerCase();
 
-          console.log(`[Urban Asp] Matching: targetUlbHi="${targetUlbHi}" | targetWardNum="${targetWardNum}"`);
-
-          urbanAspData = allUrban.filter((asp: any) => {
-            // ── ULB match ──
-            // asp.city holds the Hindi ULB name; asp.ulb is always NULL
-            if (scope.ulb) {
-              const aspCity = String(asp.city || asp.ulb || '').trim().toLowerCase();
-
-              if (!aspCity) return false; // no city value → can't match ULB
-
-              // aspirations.city can be English ("Ajmer") OR Hindi ("अजमेर")
-              // scope.ulb comes from baseline_urban.ulb which is always Hindi
-              // DISTRICT_EN_TO_HI gives us English→Hindi, we need Hindi→English too
-              const HINDI_TO_EN: Record<string, string> = {
-                'अजमेर': 'Ajmer', 'अलवर': 'Alwar', 'बालोतरा': 'Balotara',
-                'बांसवाडा': 'Banswara', 'बारां': 'Baran', 'बाड़मेर': 'Barmer',
-                'ब्यावर': 'Beawar', 'भरतपुर': 'Bharatpur', 'भीलवाड़ा': 'Bhilwara',
-                'बीकानेर': 'Bikaner', 'बूंदी': 'Bundi', 'चित्तौड़गढ़': 'Chittorgarh',
-                'चूरू': 'Churu', 'दौसा': 'Dausa', 'डीग': 'Deeg',
-                'धौलपुर': 'Dholpur', 'डीडवाना कुचामन': 'Didwana-Kuchaman',
-                'डूंगरपुर': 'Dungarpur', 'हनुमानगढ़': 'Hanumangarh',
-                'जयपुर': 'Jaipur', 'जैसलमेर': 'Jaisalmer', 'जालोर': 'Jalore',
-                'झालावाड़': 'Jhalawar', 'झुन्झुनू': 'Jhunjhunu', 'जोधपुर': 'Jodhpur',
-                'करौली': 'Karauli', 'खैरथल -तिजारा': 'Khairthal-Tijara', 'कोटा': 'Kota',
-                'कोटपूतली-बहरोड': 'Kotputli-Behror', 'नागौर': 'Nagaur', 'पाली': 'Pali',
-                'फलोदी': 'Phalodi', 'प्रतापगढ़': 'Pratapgarh', 'राजसमन्द': 'Rajsamand',
-                'सलूम्बर': 'Salumbar', 'सवाई माधोपुर': 'Sawai Madhopur',
-                'सीकर': 'Sikar', 'सिरोही': 'Sirohi', 'श्री गंगानगर': 'Sri Ganganagar',
-                'टोंक': 'Tonk', 'उदयपुर': 'Udaipur',
-                // Common ULB names that appear in city column as English
-                'नाडबई': 'Nadbai', 'नगर': 'Nagar', 'नगर पालिका': 'Nagar Palika',
+            const transliterateHi = (hi: string): string => {
+              const map: Record<string, string> = {
+                'अ': 'a', 'आ': 'aa', 'इ': 'i', 'ई': 'ee', 'उ': 'u', 'ऊ': 'oo', 'ए': 'e', 'ऐ': 'ai', 'ओ': 'o', 'औ': 'au',
+                'क': 'k', 'ख': 'kh', 'ग': 'g', 'घ': 'gh', 'च': 'ch', 'छ': 'chh', 'ज': 'j', 'झ': 'jh',
+                'ट': 't', 'ठ': 'th', 'ड': 'd', 'ढ': 'dh', 'त': 't', 'थ': 'th', 'द': 'd', 'ध': 'dh', 'न': 'n',
+                'प': 'p', 'फ': 'f', 'ब': 'b', 'भ': 'bh', 'म': 'm', 'य': 'y', 'र': 'r', 'ल': 'l', 'व': 'v',
+                'श': 'sh', 'ष': 'sh', 'स': 's', 'ह': 'h',
+                'ा': 'a', 'ि': 'i', 'ी': 'ee', 'ु': 'u', 'ू': 'oo', 'े': 'e', 'ै': 'ai', 'ो': 'o', 'ौ': 'au',
+                'ं': 'n', 'ँ': 'n', '्': '', '़': '',
               };
+              let res = '';
+              for (const ch of hi) res += map[ch] || ch;
+              return res.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
+            };
 
-              // Get English equivalent of the Hindi ULB name for matching against asp.city
-              const ulbEnglish = (HINDI_TO_EN[scope.ulb] || scope.ulb).toLowerCase();
+            const targetGpHiTrans = targetGpHi ? transliterateHi(targetGpHi) : '';
 
-              const ulbMatch =
-                aspCity === targetUlbHi ||
-                aspCity === ulbEnglish ||
-                aspCity.includes(targetUlbHi) ||
-                aspCity.includes(ulbEnglish) ||
-                targetUlbHi.includes(aspCity) ||
-                ulbEnglish.includes(aspCity) ||
-                (aspCity.length > 2 && targetUlbHi.length > 2 &&
-                  aspCity.substring(0, 3) === targetUlbHi.substring(0, 3)) ||
-                (aspCity.length > 2 && ulbEnglish.length > 2 &&
-                  aspCity.substring(0, 3) === ulbEnglish.substring(0, 3));
+            // Also collect exact names from baseline_rural (already filtered to this GP)
+            const baselineGpNames = [...new Set(
+              data.map((r: any) => String(r.gram_panchayat || '').trim()).filter(Boolean)
+            )] as string[];
+            const baselineGpNamesTrans = baselineGpNames.map((n) => transliterateHi(n)).filter(Boolean);
+            const baselineGpNamesClean = baselineGpNames.map((n) =>
+              n.toLowerCase().replace(/[^a-z0-9 ]/g, '')
+            ).filter(Boolean);
 
-              if (!ulbMatch) return false;
+            console.log(`[Rural Asp GP] targetGpEn="${targetGpEn}" | targetGpHiTrans="${targetGpHiTrans}" | baselineGpNames=${JSON.stringify(baselineGpNames)} | baselineGpNamesTrans=${JSON.stringify(baselineGpNamesTrans)}`);
+            console.log(`[Rural Asp GP] allRural.length=${allRural.length} | sample asp.gram_panchayat:`, allRural.slice(0, 8).map((a: any) => a.gram_panchayat));
+
+            ruralAspData = allRural.filter((asp: any) => {
+              const aspGp = String(asp.gram_panchayat || '').trim().toLowerCase();
+              const aspGpClean = aspGp.replace(/[^a-z0-9 ]/g, '');
+
+              // 1. English scope name vs English asp name
+              if (targetGpEn && aspGpClean) {
+                if (aspGpClean === targetGpEn || aspGpClean.includes(targetGpEn) || targetGpEn.includes(aspGpClean) ||
+                  (aspGpClean.length > 3 && targetGpEn.length > 3 && aspGpClean.substring(0, 4) === targetGpEn.substring(0, 4)))
+                  return true;
+              }
+              // 2. Hindi scope name vs Hindi asp name
+              if (targetGpHi) {
+                if (aspGp === targetGpHi || aspGp.includes(targetGpHi) || targetGpHi.includes(aspGp))
+                  return true;
+              }
+              // 3. Transliterated Hindi scope name vs English asp name
+              if (targetGpHiTrans && aspGpClean) {
+                if (aspGpClean === targetGpHiTrans || aspGpClean.includes(targetGpHiTrans) || targetGpHiTrans.includes(aspGpClean) ||
+                  (aspGpClean.length > 3 && targetGpHiTrans.length > 3 && aspGpClean.substring(0, 4) === targetGpHiTrans.substring(0, 4)))
+                  return true;
+              }
+              // 4. Baseline GP name (raw) vs asp name
+              for (const bc of baselineGpNamesClean) {
+                if (bc && aspGpClean && (aspGpClean === bc || aspGpClean.includes(bc) || bc.includes(aspGpClean)))
+                  return true;
+              }
+              // 5. Transliterated baseline GP name vs English asp name
+              for (const bt of baselineGpNamesTrans) {
+                if (bt && aspGpClean && (aspGpClean === bt || aspGpClean.includes(bt) || bt.includes(aspGpClean) ||
+                  (aspGpClean.length > 3 && bt.length > 3 && aspGpClean.substring(0, 4) === bt.substring(0, 4))))
+                  return true;
+              }
+              return false;
+            });
+
+            console.log(`[Rural Asp GP] filtered=${ruralAspData.length}`);
+
+            // Last resort: 3-char prefix fallback across all transliterated forms
+            if (ruralAspData.length === 0) {
+              const prefixes = [...new Set([
+                targetGpHiTrans.substring(0, 3),
+                ...baselineGpNamesTrans.map((n) => n.substring(0, 3)),
+              ])].filter((p) => p.length >= 3);
+              if (prefixes.length > 0) {
+                ruralAspData = allRural.filter((asp: any) => {
+                  const c = String(asp.gram_panchayat || '').trim().toLowerCase().replace(/[^a-z0-9 ]/g, '');
+                  return prefixes.some((p) => c.startsWith(p));
+                });
+                console.log(`[Rural Asp GP] prefix fallback prefixes=${JSON.stringify(prefixes)} → ${ruralAspData.length}`);
+              }
             }
-
-            // ── Ward match ──
-            // asp.ward = "Ward No 32" | scope.wardName = "वार्ड न. 32"
-            // Compare only the numeric part
-            if (scope.wardName && targetWardNum) {
-              const aspWardNum = extractWardNum(asp.ward || '');
-              if (!aspWardNum || aspWardNum !== targetWardNum) return false;
-            }
-
-            return true;
-          });
+          }
         }
-
-        console.log(`[Urban Asp] Final filtered count: ${urbanAspData.length}`);
-
-        // If filtered to 0 but we expected data, log a warning with sample data for debugging
-        if (urbanAspData.length === 0 && allUrban.length > 0 && scope.ulb) {
-          console.warn(`[Urban Asp] ⚠️ Zero matches for ULB "${scope.ulb}". Sample city values from aspirations:`,
-            allUrban.slice(0, 5).map((a: any) => ({ city: a.city, ulb: a.ulb, ward: a.ward }))
-          );
-        }
+      } catch (err) {
+        console.warn('[Rural Asp] exception:', err);
+        ruralAspData = [];
       }
-    } catch (err) {
-      console.warn('[Urban Asp] exception:', err);
-      urbanAspData = [];
-    }
 
-    return {
-      scopeType: 'urban',
-      scopeLabel: `${scope.wardName || scope.ulb || scope.district} Urban`,
-      meta: {
-        district: scope.district,
-        wardCount: data.length,
-        ulbCount: [...new Set(data.map((r: any) => r.ulb))].length,
-        ulbs: [...new Set(data.map((r: any) => r.ulb))],
-      },
-      population: {
-        male: S(data, 'male_pop_2026'), female: S(data, 'female_pop_2026'),
-        children06: S(data, 'children_0_6_2026'), children614: S(data, 'children_6_14_2026'),
-        seniors: S(data, 'senior_citizens_2026'), pwd: S(data, 'pwd_pop_2026'),
-        puccaHouses: S(data, 'pucca_houses_2026'), kutchaHouses: S(data, 'kutcha_houses_2026'),
-        urbanPop: S(data, 'pop_2026_est'), total: 0, totalFamilies: 0, bplFamilies: 0,
-      },
-      water: {
-        overheadTanks: S(data, 'overhead_tanks_count'),
-        groundwaterDepth: A(data, 'groundwater_depth_meters').toFixed(1),
-        urbanFhtcAvg: A(data, 'tap_connection_pct').toFixed(1),
-        ruralFhtcAvg: '0', gpsBelow30Fhtc: 0, roFacilities: S(data, 'ro_facilities'),
-      },
-      health: {
-        allopathicCenters: S(data, 'allopathic_centers'), ayushCenters: S(data, 'ayush_centers'),
-        healthBeds: S(data, 'health_center_beds'), healthStaff: S(data, 'working_health_staff'),
-        privateHealthCenters: S(data, 'private_health_centers'),
-        tbPatients: S(data, 'tb_patients_count'), anemicPregnant: S(data, 'anemic_pregnant_women_count'),
-        hypertensionScreening2025_26: S(data, 'bp_screened_fy2526'),
-        diabetesScreening2025_26: S(data, 'diabetes_screened_fy2526'),
-        urbanHealthBeds: S(data, 'health_center_beds'),
-        urbanAyushman: S(data, 'ayushman_arogya_beneficiaries'),
-        samChildren: S(data, 'sam_children_count'), ashaWorkers: S(data, 'asha_workers_count'),
-        awcCenters: S(data, 'anganwadi_centers_count'), snpRecipients: S(data, 'snp_children_6_72m'),
-        ayushmanBen: S(data, 'ayushman_arogya_beneficiaries'),
-      },
-      education: {
-        totalSchools: S(data, 'total_schools_count'), govtSchools: S(data, 'govt_schools_count'),
-        pvtSchools: S(data, 'pvt_schools_count'), workingTeachers: S(data, 'working_teachers'),
-        sanctionedTeachers: S(data, 'sanctioned_teachers'),
-        enrolledStudents: S(data, 'total_enrolled_students'),
-        dropouts: S(data, 'dropout_children_prev_year'), awcCenters: S(data, 'anganwadi_centers_count'),
-        ashaWorkers: S(data, 'asha_workers_count'), samChildren: S(data, 'sam_children_count'),
-        snpRecipients672Months: S(data, 'snp_children_6_72m'),
-        anganwadiEnrolledChildren: S(data, 'anganwadi_enrolled_children'),
-        urbanGovtSchools: S(data, 'govt_schools_count'), urbanPvtSchools: S(data, 'pvt_schools_count'),
-        urbanTeachers: S(data, 'working_teachers'), dataAvailable: data.length > 0,
-      },
-      social: {
-        oldAgePensioners: S(data, 'old_age_pensioners'), pwdPensioners: S(data, 'pwd_pensioners_est'),
-        ujjwalaBen: S(data, 'pm_ujjwala_beneficiaries'), widowPensioners: 0, awasBen: 0,
-        urbanWidow: S(data, 'widow_pensioners'), urbanAwas: S(data, 'pm_cm_awas_beneficiaries'),
-      },
-      economy: {
-        activeShgs: S(data, 'active_shg_count'), artisans: S(data, 'local_artisans_count'),
-        largeIndustrialUnits: S(data, 'large_industrial_units'),
-        smallScaleIndustries: S(data, 'small_scale_industries'),
-        urbanShgs: S(data, 'active_shg_count'),
-        urbanIndustries: S(data, 'large_industrial_units') + S(data, 'small_scale_industries'),
-        shgWomen: S(data, 'women_in_shgs'), lakhpatiDidis: 0, millionaireDidis: 0, mudraLoan: 0,
-      },
-      infrastructure: {
-        electricityHouses: S(data, 'houses_with_electricity'), roadKm: S(data, 'road_length_km'),
-        govtBanks: S(data, 'govt_banks_count'), privateBanks: S(data, 'private_banks_count'),
-        publicToilets: S(data, 'public_toilets_functional'), solarHomes: S(data, 'solar_installed_houses'),
-        distMainMarketKm: A(data, 'dist_main_market_km'), distBusStandKm: A(data, 'dist_bus_stand_km'),
-        distRailwayStationKm: A(data, 'dist_railway_station_km'),
-        streetLights: 0, postOffices: 0,
-      },
-      environment: {
-        housesWithoutToilets: S(data, 'houses_without_toilets'),
-        govtCompostPits: S(data, 'govt_compost_pits_count'),
-        govtNurseries: S(data, 'govt_nurseries_count'),
-        nurserySaplingsAvailable: S(data, 'nursery_plants_count'),
-        forestHa: S(data, 'forest_area_hectare'),
-        suryaGharHomes: S(data, 'pm_surya_ghar_solar_houses'),
-        pastureHa: 0, biogasPlants: 0, wasteKgDay: 0, housesWithToilets: 0,
-      },
-      tourism: {
-        dailyFootfall: A(data, 'avg_fair_footfall_daily'),
-        avgFairFootfallDaily: A(data, 'avg_fair_footfall_daily'),
-        localProductStalls: S(data, 'fair_product_stalls_count'),
-        trainedGuides: S(data, 'registered_trained_guides'),
-        fairEmployment: S(data, 'fair_shg_stalls_count'),
-        heritageSites: 0, annualFairs: 0,
-      },
-      governance: { urbanPoliceKm: 0, urbanEmitraKm: 0, distPoliceKm: 0, distEmitraKm: 0, distLpgKm: 0 },
-      aspirations: urbanAspData,
-    };
+
+
+      return {
+        scopeType: 'rural',
+        scopeLabel: `${scope.gpName || scope.block || scope.district} Rural`,
+        meta: {
+          district: scope.district,
+          gpCount: [...new Set(data.map((r: any) => r.gram_panchayat))].length,
+          blockCount: [...new Set(data.map((r: any) => r.block))].length,
+          blocks: [...new Set(data.map((r: any) => r.block))],
+        },
+        population: {
+          total: S(data, 'pop_2026_est'), male: S(data, 'male_pop_2026'), female: S(data, 'female_pop_2026'),
+          children06: S(data, 'children_0_6_2026'), children614: S(data, 'children_6_14_2026'),
+          seniors: S(data, 'senior_citizens_2026'), pwd: S(data, 'pwd_pop_2026'),
+          totalFamilies: S(data, 'total_families_2026'), bplFamilies: S(data, 'bpl_families_2026'),
+          puccaHouses: S(data, 'pucca_houses_2026'), kutchaHouses: S(data, 'kutcha_houses_2026'), urbanPop: 0,
+        },
+        water: {
+          ruralFhtcAvg: A(data, 'tap_connection_pct').toFixed(1),
+          gpsBelow30Fhtc: data.filter((r: any) => r.tap_connection_pct < 30).length,
+          overheadTanks: S(data, 'overhead_tanks_count'),
+          groundwaterDepth: A(data, 'groundwater_depth_meters').toFixed(1),
+          roFacilities: S(data, 'ro_facilities'), urbanFhtcAvg: '0',
+        },
+        agriculture: {
+          cultivableHa: S(data, 'cultivable_land_hectare'), irrigatedHa: S(data, 'irrigated_area_hectare'),
+          irrigationPct: S(data, 'cultivable_land_hectare') > 0
+            ? ((S(data, 'irrigated_area_hectare') / S(data, 'cultivable_land_hectare')) * 100).toFixed(1) : 0,
+          totalFarmers: S(data, 'total_farmers_count'), kccHolders: S(data, 'kcc_holders_count'),
+          pmKisan: S(data, 'pm_cm_kisan_beneficiaries'), soilCards: S(data, 'soil_health_cards_valid'),
+          cropInsurance: S(data, 'crop_insurance_farmers_count'), fpos: S(data, 'fpo_count'),
+          solarPumps: S(data, 'solar_pumps_count'),
+        },
+        dairy: {
+          totalLivestock: S(data, 'total_livestock_count'), milchAnimals: S(data, 'milch_animals_count'),
+          dailyMilkLpd: S(data, 'daily_milk_prod_litres'),
+          annualDairyValueCr: (S(data, 'daily_milk_prod_litres') * 365 * 50 / 10000000).toFixed(0),
+          milkCenters: S(data, 'milk_collection_centers'), goatFarms: S(data, 'goat_farms_count'),
+          poultryFarms: S(data, 'poultry_farms_count'),
+        },
+        health: {
+          allopathicCenters: S(data, 'allopathic_centers'), ayushCenters: S(data, 'ayush_centers'),
+          healthBeds: S(data, 'health_center_beds'), healthStaff: S(data, 'working_health_staff'),
+          ayushmanBen: S(data, 'ayushman_arogya_beneficiaries'), tbPatients: S(data, 'tb_patients_count'),
+          anemicPregnant: S(data, 'anemic_pregnant_women_count'), samChildren: S(data, 'sam_children_count'),
+          ashaWorkers: S(data, 'asha_workers_count'), awcCenters: S(data, 'anganwadi_centers_count'),
+          urbanHealthBeds: 0, urbanAyushman: 0,
+        },
+        education: {
+          govtSchools: S(data, 'govt_schools_count'), pvtSchools: S(data, 'pvt_schools_count'),
+          totalSchools: S(data, 'total_schools_count'), workingTeachers: S(data, 'working_teachers'),
+          sanctionedTeachers: S(data, 'sanctioned_teachers'), enrolledStudents: S(data, 'total_enrolled_students'),
+          dropouts: S(data, 'dropout_children_prev_year'), skillCenters: S(data, 'skill_training_centers_count'),
+          awcCenters: S(data, 'anganwadi_centers_count'), ashaWorkers: S(data, 'asha_workers_count'),
+          samChildren: S(data, 'sam_children_count'),
+          anganwadiEnrolledChildren: S(data, 'anganwadi_enrolled_children'),
+          dataAvailable: data.length > 0,
+        },
+        social: {
+          oldAgePensioners: S(data, 'old_age_pensioners'), widowPensioners: S(data, 'widow_pensioners'),
+          pwdPensioners: S(data, 'pwd_pensioners_est'), ujjwalaBen: S(data, 'pm_ujjwala_beneficiaries'),
+          awasBen: S(data, 'pm_cm_awas_beneficiaries'), urbanWidow: 0, urbanAwas: 0,
+        },
+        economy: {
+          activeShgs: S(data, 'active_shg_count'), shgWomen: S(data, 'women_in_shgs'),
+          lakhpatiDidis: S(data, 'lakhpati_didis_count'), millionaireDidis: S(data, 'millionaire_didis_count'),
+          mudraLoan: S(data, 'mudra_loan_beneficiaries'), artisans: S(data, 'local_artisans_count'),
+          urbanShgs: 0, urbanIndustries: 0,
+        },
+        infrastructure: {
+          electricityHouses: S(data, 'houses_with_electricity'), roadKm: S(data, 'road_length_km'),
+          streetLights: S(data, 'total_street_lights'), govtBanks: S(data, 'govt_banks_count'),
+          postOffices: S(data, 'post_offices_count'), publicToilets: S(data, 'public_toilets'),
+          solarHomes: S(data, 'solar_installed_houses'),
+        },
+        environment: {
+          forestHa: S(data, 'forest_area_hectare'), pastureHa: S(data, 'pasture_land_hectare'),
+          biogasPlants: S(data, 'biogas_plants_count'), govtCompostPits: S(data, 'govt_compost_pits_count'),
+          pvtCompostPits: S(data, 'pvt_compost_pits_count'),
+          suryaGharHomes: S(data, 'pm_surya_ghar_solar_houses'),
+          wasteKgDay: S(data, 'total_waste_daily_kg'), housesWithToilets: S(data, 'houses_with_toilets'),
+        },
+        tourism: {
+          heritageSites: S(data, 'cultural_assets_count'), annualFairs: S(data, 'annual_fairs_count'),
+          dailyFootfall: A(data, 'avg_daily_footfall_cultural_sites'),
+          avgFairFootfallDaily: A(data, 'avg_fair_footfall_daily'),
+          trainedGuides: S(data, 'registered_trained_guides'), fairEmployment: S(data, 'fair_related_employment'),
+          localProductStalls: S(data, 'fair_product_stalls_count'),
+        },
+        governance: {
+          distPoliceKm: A(data, 'dist_police_station_km'),
+          distEmitraKm: A(data, 'dist_emitra_km'),
+          distLpgKm: A(data, 'dist_lpg_distributor_km'),
+          urbanPoliceKm: 0, urbanEmitraKm: 0,
+        },
+        aspirations: ruralAspData,
+      };
+
+    } else {
+      // ── URBAN BASELINE ──────────────────────────────────────────
+      let query = supabase.from('baseline_urban').select('*').eq('district', dbDistrict);
+      if (scope.ulb) query = query.eq('ulb', scope.ulb);
+      if (scope.wardName) query = query.eq('ward', scope.wardName);
+
+      const { data, error } = await query;
+      if (error || !data || data.length === 0) throw new Error('No urban data found.');
+
+      // ── URBAN ASPIRATIONS ──────────────────────────────────────────────────────
+      // Key facts about urban aspiration data structure:
+      // - aspirations.district = English (e.g. "Bharatpur")  ← matches scope.district
+      // - aspirations.ulb = NULL always (ulb column is empty in source data)
+      // - aspirations.city = Hindi ULB name (e.g. "नाडबई")  ← this IS the ULB identifier
+      // - aspirations.ward = English "Ward No 32" format     ← match by number only
+      // - baseline_urban.ulb = Hindi ULB name (e.g. "नाडबई") ← scope.ulb comes from here
+      // - baseline_urban.ward = Hindi "वार्ड न. 03" format   ← scope.wardName comes from here
+      // Strategy: fetch all urban aspirations for district → filter by city=ulb + ward number
+
+      let urbanAspData: any[] = [];
+      try {
+        // Always fetch by English district — aspirations.district is always English
+        const { data: rawUrbanAsp, error: urbanAspError } = await supabase
+          .from('aspirations')
+          .select(ASP_SELECT)
+          .in('status', ['ACCEPT', 'FUNDED', 'REVIEW'])
+          .eq('area_type', 'Urban')
+          .eq('district', scope.district)  // English district name
+          .limit(5000);
+
+        if (urbanAspError) {
+          console.warn('[Urban Asp] fetch error:', urbanAspError.message);
+          urbanAspData = [];
+        } else {
+          const allUrban = rawUrbanAsp || [];
+          console.log(`[Urban Asp] district=${scope.district} | total fetched=${allUrban.length} | scope.ulb=${scope.ulb || 'none'} | scope.wardName=${scope.wardName || 'none'}`);
+
+          // Debug: log unique city values found in aspirations
+          const uniqueCities = [...new Set(allUrban.map((a: any) => String(a.city || a.ulb || '').trim()))].filter(Boolean);
+          console.log(`[Urban Asp] unique city/ulb values in aspirations:`, uniqueCities.slice(0, 10));
+
+          if (!scope.ulb && !scope.wardName) {
+            // District level — return all urban aspirations for this district
+            urbanAspData = allUrban;
+          } else {
+            // Extract only digits from a ward/number string, strip leading zeros
+            // "वार्ड न. 03" → "3" | "Ward No 03" → "3" | "Ward No 32" → "32" | "वार्ड नंबर 33" → "33"
+            const extractWardNum = (wardStr: string): string => {
+              const digits = String(wardStr || '').replace(/[^0-9]/g, '');
+              return digits.replace(/^0+/, '') || ''; // remove leading zeros, keep "0" if all zeros
+            };
+
+            // Normalize ULB name for fuzzy matching:
+            // scope.ulb comes from baseline_urban.ulb (Hindi, e.g. "नाडबई")
+            // asp.city contains Hindi ULB name (e.g. "नाडबई")
+            // Also handle cases where asp.city might be slightly different spelling
+            const targetUlbHi = String(scope.ulb || '').trim().toLowerCase();
+            const targetWardNum = scope.wardName ? extractWardNum(scope.wardName) : '';
+
+            console.log(`[Urban Asp] Matching: targetUlbHi="${targetUlbHi}" | targetWardNum="${targetWardNum}"`);
+
+            urbanAspData = allUrban.filter((asp: any) => {
+              // ── ULB match ──
+              // asp.city holds the Hindi ULB name; asp.ulb is always NULL
+              if (scope.ulb) {
+                const aspCity = String(asp.city || asp.ulb || '').trim().toLowerCase();
+
+                if (!aspCity) return false; // no city value → can't match ULB
+
+                // aspirations.city can be English ("Ajmer") OR Hindi ("अजमेर")
+                // scope.ulb comes from baseline_urban.ulb which is always Hindi
+                // DISTRICT_EN_TO_HI gives us English→Hindi, we need Hindi→English too
+                const HINDI_TO_EN: Record<string, string> = {
+                  'अजमेर': 'Ajmer', 'अलवर': 'Alwar', 'बालोतरा': 'Balotara',
+                  'बांसवाडा': 'Banswara', 'बारां': 'Baran', 'बाड़मेर': 'Barmer',
+                  'ब्यावर': 'Beawar', 'भरतपुर': 'Bharatpur', 'भीलवाड़ा': 'Bhilwara',
+                  'बीकानेर': 'Bikaner', 'बूंदी': 'Bundi', 'चित्तौड़गढ़': 'Chittorgarh',
+                  'चूरू': 'Churu', 'दौसा': 'Dausa', 'डीग': 'Deeg',
+                  'धौलपुर': 'Dholpur', 'डीडवाना कुचामन': 'Didwana-Kuchaman',
+                  'डूंगरपुर': 'Dungarpur', 'हनुमानगढ़': 'Hanumangarh',
+                  'जयपुर': 'Jaipur', 'जैसलमेर': 'Jaisalmer', 'जालोर': 'Jalore',
+                  'झालावाड़': 'Jhalawar', 'झुन्झुनू': 'Jhunjhunu', 'जोधपुर': 'Jodhpur',
+                  'करौली': 'Karauli', 'खैरथल -तिजारा': 'Khairthal-Tijara', 'कोटा': 'Kota',
+                  'कोटपूतली-बहरोड': 'Kotputli-Behror', 'नागौर': 'Nagaur', 'पाली': 'Pali',
+                  'फलोदी': 'Phalodi', 'प्रतापगढ़': 'Pratapgarh', 'राजसमन्द': 'Rajsamand',
+                  'सलूम्बर': 'Salumbar', 'सवाई माधोपुर': 'Sawai Madhopur',
+                  'सीकर': 'Sikar', 'सिरोही': 'Sirohi', 'श्री गंगानगर': 'Sri Ganganagar',
+                  'टोंक': 'Tonk', 'उदयपुर': 'Udaipur',
+                  // Common ULB names that appear in city column as English
+                  'नाडबई': 'Nadbai', 'नगर': 'Nagar', 'नगर पालिका': 'Nagar Palika',
+                };
+
+                // Get English equivalent of the Hindi ULB name for matching against asp.city
+                const ulbEnglish = (HINDI_TO_EN[scope.ulb] || scope.ulb).toLowerCase();
+
+                const ulbMatch =
+                  aspCity === targetUlbHi ||
+                  aspCity === ulbEnglish ||
+                  aspCity.includes(targetUlbHi) ||
+                  aspCity.includes(ulbEnglish) ||
+                  targetUlbHi.includes(aspCity) ||
+                  ulbEnglish.includes(aspCity) ||
+                  (aspCity.length > 2 && targetUlbHi.length > 2 &&
+                    aspCity.substring(0, 3) === targetUlbHi.substring(0, 3)) ||
+                  (aspCity.length > 2 && ulbEnglish.length > 2 &&
+                    aspCity.substring(0, 3) === ulbEnglish.substring(0, 3));
+
+                if (!ulbMatch) return false;
+              }
+
+              // ── Ward match ──
+              // asp.ward = "Ward No 32" | scope.wardName = "वार्ड न. 32"
+              // Compare only the numeric part
+              if (scope.wardName && targetWardNum) {
+                const aspWardNum = extractWardNum(asp.ward || '');
+                if (!aspWardNum || aspWardNum !== targetWardNum) return false;
+              }
+
+              return true;
+            });
+          }
+
+          console.log(`[Urban Asp] Final filtered count: ${urbanAspData.length}`);
+
+          // If filtered to 0 but we expected data, log a warning with sample data for debugging
+          if (urbanAspData.length === 0 && allUrban.length > 0 && scope.ulb) {
+            console.warn(`[Urban Asp] ⚠️ Zero matches for ULB "${scope.ulb}". Sample city values from aspirations:`,
+              allUrban.slice(0, 5).map((a: any) => ({ city: a.city, ulb: a.ulb, ward: a.ward }))
+            );
+          }
+        }
+      } catch (err) {
+        console.warn('[Urban Asp] exception:', err);
+        urbanAspData = [];
+      }
+
+      return {
+        scopeType: 'urban',
+        scopeLabel: `${scope.wardName || scope.ulb || scope.district} Urban`,
+        meta: {
+          district: scope.district,
+          wardCount: data.length,
+          ulbCount: [...new Set(data.map((r: any) => r.ulb))].length,
+          ulbs: [...new Set(data.map((r: any) => r.ulb))],
+        },
+        population: {
+          male: S(data, 'male_pop_2026'), female: S(data, 'female_pop_2026'),
+          children06: S(data, 'children_0_6_2026'), children614: S(data, 'children_6_14_2026'),
+          seniors: S(data, 'senior_citizens_2026'), pwd: S(data, 'pwd_pop_2026'),
+          puccaHouses: S(data, 'pucca_houses_2026'), kutchaHouses: S(data, 'kutcha_houses_2026'),
+          urbanPop: S(data, 'pop_2026_est'), total: 0, totalFamilies: 0, bplFamilies: 0,
+        },
+        water: {
+          overheadTanks: S(data, 'overhead_tanks_count'),
+          groundwaterDepth: A(data, 'groundwater_depth_meters').toFixed(1),
+          urbanFhtcAvg: A(data, 'tap_connection_pct').toFixed(1),
+          ruralFhtcAvg: '0', gpsBelow30Fhtc: 0, roFacilities: S(data, 'ro_facilities'),
+        },
+        health: {
+          allopathicCenters: S(data, 'allopathic_centers'), ayushCenters: S(data, 'ayush_centers'),
+          healthBeds: S(data, 'health_center_beds'), healthStaff: S(data, 'working_health_staff'),
+          privateHealthCenters: S(data, 'private_health_centers'),
+          tbPatients: S(data, 'tb_patients_count'), anemicPregnant: S(data, 'anemic_pregnant_women_count'),
+          hypertensionScreening2025_26: S(data, 'bp_screened_fy2526'),
+          diabetesScreening2025_26: S(data, 'diabetes_screened_fy2526'),
+          urbanHealthBeds: S(data, 'health_center_beds'),
+          urbanAyushman: S(data, 'ayushman_arogya_beneficiaries'),
+          samChildren: S(data, 'sam_children_count'), ashaWorkers: S(data, 'asha_workers_count'),
+          awcCenters: S(data, 'anganwadi_centers_count'), snpRecipients: S(data, 'snp_children_6_72m'),
+          ayushmanBen: S(data, 'ayushman_arogya_beneficiaries'),
+        },
+        education: {
+          totalSchools: S(data, 'total_schools_count'), govtSchools: S(data, 'govt_schools_count'),
+          pvtSchools: S(data, 'pvt_schools_count'), workingTeachers: S(data, 'working_teachers'),
+          sanctionedTeachers: S(data, 'sanctioned_teachers'),
+          enrolledStudents: S(data, 'total_enrolled_students'),
+          dropouts: S(data, 'dropout_children_prev_year'), awcCenters: S(data, 'anganwadi_centers_count'),
+          ashaWorkers: S(data, 'asha_workers_count'), samChildren: S(data, 'sam_children_count'),
+          snpRecipients672Months: S(data, 'snp_children_6_72m'),
+          anganwadiEnrolledChildren: S(data, 'anganwadi_enrolled_children'),
+          urbanGovtSchools: S(data, 'govt_schools_count'), urbanPvtSchools: S(data, 'pvt_schools_count'),
+          urbanTeachers: S(data, 'working_teachers'), dataAvailable: data.length > 0,
+        },
+        social: {
+          oldAgePensioners: S(data, 'old_age_pensioners'), pwdPensioners: S(data, 'pwd_pensioners_est'),
+          ujjwalaBen: S(data, 'pm_ujjwala_beneficiaries'), widowPensioners: 0, awasBen: 0,
+          urbanWidow: S(data, 'widow_pensioners'), urbanAwas: S(data, 'pm_cm_awas_beneficiaries'),
+        },
+        economy: {
+          activeShgs: S(data, 'active_shg_count'), artisans: S(data, 'local_artisans_count'),
+          largeIndustrialUnits: S(data, 'large_industrial_units'),
+          smallScaleIndustries: S(data, 'small_scale_industries'),
+          urbanShgs: S(data, 'active_shg_count'),
+          urbanIndustries: S(data, 'large_industrial_units') + S(data, 'small_scale_industries'),
+          shgWomen: S(data, 'women_in_shgs'), lakhpatiDidis: 0, millionaireDidis: 0, mudraLoan: 0,
+        },
+        infrastructure: {
+          electricityHouses: S(data, 'houses_with_electricity'), roadKm: S(data, 'road_length_km'),
+          govtBanks: S(data, 'govt_banks_count'), privateBanks: S(data, 'private_banks_count'),
+          publicToilets: S(data, 'public_toilets_functional'), solarHomes: S(data, 'solar_installed_houses'),
+          distMainMarketKm: A(data, 'dist_main_market_km'), distBusStandKm: A(data, 'dist_bus_stand_km'),
+          distRailwayStationKm: A(data, 'dist_railway_station_km'),
+          streetLights: 0, postOffices: 0,
+        },
+        environment: {
+          housesWithoutToilets: S(data, 'houses_without_toilets'),
+          govtCompostPits: S(data, 'govt_compost_pits_count'),
+          govtNurseries: S(data, 'govt_nurseries_count'),
+          nurserySaplingsAvailable: S(data, 'nursery_plants_count'),
+          forestHa: S(data, 'forest_area_hectare'),
+          suryaGharHomes: S(data, 'pm_surya_ghar_solar_houses'),
+          pastureHa: 0, biogasPlants: 0, wasteKgDay: 0, housesWithToilets: 0,
+        },
+        tourism: {
+          dailyFootfall: A(data, 'avg_fair_footfall_daily'),
+          avgFairFootfallDaily: A(data, 'avg_fair_footfall_daily'),
+          localProductStalls: S(data, 'fair_product_stalls_count'),
+          trainedGuides: S(data, 'registered_trained_guides'),
+          fairEmployment: S(data, 'fair_shg_stalls_count'),
+          heritageSites: 0, annualFairs: 0,
+        },
+        governance: { urbanPoliceKm: 0, urbanEmitraKm: 0, distPoliceKm: 0, distEmitraKm: 0, distLpgKm: 0 },
+        aspirations: urbanAspData,
+      };
+    }
   }
-}
 
   // STEP 3 — Gemini narrative generation
   async function generateNarrative(data: any, scope: any) {
@@ -803,8 +875,8 @@ export default function ReportsPage() {
 Generate a ${scopeTypeLabel} planning intelligence brief for ${scopeName}, within ${d.meta.district} district, using ONLY the numbers below. Do not invent figures. Do not include Vision 2047 targets or aspiration data — this is a baseline-only report.
 
 DISTRICT PROFILE:
-GPs: ${d.meta.gpCount || 0} | Blocks: ${d.meta.blockCount || 0} (${(d.meta.blocks || []).slice(0,5).join(', ')}${(d.meta.blocks || []).length > 5 ? '...' : ''})
-Urban Wards: ${d.meta.wardCount || 0} | ULBs: ${d.meta.ulbCount || 0} (${(d.meta.ulbs || []).slice(0,4).join(', ')}${(d.meta.ulbs || []).length > 4 ? '...' : ''})
+GPs: ${d.meta.gpCount || 0} | Blocks: ${d.meta.blockCount || 0} (${(d.meta.blocks || []).slice(0, 5).join(', ')}${(d.meta.blocks || []).length > 5 ? '...' : ''})
+Urban Wards: ${d.meta.wardCount || 0} | ULBs: ${d.meta.ulbCount || 0} (${(d.meta.ulbs || []).slice(0, 4).join(', ')}${(d.meta.ulbs || []).length > 4 ? '...' : ''})
 
 POPULATION:
 Rural: ${d.population.total.toLocaleString()} | Urban: ${d.population.urbanPop.toLocaleString()} | Total: ${(d.population.total + d.population.urbanPop).toLocaleString()}
@@ -821,7 +893,7 @@ Avg groundwater depth: ${d.water.groundwaterDepth}m | RO facilities: ${d.water.r
 
 AGRICULTURE:
 Cultivable land: ${d.agriculture.cultivableHa.toLocaleString()} ha | Irrigated: ${d.agriculture.irrigatedHa.toLocaleString()} ha (${d.agriculture.irrigationPct}%)
-Total farmers: ${d.agriculture.totalFarmers.toLocaleString()} | KCC holders: ${d.agriculture.kccHolders.toLocaleString()} (${d.agriculture.totalFarmers > 0 ? ((d.agriculture.kccHolders/d.agriculture.totalFarmers)*100).toFixed(1) : 0}%)
+Total farmers: ${d.agriculture.totalFarmers.toLocaleString()} | KCC holders: ${d.agriculture.kccHolders.toLocaleString()} (${d.agriculture.totalFarmers > 0 ? ((d.agriculture.kccHolders / d.agriculture.totalFarmers) * 100).toFixed(1) : 0}%)
 PM-Kisan: ${d.agriculture.pmKisan.toLocaleString()} | Soil health cards: ${d.agriculture.soilCards.toLocaleString()}
 Crop insurance: ${d.agriculture.cropInsurance.toLocaleString()} | FPOs: ${d.agriculture.fpos} | Solar pumps: ${d.agriculture.solarPumps}
 
@@ -906,8 +978,8 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
 
     // Try multiple models to handle quota/demand issues
     const models = [
-      'gemini-3.1-flash-lite', 
-      'gemini-3.1-flash', 
+      'gemini-3.1-flash-lite',
+      'gemini-3.1-flash',
       'gemini-2.5-flash',
       'gemini-2.0-flash', // Fallback for stability
       'gemini-1.5-flash'  // Emergency fallback
@@ -930,9 +1002,9 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
               })
             }
           );
-          
+
           const result = await response.json();
-          
+
           // Handle High Demand or Rate Limits with a retry
           if (response.status === 503 || response.status === 429) {
             console.warn(`${model} busy, retrying in 2s...`);
@@ -1072,9 +1144,9 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
 
     const scopeLevel = scope.gpName ? 'gp'
       : scope.wardName ? 'ward'
-      : scope.block ? 'block'
-      : scope.ulb ? 'ulb'
-      : 'district';
+        : scope.block ? 'block'
+          : scope.ulb ? 'ulb'
+            : 'district';
 
     const coverMainName = scope.gpName || scope.wardName || scope.block || scope.ulb || district;
 
@@ -1164,16 +1236,16 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
       <div class="pill-row">
         ${kpiPill('नागरिक', `${fmtLakh(totalPopulation)}`, isRural ? `${fmt(d.meta?.gpCount || 0)} ग्राम पंचायतें` : `${fmt(d.meta?.wardCount || 0)} वार्ड`)}
         ${scopeLevel === 'district'
-          ? (isUrban
-              ? kpiPill('वार्ड · नगर निकाय', `${fmt(d.meta?.wardCount || 0)} वार्ड · ${fmt(d.meta?.ulbCount || 0)} नगर निकाय`, 'शहरी प्रशासनिक ढांचा')
-              : kpiPill('ग्राम पंचायतें · Blocks', `${fmt(d.meta?.gpCount || 0)} ग्राम पंचायतें · ${fmt(d.meta?.blockCount || 0)} Blocks`, 'ग्रामीण प्रशासनिक ढांचा'))
-          : scopeLevel === 'block'
-            ? kpiPill('ग्राम पंचायतें', `${fmt(d.meta?.gpCount || 0)} ग्राम पंचायतें`, 'चयनित विकास खंड कवरेज')
-            : scopeLevel === 'gp'
-              ? kpiPill('ग्राम पंचायत', '1 ग्राम पंचायत', 'चयनित ग्राम पंचायत कवरेज')
-              : scopeLevel === 'ward'
-                ? kpiPill('वार्ड', '1 वार्ड', 'चयनित वार्ड कवरेज')
-                : kpiPill('नगर निकाय', `${fmt(d.meta?.wardCount || 0)} वार्ड`, 'शहरी प्रशासनिक कवरेज')}
+        ? (isUrban
+          ? kpiPill('वार्ड · नगर निकाय', `${fmt(d.meta?.wardCount || 0)} वार्ड · ${fmt(d.meta?.ulbCount || 0)} नगर निकाय`, 'शहरी प्रशासनिक ढांचा')
+          : kpiPill('ग्राम पंचायतें · Blocks', `${fmt(d.meta?.gpCount || 0)} ग्राम पंचायतें · ${fmt(d.meta?.blockCount || 0)} Blocks`, 'ग्रामीण प्रशासनिक ढांचा'))
+        : scopeLevel === 'block'
+          ? kpiPill('ग्राम पंचायतें', `${fmt(d.meta?.gpCount || 0)} ग्राम पंचायतें`, 'चयनित विकास खंड कवरेज')
+          : scopeLevel === 'gp'
+            ? kpiPill('ग्राम पंचायत', '1 ग्राम पंचायत', 'चयनित ग्राम पंचायत कवरेज')
+            : scopeLevel === 'ward'
+              ? kpiPill('वार्ड', '1 वार्ड', 'चयनित वार्ड कवरेज')
+              : kpiPill('नगर निकाय', `${fmt(d.meta?.wardCount || 0)} वार्ड`, 'शहरी प्रशासनिक कवरेज')}
         ${kpiPill('क्षेत्रीय स्थिति', isRural ? `कृषि · डेयरी · ग्राम शासन` : `शहरी सेवा · उद्योग · अवसंरचना`, isRural ? 'ग्रामीण केंद्रित' : 'शहरी केंद्रित')}
         ${kpiPill('पहचान', `${selectedScopeType}`, selectedScopePath)}
       </div>
@@ -1210,8 +1282,8 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
     const sexRatio = malePopulation > 0 ? ((femalePopulation / malePopulation) * 1000).toFixed(0) : '—';
     const adminCoverage = showRuralProfile
       ? (scopeLevel === 'block'
-          ? `${fmt(d.meta?.gpCount || 0)} ग्राम पंचायतें`
-          : `${fmt(d.meta?.gpCount || 0)} ग्राम पंचायतें · ${fmt(d.meta?.blockCount || 0)} खंड`)
+        ? `${fmt(d.meta?.gpCount || 0)} ग्राम पंचायतें`
+        : `${fmt(d.meta?.gpCount || 0)} ग्राम पंचायतें · ${fmt(d.meta?.blockCount || 0)} खंड`)
       : `${fmt(d.meta?.wardCount || 0)} वार्ड · ${fmt(d.meta?.ulbCount || 0)} नगर निकाय`;
 
     const demographicPage = pageShell(`
@@ -1298,10 +1370,10 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
       </div>
 
       <div class="bottom-note-box">${escapeHtml(showRuralProfile && !showUrbanProfile
-        ? `${district} जिले की ग्रामीण बस्ती संरचना में ${fmt(d.meta?.gpCount || 0)} ग्राम पंचायतें और ${fmt(d.meta?.blockCount || 0)} प्रशासनिक खंड हैं। कृषि, पशुधन एवं सेवा पहुंच के बीच स्पष्ट संबंध दृष्टिगत होता है।`
-        : !showRuralProfile && showUrbanProfile
-          ? `${district} जिले की शहरी बस्ती संरचना में ${fmt(d.meta?.wardCount || 0)} वार्ड और ${fmt(d.meta?.ulbCount || 0)} नगर निकाय हैं। घनत्व, सेवा पहुंच और अवसंरचना संतृप्ति के क्षेत्र में नियोजन मांग स्पष्ट है।`
-          : `${district} जिले की मिश्रित बस्ती संरचना में ग्रामीण एवं शहरी दोनों इकाइयां सम्मिलित हैं; इसलिए नियोजन में सेवाओं की पहुंच और अवसंरचना संतुलन दोनों पर समान ध्यान आवश्यक है।`)}</div>
+      ? `${district} जिले की ग्रामीण बस्ती संरचना में ${fmt(d.meta?.gpCount || 0)} ग्राम पंचायतें और ${fmt(d.meta?.blockCount || 0)} प्रशासनिक खंड हैं। कृषि, पशुधन एवं सेवा पहुंच के बीच स्पष्ट संबंध दृष्टिगत होता है।`
+      : !showRuralProfile && showUrbanProfile
+        ? `${district} जिले की शहरी बस्ती संरचना में ${fmt(d.meta?.wardCount || 0)} वार्ड और ${fmt(d.meta?.ulbCount || 0)} नगर निकाय हैं। घनत्व, सेवा पहुंच और अवसंरचना संतृप्ति के क्षेत्र में नियोजन मांग स्पष्ट है।`
+        : `${district} जिले की मिश्रित बस्ती संरचना में ग्रामीण एवं शहरी दोनों इकाइयां सम्मिलित हैं; इसलिए नियोजन में सेवाओं की पहुंच और अवसंरचना संतुलन दोनों पर समान ध्यान आवश्यक है।`)}</div>
     `);
 
     const SECTOR_KEYWORDS = {
@@ -1351,10 +1423,10 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
           </td>
           <td style="text-align:center; font-family:sans-serif; font-weight:700; font-size:11px; max-width:80px; word-break:break-word;">
             ${escapeHtml(
-              aspiration.area_type === 'Urban'
-                ? (aspiration.ward || aspiration.city || '—')
-                : (aspiration.gram_panchayat || '—')
-            )}
+        aspiration.area_type === 'Urban'
+          ? (aspiration.ward || aspiration.city || '—')
+          : (aspiration.gram_panchayat || '—')
+      )}
           </td>
           <td style="font-family:sans-serif;">${escapeHtml(aspiration.qty_2030 ?? '—')}</td>
           <td style="font-family:sans-serif;">${escapeHtml(aspiration.qty_2035 ?? '—')}</td>
@@ -1363,12 +1435,12 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
             <span class="status-badge ${aspiration.status === 'FUNDED' ? 'active' : aspiration.status === 'ACCEPT' ? 'ready' : 'proposal'}">${escapeHtml(aspiration.status || '—')}</span>
             <div style="color:#1a1a2e; font-size:11px; line-height:1.5; font-family:'Noto Sans Devanagari',sans-serif; margin-top:4px;">
               ${escapeHtml([
-                aspiration.area_type === 'Urban'
-                  ? (aspiration.ward ? `${aspiration.ward} वार्ड में` : aspiration.city ? `${aspiration.city} में` : '')
-                  : (aspiration.gram_panchayat ? `${aspiration.gram_panchayat} में` : aspiration.village ? `${aspiration.village} में` : ''),
-                aspiration.scheme ? `योजना: ${aspiration.scheme}` : '',
-                aspiration.fast_track ? 'Fast-track' : ''
-              ].filter(Boolean).join(' · '))}
+        aspiration.area_type === 'Urban'
+          ? (aspiration.ward ? `${aspiration.ward} वार्ड में` : aspiration.city ? `${aspiration.city} में` : '')
+          : (aspiration.gram_panchayat ? `${aspiration.gram_panchayat} में` : aspiration.village ? `${aspiration.village} में` : ''),
+        aspiration.scheme ? `योजना: ${aspiration.scheme}` : '',
+        aspiration.fast_track ? 'Fast-track' : ''
+      ].filter(Boolean).join(' · '))}
             </div>
             ${aspiration.scheme ? `<div style="margin-top:4px;"><span class="scheme-tag">${escapeHtml(aspiration.scheme)}</span></div>` : ''}
             ${aspiration.fast_track ? `<div style="margin-top:2px;"><span class="scheme-tag" style="background:#92400e; color:#fff;">⚡ Fast-track</span></div>` : ''}
@@ -2075,7 +2147,7 @@ ${strategicPage}
 </body>
 </html>`;
 
-  return reportHtml;
+    return reportHtml;
   }
 
   // STEP 4 — Render the report in a new tab
@@ -2097,33 +2169,33 @@ ${strategicPage}
       // Determine scope level label
       const scopeLevelLabel = scope.wardName ? 'Ward Report'
         : scope.gpName ? 'GP Report'
-        : scope.ulb ? 'ULB Report'
-        : scope.block ? 'Block Report'
-        : 'District Report';
+          : scope.ulb ? 'ULB Report'
+            : scope.block ? 'Block Report'
+              : 'District Report';
 
       const reportName = `${locationParts.join(' › ')} — ${scopeLevelLabel} (${areaType})`;
 
       const scopeType = scope.wardName ? 'ward'
         : scope.gpName ? 'gp'
-        : scope.ulb ? 'ulb'
-        : scope.block ? 'block'
-        : 'district';
+          : scope.ulb ? 'ulb'
+            : scope.block ? 'block'
+              : 'district';
 
       void (async () => {
         try {
           const { error: saveError } = await supabase.from('generated_reports').insert({
-          report_name: reportName,
-          scope_label: reportName,
-          scope_type: scopeType,
-          district: districtVal,
-          block_name: scope.block || null,
-          gp_name: scope.gpName || null,
-          ulb_name: scope.ulb || null,
-          ward_name: scope.wardName || null,
-          area_type: areaType,
-          html_content: reportHtml,
-          created_by: typeof window !== 'undefined' ? (sessionStorage.getItem('username') || 'user') : 'user',
-          file_size_kb: Math.round(reportHtml.length / 1024),
+            report_name: reportName,
+            scope_label: reportName,
+            scope_type: scopeType,
+            district: districtVal,
+            block_name: scope.block || null,
+            gp_name: scope.gpName || null,
+            ulb_name: scope.ulb || null,
+            ward_name: scope.wardName || null,
+            area_type: areaType,
+            html_content: reportHtml,
+            created_by: typeof window !== 'undefined' ? (sessionStorage.getItem('username') || 'user') : 'user',
+            file_size_kb: Math.round(reportHtml.length / 1024),
           });
 
           if (saveError) {
@@ -2205,31 +2277,31 @@ ${strategicPage}
 
     const profileRows = isRural
       ? [
-          { label: 'Total Gram Panchayats', value: d.meta.gpCount },
-          { label: 'Blocks', value: d.meta.blockCount },
-          { label: 'Population (Rural est. 2026)', value: `${(d.population.total / 100000).toFixed(2)} Lakh` },
-          { label: 'Male / Female', value: `${d.population.male.toLocaleString()} / ${d.population.female.toLocaleString()}` },
-          { label: 'Total Families', value: d.population.totalFamilies.toLocaleString() },
-          { label: 'BPL Families', value: d.population.bplFamilies.toLocaleString() },
-          { label: 'Pucca Houses', value: d.population.puccaHouses.toLocaleString() },
-          { label: 'Kutcha Houses', value: d.population.kutchaHouses.toLocaleString() },
-          { label: 'Senior Citizens (60+)', value: d.population.seniors.toLocaleString() },
-          { label: 'PwD Population', value: d.population.pwd.toLocaleString() },
-          { label: 'Children (0-6)', value: d.population.children06.toLocaleString() },
-          { label: 'Children (6-14)', value: d.population.children614.toLocaleString() },
-        ]
+        { label: 'Total Gram Panchayats', value: d.meta.gpCount },
+        { label: 'Blocks', value: d.meta.blockCount },
+        { label: 'Population (Rural est. 2026)', value: `${(d.population.total / 100000).toFixed(2)} Lakh` },
+        { label: 'Male / Female', value: `${d.population.male.toLocaleString()} / ${d.population.female.toLocaleString()}` },
+        { label: 'Total Families', value: d.population.totalFamilies.toLocaleString() },
+        { label: 'BPL Families', value: d.population.bplFamilies.toLocaleString() },
+        { label: 'Pucca Houses', value: d.population.puccaHouses.toLocaleString() },
+        { label: 'Kutcha Houses', value: d.population.kutchaHouses.toLocaleString() },
+        { label: 'Senior Citizens (60+)', value: d.population.seniors.toLocaleString() },
+        { label: 'PwD Population', value: d.population.pwd.toLocaleString() },
+        { label: 'Children (0-6)', value: d.population.children06.toLocaleString() },
+        { label: 'Children (6-14)', value: d.population.children614.toLocaleString() },
+      ]
       : [
-          { label: 'Total Urban Wards', value: d.meta.wardCount },
-          { label: 'ULBs', value: d.meta.ulbs?.join(', ') || '—' },
-          { label: 'Population (Urban est. 2026)', value: `${(d.population.urbanPop / 100000).toFixed(2)} Lakh` },
-          { label: 'Male / Female', value: `${d.population.male.toLocaleString()} / ${d.population.female.toLocaleString()}` },
-          { label: 'Total Area (Hectares)', value: d.population.totalAreaHectare?.toLocaleString() || '—' },
-          { label: 'Pucca Houses', value: d.population.puccaHouses.toLocaleString() },
-          { label: 'Kutcha Houses', value: d.population.kutchaHouses.toLocaleString() },
-          { label: 'Senior Citizens (60+)', value: d.population.seniors.toLocaleString() },
-          { label: 'PwD Population', value: d.population.pwd.toLocaleString() },
-          { label: 'Children (0-6)', value: d.population.children06.toLocaleString() },
-        ];
+        { label: 'Total Urban Wards', value: d.meta.wardCount },
+        { label: 'ULBs', value: d.meta.ulbs?.join(', ') || '—' },
+        { label: 'Population (Urban est. 2026)', value: `${(d.population.urbanPop / 100000).toFixed(2)} Lakh` },
+        { label: 'Male / Female', value: `${d.population.male.toLocaleString()} / ${d.population.female.toLocaleString()}` },
+        { label: 'Total Area (Hectares)', value: d.population.totalAreaHectare?.toLocaleString() || '—' },
+        { label: 'Pucca Houses', value: d.population.puccaHouses.toLocaleString() },
+        { label: 'Kutcha Houses', value: d.population.kutchaHouses.toLocaleString() },
+        { label: 'Senior Citizens (60+)', value: d.population.seniors.toLocaleString() },
+        { label: 'PwD Population', value: d.population.pwd.toLocaleString() },
+        { label: 'Children (0-6)', value: d.population.children06.toLocaleString() },
+      ];
 
     const renderProfile = (title: string, rows: Array<{ label: string; value: any }>) => `
       <div class="profile-card">
@@ -2256,8 +2328,8 @@ ${strategicPage}
             <div class="ss-badge ${args.pendingText ? 'pending-badge' : ''}">${args.badge}</div>
           </div>
           ${args.pendingText
-            ? `<div class="ss-pending">${args.pendingText}</div>`
-            : `
+          ? `<div class="ss-pending">${args.pendingText}</div>`
+          : `
               <div class="ss-metrics">
                 ${args.metrics.map((metricDef) => metric(metricDef.label, metricDef.value, metricDef.formatter)).join('')}
               </div>
@@ -2270,17 +2342,17 @@ ${strategicPage}
     const educationValueFields = isRural
       ? [d.education.awcCenters, d.education.anganwadiEnrolledChildren, d.education.ashaWorkers, d.education.samChildren]
       : [
-          d.education.govtSchools,
-          d.education.pvtSchools,
-          d.education.totalSchools,
-          d.education.enrolledStudents,
-          d.education.workingTeachers,
-          d.education.sanctionedTeachers,
-          d.education.dropouts,
-          d.education.awcCenters,
-          d.education.samChildren,
-          d.education.snpRecipients672Months,
-        ];
+        d.education.govtSchools,
+        d.education.pvtSchools,
+        d.education.totalSchools,
+        d.education.enrolledStudents,
+        d.education.workingTeachers,
+        d.education.sanctionedTeachers,
+        d.education.dropouts,
+        d.education.awcCenters,
+        d.education.samChildren,
+        d.education.snpRecipients672Months,
+      ];
     const educationHasData = educationValueFields.some((value) => {
       if (value === null || value === undefined || value === '') return false;
       const numeric = Number(value);
@@ -2290,17 +2362,17 @@ ${strategicPage}
 
     const coverStats = isRural
       ? [
-          { value: `${d.meta.gpCount} GPs · ${d.meta.blockCount} Blocks`, label: 'Rural Coverage' },
-          { value: `${d.agriculture.irrigationPct}%`, label: 'Irrigation Rate' },
-          { value: `₹${d.dairy.annualDairyValueCr} Cr`, label: 'Annual Dairy Economy' },
-          { value: `${Math.round((d.social.widowPensioners + d.social.urbanWidow) / 100000 * 10) / 10}L`, label: 'Widow Pension Recipients' },
-        ]
+        { value: `${d.meta.gpCount} GPs · ${d.meta.blockCount} Blocks`, label: 'Rural Coverage' },
+        { value: `${d.agriculture.irrigationPct}%`, label: 'Irrigation Rate' },
+        { value: `₹${d.dairy.annualDairyValueCr} Cr`, label: 'Annual Dairy Economy' },
+        { value: `${Math.round((d.social.widowPensioners + d.social.urbanWidow) / 100000 * 10) / 10}L`, label: 'Widow Pension Recipients' },
+      ]
       : [
-          { value: `${d.meta.wardCount} Wards · ${d.meta.ulbCount} ULBs`, label: 'Urban Coverage' },
-          { value: `${d.water.urbanFhtcAvg}%`, label: 'Urban FHTC' },
-          { value: formatValue(d.education.totalSchools), label: 'Total Schools' },
-          { value: formatValue(d.infrastructure.publicToilets), label: 'Public Toilets' },
-        ];
+        { value: `${d.meta.wardCount} Wards · ${d.meta.ulbCount} ULBs`, label: 'Urban Coverage' },
+        { value: `${d.water.urbanFhtcAvg}%`, label: 'Urban FHTC' },
+        { value: formatValue(d.education.totalSchools), label: 'Total Schools' },
+        { value: formatValue(d.infrastructure.publicToilets), label: 'Public Toilets' },
+      ];
 
     const coverStatsHtml = coverStats.map((stat) => `
       <div>
@@ -2371,31 +2443,31 @@ ${strategicPage}
       badge: 'NHM · POSHAN · Ayushman',
       metrics: isRural
         ? [
-            { label: 'Allopathic Centers', value: d.health.allopathicCenters },
-            { label: 'AYUSH Centers', value: d.health.ayushCenters },
-            { label: 'Health Beds', value: d.health.healthBeds },
-            { label: 'Working Health Staff', value: d.health.healthStaff },
-            { label: 'Ayushman Beneficiaries', value: d.health.ayushmanBen },
-            { label: 'TB Patients', value: d.health.tbPatients },
-            { label: 'Anemic Pregnant Women', value: d.health.anemicPregnant },
-            { label: 'AWC Centers', value: d.health.awcCenters },
-            { label: 'ASHA Workers', value: d.health.ashaWorkers },
-            { label: 'SAM Children', value: d.health.samChildren },
-          ]
+          { label: 'Allopathic Centers', value: d.health.allopathicCenters },
+          { label: 'AYUSH Centers', value: d.health.ayushCenters },
+          { label: 'Health Beds', value: d.health.healthBeds },
+          { label: 'Working Health Staff', value: d.health.healthStaff },
+          { label: 'Ayushman Beneficiaries', value: d.health.ayushmanBen },
+          { label: 'TB Patients', value: d.health.tbPatients },
+          { label: 'Anemic Pregnant Women', value: d.health.anemicPregnant },
+          { label: 'AWC Centers', value: d.health.awcCenters },
+          { label: 'ASHA Workers', value: d.health.ashaWorkers },
+          { label: 'SAM Children', value: d.health.samChildren },
+        ]
         : [
-            { label: 'Allopathic Centers', value: d.health.allopathicCenters },
-            { label: 'AYUSH Centers', value: d.health.ayushCenters },
-            { label: 'Private Health Centers', value: d.health.privateHealthCenters || d.health.pvtHealthCenters },
-            { label: 'Health Beds', value: d.health.urbanHealthBeds || d.health.healthBeds },
-            { label: 'Working Health Staff', value: d.health.healthStaff },
-            { label: 'Ayushman Beneficiaries', value: d.health.urbanAyushman || d.health.ayushmanBen },
-            { label: 'TB Patients', value: d.health.tbPatients },
-            { label: 'Anemic Pregnant Women', value: d.health.anemicPregnant },
-            { label: 'Hypertension Screened (FY25-26)', value: d.health.hypertensionScreening2025_26 },
-            { label: 'Diabetes Screened (FY25-26)', value: d.health.diabetesScreening2025_26 },
-            { label: 'AWC Centers', value: d.health.awcCenters },
-            { label: 'SAM Children', value: d.health.samChildren },
-          ],
+          { label: 'Allopathic Centers', value: d.health.allopathicCenters },
+          { label: 'AYUSH Centers', value: d.health.ayushCenters },
+          { label: 'Private Health Centers', value: d.health.privateHealthCenters || d.health.pvtHealthCenters },
+          { label: 'Health Beds', value: d.health.urbanHealthBeds || d.health.healthBeds },
+          { label: 'Working Health Staff', value: d.health.healthStaff },
+          { label: 'Ayushman Beneficiaries', value: d.health.urbanAyushman || d.health.ayushmanBen },
+          { label: 'TB Patients', value: d.health.tbPatients },
+          { label: 'Anemic Pregnant Women', value: d.health.anemicPregnant },
+          { label: 'Hypertension Screened (FY25-26)', value: d.health.hypertensionScreening2025_26 },
+          { label: 'Diabetes Screened (FY25-26)', value: d.health.diabetesScreening2025_26 },
+          { label: 'AWC Centers', value: d.health.awcCenters },
+          { label: 'SAM Children', value: d.health.samChildren },
+        ],
       narrativeText: n.sectorNarratives.health,
     }));
 
@@ -2459,19 +2531,19 @@ ${strategicPage}
       badge: isRural ? 'SRLM · MUDRA · NRLM' : 'SRLM · Industry · MSME',
       metrics: isRural
         ? [
-            { label: 'Active SHGs', value: d.economy.activeShgs },
-            { label: 'Women in SHGs', value: d.economy.shgWomen },
-            { label: 'Lakhpati Didis', value: d.economy.lakhpatiDidis },
-            { label: 'Millionaire Didis', value: d.economy.millionaireDidis },
-            { label: 'Mudra Loan Beneficiaries', value: d.economy.mudraLoan },
-            { label: 'Local Artisans', value: d.economy.artisans },
-          ]
+          { label: 'Active SHGs', value: d.economy.activeShgs },
+          { label: 'Women in SHGs', value: d.economy.shgWomen },
+          { label: 'Lakhpati Didis', value: d.economy.lakhpatiDidis },
+          { label: 'Millionaire Didis', value: d.economy.millionaireDidis },
+          { label: 'Mudra Loan Beneficiaries', value: d.economy.mudraLoan },
+          { label: 'Local Artisans', value: d.economy.artisans },
+        ]
         : [
-            { label: 'Active SHGs', value: d.economy.activeShgs },
-            { label: 'Local Artisans', value: d.economy.artisans },
-            { label: 'Large Industrial Units', value: d.economy.urbanIndustries ? d.economy.urbanIndustries : d.economy.largeIndustrialUnits },
-            { label: 'Small Scale Industries', value: d.economy.smallScaleIndustries },
-          ],
+          { label: 'Active SHGs', value: d.economy.activeShgs },
+          { label: 'Local Artisans', value: d.economy.artisans },
+          { label: 'Large Industrial Units', value: d.economy.urbanIndustries ? d.economy.urbanIndustries : d.economy.largeIndustrialUnits },
+          { label: 'Small Scale Industries', value: d.economy.smallScaleIndustries },
+        ],
       narrativeText: n.sectorNarratives.economy,
     }));
 
@@ -2481,26 +2553,26 @@ ${strategicPage}
       badge: 'PMGSY · 15th FC · Solar',
       metrics: isRural
         ? [
-            { label: 'Houses with Electricity', value: d.infrastructure.electricityHouses },
-            { label: 'Road Length (km)', value: d.infrastructure.roadKm },
-            { label: 'Street Lights', value: d.infrastructure.streetLights },
-            { label: 'Govt Banks', value: d.infrastructure.govtBanks },
-            { label: 'Private Banks', value: d.infrastructure.privateBanks },
-            { label: 'Post Offices', value: d.infrastructure.postOffices },
-            { label: 'Public Toilets', value: d.infrastructure.publicToilets },
-            { label: 'Solar Installed Houses', value: d.infrastructure.solarHomes },
-          ]
+          { label: 'Houses with Electricity', value: d.infrastructure.electricityHouses },
+          { label: 'Road Length (km)', value: d.infrastructure.roadKm },
+          { label: 'Street Lights', value: d.infrastructure.streetLights },
+          { label: 'Govt Banks', value: d.infrastructure.govtBanks },
+          { label: 'Private Banks', value: d.infrastructure.privateBanks },
+          { label: 'Post Offices', value: d.infrastructure.postOffices },
+          { label: 'Public Toilets', value: d.infrastructure.publicToilets },
+          { label: 'Solar Installed Houses', value: d.infrastructure.solarHomes },
+        ]
         : [
-            { label: 'Houses with Electricity', value: d.infrastructure.electricityHouses },
-            { label: 'Road Length (km)', value: d.infrastructure.roadKm },
-            { label: 'Govt Banks', value: d.infrastructure.govtBanks },
-            { label: 'Private Banks', value: d.infrastructure.privateBanks },
-            { label: 'Solar Installed Houses', value: d.infrastructure.solarHomes },
-            { label: 'Functional Public Toilets', value: d.infrastructure.publicToilets },
-            { label: 'Dist. to Main Market (km)', value: d.infrastructure.distMainMarketKm },
-            { label: 'Dist. to Bus Stand (km)', value: d.infrastructure.distBusStandKm },
-            { label: 'Dist. to Railway Station (km)', value: d.infrastructure.distRailwayStationKm },
-          ],
+          { label: 'Houses with Electricity', value: d.infrastructure.electricityHouses },
+          { label: 'Road Length (km)', value: d.infrastructure.roadKm },
+          { label: 'Govt Banks', value: d.infrastructure.govtBanks },
+          { label: 'Private Banks', value: d.infrastructure.privateBanks },
+          { label: 'Solar Installed Houses', value: d.infrastructure.solarHomes },
+          { label: 'Functional Public Toilets', value: d.infrastructure.publicToilets },
+          { label: 'Dist. to Main Market (km)', value: d.infrastructure.distMainMarketKm },
+          { label: 'Dist. to Bus Stand (km)', value: d.infrastructure.distBusStandKm },
+          { label: 'Dist. to Railway Station (km)', value: d.infrastructure.distRailwayStationKm },
+        ],
       narrativeText: n.sectorNarratives.infrastructure,
     }));
 
@@ -2511,20 +2583,20 @@ ${strategicPage}
       badge: isRural ? 'SBM · PM Surya Ghar · MGNREGS' : 'SBM · Compost · Nurseries',
       metrics: isRural
         ? [
-            { label: 'Forest Area (Ha)', value: d.environment.forestHa },
-            { label: 'Pasture Land (Ha)', value: d.environment.pastureHa },
-            { label: 'Houses with Toilets', value: d.environment.housesWithToilets },
-            { label: 'Biogas Plants', value: d.environment.biogasPlants },
-            { label: 'PM Surya Ghar Homes', value: d.environment.suryaGharHomes },
-            { label: 'Daily Waste (Kg)', value: d.environment.wasteKgDay },
-            { label: 'Govt Compost Pits', value: d.environment.govtCompostPits },
-          ]
+          { label: 'Forest Area (Ha)', value: d.environment.forestHa },
+          { label: 'Pasture Land (Ha)', value: d.environment.pastureHa },
+          { label: 'Houses with Toilets', value: d.environment.housesWithToilets },
+          { label: 'Biogas Plants', value: d.environment.biogasPlants },
+          { label: 'PM Surya Ghar Homes', value: d.environment.suryaGharHomes },
+          { label: 'Daily Waste (Kg)', value: d.environment.wasteKgDay },
+          { label: 'Govt Compost Pits', value: d.environment.govtCompostPits },
+        ]
         : [
-            { label: 'Houses WITHOUT Toilets', value: d.environment.housesWithoutToilets },
-            { label: 'Govt Compost Pits', value: d.environment.govtCompostPits },
-            { label: 'Govt Nurseries', value: d.environment.govtNurseries },
-            { label: 'Nursery Saplings Available', value: d.environment.nurserySaplingsAvailable },
-          ],
+          { label: 'Houses WITHOUT Toilets', value: d.environment.housesWithoutToilets },
+          { label: 'Govt Compost Pits', value: d.environment.govtCompostPits },
+          { label: 'Govt Nurseries', value: d.environment.govtNurseries },
+          { label: 'Nursery Saplings Available', value: d.environment.nurserySaplingsAvailable },
+        ],
       narrativeText: n.sectorNarratives.environment,
     }));
 
@@ -2535,18 +2607,18 @@ ${strategicPage}
       badge: 'Swadesh Darshan 2.0',
       metrics: isRural
         ? [
-            { label: 'Heritage/Cultural Sites', value: d.tourism.heritageSites },
-            { label: 'Avg Daily Footfall', value: d.tourism.dailyFootfall },
-            { label: 'Annual Fairs', value: d.tourism.annualFairs },
-            { label: 'Avg Fair Footfall/Day', value: d.tourism.avgFairFootfallDaily },
-            { label: 'Trained Guides', value: d.tourism.trainedGuides },
-            { label: 'Fair Employment', value: d.tourism.fairEmployment },
-          ]
+          { label: 'Heritage/Cultural Sites', value: d.tourism.heritageSites },
+          { label: 'Avg Daily Footfall', value: d.tourism.dailyFootfall },
+          { label: 'Annual Fairs', value: d.tourism.annualFairs },
+          { label: 'Avg Fair Footfall/Day', value: d.tourism.avgFairFootfallDaily },
+          { label: 'Trained Guides', value: d.tourism.trainedGuides },
+          { label: 'Fair Employment', value: d.tourism.fairEmployment },
+        ]
         : [
-            { label: 'Avg Fair Footfall/Day', value: d.tourism.dailyFootfall },
-            { label: 'SHG-Operated Stalls', value: d.tourism.fairEmployment },
-            { label: 'Registered Trained Guides', value: d.tourism.trainedGuides },
-          ],
+          { label: 'Avg Fair Footfall/Day', value: d.tourism.dailyFootfall },
+          { label: 'SHG-Operated Stalls', value: d.tourism.fairEmployment },
+          { label: 'Registered Trained Guides', value: d.tourism.trainedGuides },
+        ],
       narrativeText: n.sectorNarratives.tourism,
     }));
 
@@ -2556,14 +2628,14 @@ ${strategicPage}
       badge: 'e-Mitra · RSB · Digital Rajasthan',
       metrics: isRural
         ? [
-            { label: 'Dist. to Police Station (km)', value: d.governance.distPoliceKm, formatter: formatDecimal },
-            { label: 'Dist. to e-Mitra (km)', value: d.governance.distEmitraKm, formatter: formatDecimal },
-            { label: 'Dist. to LPG Distributor (km)', value: d.governance.distLpgKm, formatter: formatDecimal },
-          ]
+          { label: 'Dist. to Police Station (km)', value: d.governance.distPoliceKm, formatter: formatDecimal },
+          { label: 'Dist. to e-Mitra (km)', value: d.governance.distEmitraKm, formatter: formatDecimal },
+          { label: 'Dist. to LPG Distributor (km)', value: d.governance.distLpgKm, formatter: formatDecimal },
+        ]
         : [
-            { label: 'Dist. to Police Station (km)', value: d.governance.urbanPoliceKm || d.governance.distPoliceKm, formatter: formatDecimal },
-            { label: 'Dist. to e-Mitra (km)', value: d.governance.urbanEmitraKm || d.governance.distEmitraKm, formatter: formatDecimal },
-          ],
+          { label: 'Dist. to Police Station (km)', value: d.governance.urbanPoliceKm || d.governance.distPoliceKm, formatter: formatDecimal },
+          { label: 'Dist. to e-Mitra (km)', value: d.governance.urbanEmitraKm || d.governance.distEmitraKm, formatter: formatDecimal },
+        ],
       narrativeText: n.sectorNarratives.governance,
     }));
 
