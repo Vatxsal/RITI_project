@@ -354,6 +354,10 @@ export default function ReportsPage() {
             ruralAspData = allRural;
           } else {
             // GP-level: filter allRural by matching gram_panchayat
+            // ── STRATEGY ──
+            // Priority 1: If gpNameEn (English GP name from cache) is populated → direct exact match
+            // Priority 2: If gpNameEn is empty → first-letter transliteration + length heuristic
+            // Priority 3: Fallback → transliteration + prefix matching (original approach)
             const targetGpEn = String(scope.gpNameEn || '').trim().toLowerCase().replace(/[^a-z0-9 ]/g, '');
             const targetGpHi = String(scope.gpName || '').trim().toLowerCase();
 
@@ -372,9 +376,6 @@ export default function ReportsPage() {
               return res.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
             };
 
-            const targetGpHiTrans = targetGpHi ? transliterateHi(targetGpHi) : '';
-
-            // Also collect exact names from baseline_rural (already filtered to this GP)
             const baselineGpNames = [...new Set(
               data.map((r: any) => String(r.gram_panchayat || '').trim()).filter(Boolean)
             )] as string[];
@@ -383,58 +384,113 @@ export default function ReportsPage() {
               n.toLowerCase().replace(/[^a-z0-9 ]/g, '')
             ).filter(Boolean);
 
-            console.log(`[Rural Asp GP] targetGpEn="${targetGpEn}" | targetGpHiTrans="${targetGpHiTrans}" | baselineGpNames=${JSON.stringify(baselineGpNames)} | baselineGpNamesTrans=${JSON.stringify(baselineGpNamesTrans)}`);
-            console.log(`[Rural Asp GP] allRural.length=${allRural.length} | sample asp.gram_panchayat:`, allRural.slice(0, 8).map((a: any) => a.gram_panchayat));
+            if (targetGpEn) {
+              // ── APPROACH 1: English GP name is available → direct normalized match ──
+              console.log(`[Rural Asp GP] Using gpNameEn direct match: "${targetGpEn}"`);
+              ruralAspData = allRural.filter((asp: any) => {
+                const aspGp = String(asp.gram_panchayat || '').trim().toLowerCase().replace(/[^a-z0-9 ]/g, '');
+                return aspGp === targetGpEn || aspGp.includes(targetGpEn) || targetGpEn.includes(aspGp);
+              });
+              console.log(`[Rural Asp GP] gpNameEn direct match → ${ruralAspData.length}`);
+            } else {
+              // ── APPROACH 2: gpNameEn empty → first-letter + length heuristic ──
+              const targetGpHiTrans = targetGpHi ? transliterateHi(targetGpHi) : '';
 
-            ruralAspData = allRural.filter((asp: any) => {
-              const aspGp = String(asp.gram_panchayat || '').trim().toLowerCase();
-              const aspGpClean = aspGp.replace(/[^a-z0-9 ]/g, '');
+              // Collect unique English GP names from all fetched aspirations
+              const uniqueAspGps = [...new Set(
+                allRural.map((a: any) => String(a.gram_panchayat || '').trim()).filter(Boolean)
+              )] as string[];
 
-              // 1. English scope name vs English asp name
-              if (targetGpEn && aspGpClean) {
-                if (aspGpClean === targetGpEn || aspGpClean.includes(targetGpEn) || targetGpEn.includes(aspGpClean) ||
-                  (aspGpClean.length > 3 && targetGpEn.length > 3 && aspGpClean.substring(0, 4) === targetGpEn.substring(0, 4)))
-                  return true;
-              }
-              // 2. Hindi scope name vs Hindi asp name
-              if (targetGpHi) {
-                if (aspGp === targetGpHi || aspGp.includes(targetGpHi) || targetGpHi.includes(aspGp))
-                  return true;
-              }
-              // 3. Transliterated Hindi scope name vs English asp name
-              if (targetGpHiTrans && aspGpClean) {
-                if (aspGpClean === targetGpHiTrans || aspGpClean.includes(targetGpHiTrans) || targetGpHiTrans.includes(aspGpClean) ||
-                  (aspGpClean.length > 3 && targetGpHiTrans.length > 3 && aspGpClean.substring(0, 4) === targetGpHiTrans.substring(0, 4)))
-                  return true;
-              }
-              // 4. Baseline GP name (raw) vs asp name
-              for (const bc of baselineGpNamesClean) {
-                if (bc && aspGpClean && (aspGpClean === bc || aspGpClean.includes(bc) || bc.includes(aspGpClean)))
-                  return true;
-              }
-              // 5. Transliterated baseline GP name vs English asp name
-              for (const bt of baselineGpNamesTrans) {
-                if (bt && aspGpClean && (aspGpClean === bt || aspGpClean.includes(bt) || bt.includes(aspGpClean) ||
-                  (aspGpClean.length > 3 && bt.length > 3 && aspGpClean.substring(0, 4) === bt.substring(0, 4))))
-                  return true;
-              }
-              return false;
-            });
+              // First-letter transliteration map (simplified — no vowel length distinction)
+              const firstLetterTrans = (() => {
+                const flMap: Record<string, string> = {
+                  'अ': 'a', 'आ': 'a', 'इ': 'i', 'ई': 'i', 'उ': 'u', 'ऊ': 'u',
+                  'ए': 'e', 'ऐ': 'e', 'ओ': 'o', 'औ': 'o',
+                  'क': 'k', 'ख': 'k', 'ग': 'g', 'घ': 'g', 'च': 'c', 'छ': 'c',
+                  'ज': 'j', 'झ': 'j', 'ट': 't', 'ठ': 't', 'ड': 'd', 'ढ': 'd',
+                  'त': 't', 'थ': 't', 'द': 'd', 'ध': 'd', 'न': 'n',
+                  'प': 'p', 'फ': 'p', 'ब': 'b', 'भ': 'b', 'म': 'm',
+                  'य': 'y', 'र': 'r', 'ल': 'l', 'व': 'v',
+                  'श': 's', 'ष': 's', 'स': 's', 'ह': 'h',
+                };
+                const first = targetGpHi.charAt(0);
+                return flMap[first] || first.toLowerCase().replace(/[^a-z0-9]/g, '');
+              })();
 
-            console.log(`[Rural Asp GP] filtered=${ruralAspData.length}`);
+              const hiNameChars = targetGpHi.replace(/[^a-z0-9\u0900-\u097F ]/g, '').length;
 
-            // Last resort: 3-char prefix fallback across all transliterated forms
-            if (ruralAspData.length === 0) {
-              const prefixes = [...new Set([
-                targetGpHiTrans.substring(0, 3),
-                ...baselineGpNamesTrans.map((n) => n.substring(0, 3)),
-              ])].filter((p) => p.length >= 3);
-              if (prefixes.length > 0) {
+              console.log(`[Rural Asp GP] gpNameEn empty | targetGpHi="${targetGpHi}" | firstLetterTrans="${firstLetterTrans}" | hiNameChars=${hiNameChars} | uniqueAspGps=${uniqueAspGps.length} | allRural=${allRural.length}`);
+              console.log(`[Rural Asp GP] sample asp.gram_panchayat:`, allRural.slice(0, 8).map((a: any) => a.gram_panchayat));
+
+              // Find candidates: first letter matches + length within 30%
+              const candidates = uniqueAspGps.filter((engName: string) => {
+                const engClean = engName.toLowerCase().replace(/[^a-z0-9]/g, '');
+                const engFirst = engClean.charAt(0);
+                const engLen = engClean.length;
+                if (engFirst !== firstLetterTrans) return false;
+                const maxLen = Math.max(engLen, hiNameChars);
+                const minLen = Math.min(engLen, hiNameChars);
+                if (minLen > 0 && maxLen / minLen > 1.3) return false;
+                return true;
+              });
+
+              console.log(`[Rural Asp GP] First-letter+length candidates:`, candidates);
+
+              if (candidates.length > 0) {
                 ruralAspData = allRural.filter((asp: any) => {
-                  const c = String(asp.gram_panchayat || '').trim().toLowerCase().replace(/[^a-z0-9 ]/g, '');
-                  return prefixes.some((p) => c.startsWith(p));
+                  const aspGp = String(asp.gram_panchayat || '').trim();
+                  return candidates.includes(aspGp);
                 });
-                console.log(`[Rural Asp GP] prefix fallback prefixes=${JSON.stringify(prefixes)} → ${ruralAspData.length}`);
+                console.log(`[Rural Asp GP] Candidate match → ${ruralAspData.length}`);
+              } else {
+                // Fallback: transliteration + prefix matching (original approach)
+                console.log(`[Rural Asp GP] No heuristic candidates, using transliteration fallback`);
+
+                ruralAspData = allRural.filter((asp: any) => {
+                  const aspGp = String(asp.gram_panchayat || '').trim().toLowerCase();
+                  const aspGpClean = aspGp.replace(/[^a-z0-9 ]/g, '');
+
+                  // Hindi scope name directly against asp name
+                  if (targetGpHi) {
+                    if (aspGp === targetGpHi || aspGp.includes(targetGpHi) || targetGpHi.includes(aspGp))
+                      return true;
+                  }
+                  // Transliterated Hindi scope name vs English asp name
+                  if (targetGpHiTrans && aspGpClean) {
+                    if (aspGpClean === targetGpHiTrans || aspGpClean.includes(targetGpHiTrans) || targetGpHiTrans.includes(aspGpClean) ||
+                      (aspGpClean.length > 3 && targetGpHiTrans.length > 3 && aspGpClean.substring(0, 4) === targetGpHiTrans.substring(0, 4)))
+                      return true;
+                  }
+                  // Baseline GP name (raw) vs asp name
+                  for (const bc of baselineGpNamesClean) {
+                    if (bc && aspGpClean && (aspGpClean === bc || aspGpClean.includes(bc) || bc.includes(aspGpClean)))
+                      return true;
+                  }
+                  // Transliterated baseline GP name vs English asp name
+                  for (const bt of baselineGpNamesTrans) {
+                    if (bt && aspGpClean && (aspGpClean === bt || aspGpClean.includes(bt) || bt.includes(aspGpClean) ||
+                      (aspGpClean.length > 3 && bt.length > 3 && aspGpClean.substring(0, 4) === bt.substring(0, 4))))
+                      return true;
+                  }
+                  return false;
+                });
+
+                console.log(`[Rural Asp GP] Fallback transliteration → ${ruralAspData.length}`);
+
+                // Last resort: 3-char prefix fallback
+                if (ruralAspData.length === 0) {
+                  const prefixes = [...new Set([
+                    targetGpHiTrans.substring(0, 3),
+                    ...baselineGpNamesTrans.map((n) => n.substring(0, 3)),
+                  ])].filter((p) => p.length >= 3);
+                  if (prefixes.length > 0) {
+                    ruralAspData = allRural.filter((asp: any) => {
+                      const c = String(asp.gram_panchayat || '').trim().toLowerCase().replace(/[^a-z0-9 ]/g, '');
+                      return prefixes.some((p) => c.startsWith(p));
+                    });
+                    console.log(`[Rural Asp GP] Prefix fallback → ${ruralAspData.length}`);
+                  }
+                }
               }
             }
           }
@@ -592,7 +648,7 @@ export default function ReportsPage() {
             // "वार्ड न. 03" → "3" | "Ward No 03" → "3" | "Ward No 32" → "32" | "वार्ड नंबर 33" → "33"
             const extractWardNum = (wardStr: string): string => {
               const digits = String(wardStr || '').replace(/[^0-9]/g, '');
-              return digits.replace(/^0+/, '') || ''; // remove leading zeros, keep "0" if all zeros
+              return digits.replace(/^0+/, '') || (digits ? '0' : '');
             };
 
             // Normalize ULB name for fuzzy matching:
@@ -604,17 +660,13 @@ export default function ReportsPage() {
 
             console.log(`[Urban Asp] Matching: targetUlbHi="${targetUlbHi}" | targetWardNum="${targetWardNum}"`);
 
+            // ── STEP 1: Try ULB + ward combined match ──
             urbanAspData = allUrban.filter((asp: any) => {
-              // ── ULB match ──
-              // asp.city holds the Hindi ULB name; asp.ulb is always NULL
+              // ULB match: asp.city holds the Hindi ULB name; asp.ulb is always NULL
               if (scope.ulb) {
                 const aspCity = String(asp.city || asp.ulb || '').trim().toLowerCase();
+                if (!aspCity) return false;
 
-                if (!aspCity) return false; // no city value → can't match ULB
-
-                // aspirations.city can be English ("Ajmer") OR Hindi ("अजमेर")
-                // scope.ulb comes from baseline_urban.ulb which is always Hindi
-                // DISTRICT_EN_TO_HI gives us English→Hindi, we need Hindi→English too
                 const HINDI_TO_EN: Record<string, string> = {
                   'अजमेर': 'Ajmer', 'अलवर': 'Alwar', 'बालोतरा': 'Balotara',
                   'बांसवाडा': 'Banswara', 'बारां': 'Baran', 'बाड़मेर': 'Barmer',
@@ -631,11 +683,9 @@ export default function ReportsPage() {
                   'सलूम्बर': 'Salumbar', 'सवाई माधोपुर': 'Sawai Madhopur',
                   'सीकर': 'Sikar', 'सिरोही': 'Sirohi', 'श्री गंगानगर': 'Sri Ganganagar',
                   'टोंक': 'Tonk', 'उदयपुर': 'Udaipur',
-                  // Common ULB names that appear in city column as English
                   'नाडबई': 'Nadbai', 'नगर': 'Nagar', 'नगर पालिका': 'Nagar Palika',
                 };
 
-                // Get English equivalent of the Hindi ULB name for matching against asp.city
                 const ulbEnglish = (HINDI_TO_EN[scope.ulb] || scope.ulb).toLowerCase();
 
                 const ulbMatch =
@@ -653,9 +703,7 @@ export default function ReportsPage() {
                 if (!ulbMatch) return false;
               }
 
-              // ── Ward match ──
-              // asp.ward = "Ward No 32" | scope.wardName = "वार्ड न. 32"
-              // Compare only the numeric part
+              // Ward match: compare only the numeric part
               if (scope.wardName && targetWardNum) {
                 const aspWardNum = extractWardNum(asp.ward || '');
                 if (!aspWardNum || aspWardNum !== targetWardNum) return false;
@@ -663,14 +711,23 @@ export default function ReportsPage() {
 
               return true;
             });
+
+            // ── STEP 2: If combined filter returned 0 but a ward was selected, retry with ward-only ──
+            if (urbanAspData.length === 0 && scope.wardName && scope.ulb && allUrban.length > 0) {
+              console.log(`[Urban Asp] ULB+ward gave 0, retrying ward-only match for number "${targetWardNum}"`);
+              urbanAspData = allUrban.filter((asp: any) => {
+                const aspWardNum = extractWardNum(asp.ward || '');
+                return aspWardNum && aspWardNum === targetWardNum;
+              });
+              console.log(`[Urban Asp] Ward-only fallback → ${urbanAspData.length} matches`);
+            }
           }
 
           console.log(`[Urban Asp] Final filtered count: ${urbanAspData.length}`);
 
-          // If filtered to 0 but we expected data, log a warning with sample data for debugging
-          if (urbanAspData.length === 0 && allUrban.length > 0 && scope.ulb) {
-            console.warn(`[Urban Asp] ⚠️ Zero matches for ULB "${scope.ulb}". Sample city values from aspirations:`,
-              allUrban.slice(0, 5).map((a: any) => ({ city: a.city, ulb: a.ulb, ward: a.ward }))
+          if (urbanAspData.length === 0 && allUrban.length > 0 && (scope.ulb || scope.wardName)) {
+            console.warn(`[Urban Asp] ⚠️ Zero matches. scope.ulb="${scope.ulb}" scope.wardName="${scope.wardName}". Sample:`,
+              allUrban.slice(0, 5).map((a: any) => ({ city: a.city, ulb: a.ulb, ward: a.ward, gram_panchayat: a.gram_panchayat }))
             );
           }
         }
@@ -1255,7 +1312,6 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
         <div class="featured-body">
           <p><b>${escapeHtml(selectedScopeName)}</b> (${escapeHtml(selectedScopeType)}) के लिए आधारभूत डेटा के आधार पर यह नियोजन संक्षिप्तिका तैयार की गई है। मूल जिला <b>${escapeHtml(district)}</b> के अंतर्गत इस चयनित क्षेत्र की जनसंख्या, आवास, आजीविका, अवसंरचना और शासन की वर्तमान स्थिति को संरचित रूप में प्रस्तुत किया गया है।</p>
           <p>${escapeHtml(n.executiveSummary || 'जिले का आधारभूत सारांश वर्तमान नियोजन डेटासेट से उपलब्ध है।')}</p>
-          <p>डेटा सत्यापन: <b>Supabase baseline tables</b> + <b>Manthaan AI narrative</b> + <b>सर्वे-सत्यापित प्रारूप</b>।</p>
         </div>
         <div class="featured-caption">जिला आधारभूत डेटा, GP/वार्ड लुकअप और AI-generated विश्लेषण से सत्यापित</div>
       </div>
