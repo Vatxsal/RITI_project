@@ -647,7 +647,7 @@ export default function CommandCenterPage() {
                 lineHeight: 1.7,
               }}>
                 <div style={{ fontWeight: 700, color: '#475569', marginBottom: 4, fontSize: 11 }}>
-                  ℹ️ Status Definitions (Rules Engine)
+                  Status Definitions (Rules Engine)
                 </div>
                 <div><span style={{ color: '#16a34a', fontWeight: 700 }}>● Funded</span> — Aspiration has financial approval + scheme name linked in Rajdhara</div>
                 <div><span style={{ color: '#e85d04', fontWeight: 700 }}>● Fast-track</span> — Critical sector (Water / Health / Sanitation) — auto-approved regardless of documentation gaps</div>
