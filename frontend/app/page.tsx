@@ -259,7 +259,7 @@ export default function CommandCenterPage() {
   const year2030Count = aspKpis?.count2030 ?? 0;
   const year2035Count = aspKpis?.count2035 ?? 0;
   const year2047Count = aspKpis?.count2047 ?? 0;
-  const totalShownAspirations = Math.max(year2030Count + year2035Count + year2047Count, 1);
+  const totalShownAspirations = Math.max(aspKpis?.totalCount ?? 0, 1);
   const reviewCount = Math.max((aspKpis?.totalCount || 0) - (aspKpis?.fundedCount || 0) - (aspKpis?.fastTrackCount || 0), 0);
   const districtsCovered = aspKpis?.districtBreakdown?.length || 0;
 
@@ -275,21 +275,21 @@ export default function CommandCenterPage() {
 
   const aspirationCards = [
     {
-      label: 'ASPIRATIONS · 2030',
-      value: aspKpis ? formatCount(year2030Count) : '—',
-      subLabel: 'short-term',
+      label: 'ASPIRATIONS · 2030 QTY COUNT',
+      value: aspKpis ? formatCompact(aspKpis.qty2030Total ?? 0) : '—',
+      subLabel: aspKpis ? `${formatCount(year2030Count)} rows (value > 0)` : 'short-term',
       accent: '#e85d04',
     },
     {
-      label: 'ASPIRATIONS · 2035',
-      value: aspKpis ? formatCount(year2035Count) : '—',
-      subLabel: 'mid-term',
+      label: 'ASPIRATIONS · 2035 QTY COUNT',
+      value: aspKpis ? formatCompact(aspKpis.qty2035Total ?? 0) : '—',
+      subLabel: aspKpis ? `${formatCount(year2035Count)} rows (value > 0)` : 'mid-term',
       accent: '#e85d04',
     },
     {
-      label: 'ASPIRATIONS · 2047',
-      value: aspKpis ? formatCount(year2047Count) : '—',
-      subLabel: 'long-term',
+      label: 'ASPIRATIONS · 2047 QTY COUNT',
+      value: aspKpis ? formatCompact(aspKpis.qty2047Total ?? 0) : '—',
+      subLabel: aspKpis ? `${formatCount(year2047Count)} rows (value > 0)` : 'long-term',
       accent: '#e85d04',
     },
   ];

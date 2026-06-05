@@ -418,33 +418,92 @@ CREATE INDEX IF NOT EXISTS idx_aspirations_fast_track
 -- UNION ALL
 -- SELECT 'urban' AS view, COUNT(*) AS district_count FROM mv_baseline_urban_district_kpis;
 
+
+-- ================================================================
+-- Drop and recreate MV without the problematic unique index
+-- ================================================================
+
 DROP MATERIALIZED VIEW IF EXISTS mv_aspirations_summary CASCADE;
 
 CREATE MATERIALIZED VIEW mv_aspirations_summary AS
-SELECT 
+SELECT
   district,
-  area_type,
+  'Rural'            AS area_type,
   sector,
-  dept,
+  NULL::text         AS dept,
   item,
+  item_other,
   status,
   fast_track,
-  planning_year,
-  MIN(priority) as priority,
-  COUNT(*) as total_count,
-  SUM(qty_2030) as sum_qty_2030,
-  SUM(qty_2035) as sum_qty_2035,
-  SUM(qty_2047) as sum_qty_2047,
-  SUM(total_budget) as total_budget,
-  SUM(budget_2030) as sum_budget_2030,
-  SUM(budget_2035) as sum_budget_2035,
-  SUM(budget_2047) as sum_budget_2047
-FROM aspirations
+  priority,
+  COUNT(*)           AS total_count,
+  SUM(qty_2030)      AS sum_qty_2030,
+  SUM(qty_2035)      AS sum_qty_2035,
+  SUM(qty_2047)      AS sum_qty_2047,
+  SUM(total_budget)  AS total_budget,
+  SUM(budget_2030)   AS sum_budget_2030,
+  SUM(budget_2035)   AS sum_budget_2035,
+  SUM(budget_2047)   AS sum_budget_2047
+FROM aspirations_rural
 WHERE status IN ('ACCEPT', 'FUNDED', 'REVIEW')
-GROUP BY district, area_type, sector, dept, item, status, fast_track, planning_year;
+GROUP BY district, sector, item, item_other,
+         status, fast_track, priority
 
-CREATE UNIQUE INDEX idx_mv_asp_summary ON mv_aspirations_summary(district, area_type, sector, dept, item, status, fast_track, planning_year);
+UNION ALL
 
+SELECT
+  district,
+  'Urban'            AS area_type,
+  sector,
+  NULL::text         AS dept,
+  item,
+  item_other,
+  status,
+  fast_track,
+  priority,
+  COUNT(*)           AS total_count,
+  SUM(qty_2030)      AS sum_qty_2030,
+  SUM(qty_2035)      AS sum_qty_2035,
+  SUM(qty_2047)      AS sum_qty_2047,
+  SUM(total_budget)  AS total_budget,
+  SUM(budget_2030)   AS sum_budget_2030,
+  SUM(budget_2035)   AS sum_budget_2035,
+  SUM(budget_2047)   AS sum_budget_2047
+FROM aspirations_urban
+WHERE status IN ('ACCEPT', 'FUNDED', 'REVIEW')
+GROUP BY district, sector, item, item_other,
+         status, fast_track, priority;
+
+-- Non-unique indexes for fast querying (no unique constraint)
+CREATE INDEX idx_mv_asp_summary_district
+  ON mv_aspirations_summary(district);
+
+CREATE INDEX idx_mv_asp_summary_area_type
+  ON mv_aspirations_summary(area_type);
+
+CREATE INDEX idx_mv_asp_summary_sector
+  ON mv_aspirations_summary(sector);
+
+CREATE INDEX idx_mv_asp_summary_status
+  ON mv_aspirations_summary(status);
+
+CREATE INDEX idx_mv_asp_summary_district_area
+  ON mv_aspirations_summary(district, area_type);
+
+CREATE INDEX idx_mv_asp_summary_sector_status
+  ON mv_aspirations_summary(sector, status);
+
+-- ================================================================
+-- Refresh function (run after every sector upload)
+-- ================================================================
+CREATE OR REPLACE FUNCTION refresh_aspirations_summary()
+RETURNS void AS $$
+BEGIN
+  REFRESH MATERIALIZED VIEW mv_aspirations_summary;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Update the combined refresh function
 CREATE OR REPLACE FUNCTION refresh_materialized_views()
 RETURNS void AS $$
 BEGIN

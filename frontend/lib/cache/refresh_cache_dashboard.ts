@@ -91,7 +91,7 @@ export async function cacheUrbanDistricts(): Promise<string[]> {
 
 export async function fetchBlocksForDistrict(districtEn: string): Promise<{hi: string, en: string}[]> {
   const storage = getGeoStorage();
-  const cacheKey = `geo_rural_blocks_${districtEn}_paired_v2`;
+  const cacheKey = `geo_rural_blocks_${districtEn}_paired_v3`;
   const cached = storage?.getItem(cacheKey);
   if (cached) return JSON.parse(cached);
 
@@ -99,13 +99,13 @@ export async function fetchBlocksForDistrict(districtEn: string): Promise<{hi: s
   
   const [baseRes, aspRes] = await Promise.all([
     supabase.from('baseline_rural').select('block').eq('district', dbDistrict),
-    supabase.from('aspirations').select('block').eq('district', districtEn)
+    supabase.from('aspirations_rural').select('block').eq('district', dbDistrict)
   ]);
 
   if (baseRes.error || !baseRes.data) return [];
   
   const hiBlocks = [...new Set(baseRes.data.map((r: any) => r.block))].filter(Boolean) as string[];
-  const enBlocks = [...new Set((aspRes.data || []).map((r: any) => r.block))].filter(Boolean) as string[];
+  const aspBlocks = [...new Set((aspRes.data || []).map((r: any) => r.block))].filter(Boolean) as string[];
 
   const transliterate = (hi: string) => {
     const map: Record<string, string> = { 'अ':'a', 'आ':'aa', 'इ':'i', 'ई':'ee', 'उ':'u', 'ऊ':'oo', 'ए':'e', 'ऐ':'ai', 'ओ':'o', 'औ':'au', 'क':'k', 'ख':'kh', 'ग':'g', 'घ':'gh', 'च':'ch', 'छ':'chh', 'ज':'j', 'झ':'jh', 'ट':'t', 'ठ':'th', 'ड':'d', 'ढ':'dh', 'त':'t', 'थ':'th', 'द':'d', 'ध':'dh', 'न':'n', 'प':'p', 'फ':'f', 'ब':'b', 'भ':'bh', 'म':'m', 'य':'y', 'र':'r', 'ल':'l', 'व':'v', 'श':'sh', 'ष':'sh', 'स':'s', 'ह':'h', 'ा':'a', 'ि':'i', 'ी':'ee', 'ु':'u', 'ू':'oo', 'े':'e', 'ै':'ai', 'ो':'o', 'ौ':'au', 'ं':'n', 'ँ':'n', '्':'', '़':'', 'रूरल':'rural', 'अर्बन':'urban', ' ':' ' };
@@ -117,7 +117,7 @@ export async function fetchBlocksForDistrict(districtEn: string): Promise<{hi: s
   const pairObjects = hiBlocks.map(hi => {
     const hiTrans = transliterate(hi);
     let bestEn = '';
-    for (const en of enBlocks) {
+    for (const en of aspBlocks) {
       const enClean = en.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
       if (hiTrans.includes(enClean) || enClean.includes(hiTrans) || (hiTrans.substring(0,3) === enClean.substring(0,3) && hiTrans.length > 2)) {
         bestEn = en;
@@ -152,25 +152,21 @@ export async function fetchUlbsForDistrict(district: string): Promise<string[]> 
 
 export async function fetchGpsForBlock(district: string, blockHi: string): Promise<{gp_id: number; gram_panchayat: {hi: string, en: string}; block: string}[]> {
   const storage = getGeoStorage();
-  const cacheKey = `geo_rural_gps_${district}_${blockHi}_paired_v2`;
+  const cacheKey = `geo_rural_gps_${district}_${blockHi}_paired_v3`;
   const cached = storage?.getItem(cacheKey);
   if (cached) return JSON.parse(cached);
 
   const dbDistrict = DISTRICT_EN_TO_HI[district] || district;
-  
-  // We need to fetch the English block name corresponding to blockHi to query aspirations
-  const blocks = await fetchBlocksForDistrict(district);
-  const blockEn = blocks.find(b => b.hi === blockHi)?.en || '';
 
   const [baseRes, aspRes] = await Promise.all([
     supabase.from('baseline_rural').select('gram_panchayat, block').eq('district', dbDistrict).eq('block', blockHi),
-    blockEn ? supabase.from('aspirations').select('location').eq('district', district).eq('block', blockEn) : { data: [] }
+    supabase.from('aspirations_rural').select('gram_panchayat').eq('district', dbDistrict).eq('block', blockHi)
   ]);
 
   if (baseRes.error) throw baseRes.error;
 
   const uniqueGpsHi = uniqueSorted((baseRes.data || []).map((row: any) => row.gram_panchayat));
-  const uniqueGpsEn = uniqueSorted((aspRes.data || []).map((row: any) => row.location));
+  const uniqueGpsEn = uniqueSorted((aspRes.data || []).map((row: any) => row.gram_panchayat));
 
   const transliterate = (hi: string) => {
     const map: Record<string, string> = { 'अ':'a', 'आ':'aa', 'इ':'i', 'ई':'ee', 'उ':'u', 'ऊ':'oo', 'ए':'e', 'ऐ':'ai', 'ओ':'o', 'औ':'au', 'क':'k', 'ख':'kh', 'ग':'g', 'घ':'gh', 'च':'ch', 'छ':'chh', 'ज':'j', 'झ':'jh', 'ट':'t', 'ठ':'th', 'ड':'d', 'ढ':'dh', 'त':'t', 'थ':'th', 'द':'d', 'ध':'dh', 'न':'n', 'प':'p', 'फ':'f', 'ब':'b', 'भ':'bh', 'म':'m', 'य':'y', 'र':'r', 'ल':'l', 'व':'v', 'श':'sh', 'ष':'sh', 'स':'s', 'ह':'h', 'ा':'a', 'ि':'i', 'ी':'ee', 'ु':'u', 'ू':'oo', 'े':'e', 'ै':'ai', 'ो':'o', 'ौ':'au', 'ं':'n', 'ँ':'n', '्':'', '़':'' };
@@ -423,14 +419,13 @@ export async function fetchAspirationsKpis(params: { areaType?: 'rural' | 'urban
       const pageData = await retryOnSchemaCache(async () => {
         let pageQuery = supabase
           .from('mv_aspirations_summary')
-          .select('sector, dept, item, district, area_type, planning_year, priority, qty_2030:sum_qty_2030, qty_2035:sum_qty_2035, qty_2047:sum_qty_2047, total_budget, budget_2030:sum_budget_2030, budget_2035:sum_budget_2035, budget_2047:sum_budget_2047, status, fast_track, total_count')
+          .select('sector, item, district, area_type, priority, qty_2030:sum_qty_2030, qty_2035:sum_qty_2035, qty_2047:sum_qty_2047, total_budget, budget_2030:sum_budget_2030, budget_2035:sum_budget_2035, budget_2047:sum_budget_2047, status, fast_track, total_count')
           .order('district', { ascending: true })
           .range(from, from + PAGE_SIZE - 1);
 
         if (district !== 'all') {
-          const rawDistrict = params.district || '';
-          const englishDistrict = DISTRICT_HI_TO_EN[rawDistrict] || rawDistrict;
-          pageQuery = pageQuery.ilike('district', englishDistrict);
+          const districtHi = DISTRICT_EN_TO_HI[params.district || ''] || params.district || '';
+          pageQuery = pageQuery.ilike('district', districtHi);
         }
 
         if (areaType === 'rural') {
@@ -465,9 +460,9 @@ export async function fetchAspirationsKpis(params: { areaType?: 'rural' | 'urban
       qty2030Total: allRows.reduce((total, row) => total + (Number(row.qty_2030) || 0), 0),
       qty2035Total: allRows.reduce((total, row) => total + (Number(row.qty_2035) || 0), 0),
       qty2047Total: allRows.reduce((total, row) => total + (Number(row.qty_2047) || 0), 0),
-      count2030: allRows.filter((row) => Number(row.planning_year) === 2030).reduce((sum, row) => sum + (Number(row.total_count) || 0), 0),
-      count2035: allRows.filter((row) => Number(row.planning_year) === 2035).reduce((sum, row) => sum + (Number(row.total_count) || 0), 0),
-      count2047: allRows.filter((row) => Number(row.planning_year) === 2047).reduce((sum, row) => sum + (Number(row.total_count) || 0), 0),
+      count2030: allRows.filter(row => (Number(row.qty_2030) || 0) > 0).reduce((sum, row) => sum + (Number(row.total_count) || 1), 0),
+      count2035: allRows.filter(row => (Number(row.qty_2035) || 0) > 0).reduce((sum, row) => sum + (Number(row.total_count) || 1), 0),
+      count2047: allRows.filter(row => (Number(row.qty_2047) || 0) > 0).reduce((sum, row) => sum + (Number(row.total_count) || 1), 0),
       sectorBreakdown: [],
       budgetTotal: allRows.reduce((total, row) => total + (Number(row.total_budget) || 0), 0),
       fastTrackCount: allRows.filter((row) => Boolean(row.fast_track)).reduce((sum, row) => sum + (Number(row.total_count) || 0), 0),
@@ -483,7 +478,7 @@ export async function fetchAspirationsKpis(params: { areaType?: 'rural' | 'urban
     const districtMap = new Map<string, { count: number; qty2030: number; budget: number }>();
 
     allRows.forEach((row) => {
-      const sector = String(row.sector || row.dept || 'अन्य').trim() || 'अन्य';
+      const sector = String(row.sector || 'अन्य').trim() || 'अन्य';
       const districtName = String(row.district || 'Unknown').trim() || 'Unknown';
       const sectorRows = sectorMap.get(sector) || [];
       sectorRows.push(row);
@@ -523,7 +518,7 @@ export async function fetchAspirationsKpis(params: { areaType?: 'rural' | 'urban
           if (!existing) {
             itemMap.set(itemKey, {
               item: String(record.item || '').trim(),
-              dept: String(record.dept || '').trim(),
+              dept: '',
               qty_2030: q2030,
               qty_2035: q2035,
               qty_2047: q2047,
@@ -557,7 +552,7 @@ export async function fetchAspirationsKpis(params: { areaType?: 'rural' | 'urban
 
         return {
           sector: sectorName,
-          dept: topEntry?.dept || '',
+          dept: '',
           topItem: topEntry?.item || '—',
           topItemQty2030: topEntry?.qty_2030 ?? 0,
           topItemQty2035: topEntry?.qty_2035 ?? 0,
@@ -577,7 +572,6 @@ export async function fetchAspirationsKpis(params: { areaType?: 'rural' | 'urban
           qty2035: topEntry?.qty_2035 ?? 0,
           qty2047: topEntry?.qty_2047 ?? 0,
           combinedQty: topEntry?.combinedQty ?? 0,
-          planning_year: undefined,
         };
       })
       .sort((left, right) => Number(right.totalQty2030 || 0) - Number(left.totalQty2030 || 0));
@@ -747,8 +741,21 @@ const SECTOR_DB_NAMES: Record<string, string[]> = {
   env: ['Environment and Climate'],
 };
 
+const SECTOR_ID_TO_HINDI: Record<string, string[]> = {
+  water:   ['जल सुरक्षा और समुदाय आधारित क्षमता'],
+  health:  ['स्वास्थ्य एवं कल्याण'],
+  agri:    ['कृषि एवं आजीविका'],
+  dairy:   ['कृषि एवं आजीविका'],
+  edu:     ['शिक्षा संबंधी जानकारी'],
+  employ:  ['औद्योगिक, खनन और आर्थिक विकास'],
+  women:   ['सामाजिक सशक्तिकरण और समावेशन'],
+  welfare: ['सामाजिक सशक्तिकरण और समावेशन'],
+  infra:   ['मुख्य (इंफ्रास्ट्रक्चर) आवागमन संबंधित'],
+  tourism: ['पर्यटन एवं सांस्कृतिक विकास'],
+  env:     ['पर्यावरणीय स्थिरता और जलवायु अनुकूलता'],
+};
+
 async function fetchAspirationsBySector(sectorId: string, areaType: AreaType, district?: string | null) {
-  const keywords = SECTOR_ASPIRATION_KEYWORDS[sectorId] || [];
   const PAGE_SIZE = 1000;
   const rows: any[] = [];
   let from = 0;
@@ -757,26 +764,22 @@ async function fetchAspirationsBySector(sectorId: string, areaType: AreaType, di
   while (keepFetching) {
     let query = supabase
       .from('mv_aspirations_summary')
-      .select('item, dept, sector, qty_2030:sum_qty_2030, qty_2035:sum_qty_2035, qty_2047:sum_qty_2047, status, priority, district, area_type, fast_track, total_budget, total_count')
+      .select('item, sector, qty_2030:sum_qty_2030, qty_2035:sum_qty_2035, qty_2047:sum_qty_2047, status, priority, district, area_type, fast_track, total_budget, total_count')
       .range(from, from + PAGE_SIZE - 1);
 
     if (district) {
-      const englishDistrict = DISTRICT_HI_TO_EN[district] || district;
-      query = query.ilike('district', englishDistrict);
+      const districtHi = DISTRICT_EN_TO_HI[district] || district;
+      query = query.ilike('district', districtHi);
     }
 
     if (areaType === 'rural') query = query.eq('area_type', 'Rural');
     if (areaType === 'urban') query = query.eq('area_type', 'Urban');
 
-    const sectorDbNames = SECTOR_DB_NAMES[sectorId] || [];
-    const uniqueKeywords = [...new Set([...keywords, ...sectorDbNames])].slice(0, 15);
-
-    if (uniqueKeywords.length) {
-      const clauses = uniqueKeywords.flatMap((keyword) => [
-        `sector.ilike.%${keyword}%`,
-        `dept.ilike.%${keyword}%`,
-        `item.ilike.%${keyword}%`,
-      ]);
+    const hindiSectorNames = SECTOR_ID_TO_HINDI[sectorId] || [];
+    if (hindiSectorNames.length > 0) {
+      const clauses = hindiSectorNames.map(
+        (name) => `sector.ilike.%${name}%`
+      );
       query = query.or(clauses.join(','));
     }
 
@@ -932,7 +935,7 @@ export async function fetchSectorPageData(params: { sectorId: string; areaType: 
       if (!existing) {
         itemMap.set(key, {
           item: String(row.item || '').trim(),
-          dept: String(row.dept || '').trim(),
+          dept: String(row.sector || '').trim(),
           qty2030: toNumber(row.qty_2030),
           qty2035: toNumber(row.qty_2035),
           qty2047: toNumber(row.qty_2047),
