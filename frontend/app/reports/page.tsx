@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { DISTRICT_EN_TO_HI, fetchBlocksForDistrict, fetchGpsForBlock, fetchUlbsForDistrict, fetchWardsForUlb } from '@/lib/cache/refresh_cache_dashboard';
-import { GP_HI_TO_EN } from '@/lib/cache/gp_name_map';
 
 const DISTRICTS_EN = [
   'Ajmer', 'Alwar', 'Balotara', 'Banswara', 'Baran', 'Barmer', 'Beawar',
@@ -304,7 +303,8 @@ export default function ReportsPage() {
     };
 
     const dbDistrict = DISTRICT_EN_TO_HI[scope.district] || scope.district;
-    const ASP_SELECT = 'district, block, gram_panchayat, village, ulb, ward, city, area_type, item, sector, dept, priority, qty_2030, qty_2035, qty_2047, status, total_budget, scheme, planning_year, fast_track';
+    const RURAL_ASP_SELECT = 'district, block, gram_panchayat, gp_id, item, sector, priority, qty_2030, qty_2035, qty_2047, status, total_budget, scheme, fast_track';
+    const URBAN_ASP_SELECT = 'district, ulb, ward, ward_id, item, sector, priority, qty_2030, qty_2035, qty_2047, status, total_budget, scheme, fast_track';
 
     if (scope.type === 'rural') {
       // ── RURAL BASELINE ──────────────────────────────────────────
@@ -316,99 +316,73 @@ export default function ReportsPage() {
       if (error || !data || data.length === 0) throw new Error('No rural data found.');
 
       // ── RURAL ASPIRATIONS ─────────────────────────────────────────────────
-      // aspirations.district = English | aspirations.block = English
-      // aspirations.gram_panchayat = English GP name
-      // scope.gpName = Hindi | scope.gpNameEn = English (may be empty)
+      // aspirations_rural stores all names in Hindi:
+      //   district = Hindi | block = Hindi | gram_panchayat = Hindi
+      //   scope.gpName = Hindi | scope.gpId = numeric id (if available)
       let ruralAspData: any[] = [];
       try {
-        // When a GP is selected, do NOT filter by blockEn in the query — the block
-        // English name may not match exactly. Instead fetch all for the district and
-        // filter by GP in JS below.  For block-level or district-level, blockEn filter
-        // is still applied to keep the result set manageable.
-        const isGpLevel = !!(scope.gpName || scope.gpNameEn);
-
         let ruralAspQuery = supabase
-          .from('aspirations')
-          .select(ASP_SELECT)
-          .in('status', ['ACCEPT', 'FUNDED', 'REVIEW'])
-          .eq('area_type', 'Rural')
-          .eq('district', scope.district)
-          .limit(5000);
+          .from('aspirations_rural')
+          .select(RURAL_ASP_SELECT)
+          .in('status', ['ACCEPT', 'FUNDED', 'REVIEW']);
 
-        if (scope.blockEn && !isGpLevel) {
-          ruralAspQuery = ruralAspQuery.eq('block', scope.blockEn);
-        }
+        if (scope.gpName) {
+          // GP-level: exact match on Hindi gram_panchayat
+          console.log(`[Rural Asp] Attempting exact match: gpName="${scope.gpName}" (Hindi)`);
+          ruralAspQuery = ruralAspQuery.ilike('gram_panchayat', scope.gpName.trim());
 
-        const { data: rawRuralAsp, error: ruralAspError } = await ruralAspQuery;
-
-        // Always log so we know what happened
-        console.log(`[Rural Asp] district=${scope.district} | blockEn=${scope.blockEn || 'none'} | gpName=${scope.gpName || ''} | gpNameEn=${scope.gpNameEn || ''} | isGpLevel=${isGpLevel} | fetchError=${ruralAspError?.message || 'none'} | rawCount=${rawRuralAsp?.length ?? 'null'}`);
-
-        if (ruralAspError) {
-          console.warn('[Rural Asp] fetch error:', ruralAspError.message);
-          ruralAspData = [];
-        } else {
-          const allRural = rawRuralAsp || [];
-
-          if (!isGpLevel) {
-            // Block-level or district-level: return everything fetched
-            ruralAspData = allRural;
+          const { data: exactMatch, error: err1 } = await ruralAspQuery;
+          if (err1) {
+            console.warn('[Rural Asp] fetch error:', err1.message);
+            ruralAspData = [];
           } else {
-            // ── GP-level filtering using pre-built Hindi→English lookup ──
-            // Strategy:
-            // 1. Use GP_HI_TO_EN to convert scope.gpName (Hindi) → English
-            // 2. Match aspirations.gram_panchayat (English) against the English name
-            // 3. Fallback to fuzzy prefix match if lookup misses
+            ruralAspData = exactMatch || [];
+            console.log(`[Rural Asp] Exact match found: ${ruralAspData.length} records`);
+          }
 
-            const targetGpHiLower = String(scope.gpName || '').trim().toLowerCase();
-            const targetGpEnFromMap = targetGpHiLower ? GP_HI_TO_EN[targetGpHiLower] : null;
+          // Fallback to gp_id if exact name match gave 0 results
+          if (ruralAspData.length === 0 && scope.gpId) {
+            console.log(`[Rural Asp] Fallback to gp_id=${scope.gpId}`);
+            const { data: fallback } = await supabase
+              .from('aspirations_rural')
+              .select(RURAL_ASP_SELECT)
+              .in('status', ['ACCEPT', 'FUNDED', 'REVIEW'])
+              .eq('gp_id', scope.gpId);
+            ruralAspData = fallback || [];
+            console.log(`[Rural Asp] Fallback to gp_id=${scope.gpId}: ${ruralAspData.length} records`);
+          }
 
-            // Also use gpNameEn from scope if available (from dim_rural_gps)
-            const targetGpEnDirect = String(scope.gpNameEn || '').trim().toLowerCase().replace(/[^a-z0-9 ]/g, '');
-            const targetGpEnMapped = targetGpEnFromMap
-              ? targetGpEnFromMap.trim().toLowerCase().replace(/[^a-z0-9 ]/g, '')
-              : null;
-
-            console.log(`[Rural Asp GP] gpName="${scope.gpName}" | lookup="${targetGpEnMapped || 'MISS'}" | gpNameEn="${targetGpEnDirect || 'none'}"`);
-
-            // Try all available English name candidates
-            const candidates = [targetGpEnMapped, targetGpEnDirect].filter(Boolean) as string[];
-
-            if (candidates.length > 0) {
-              ruralAspData = allRural.filter((asp: any) => {
-                const aspGp = String(asp.gram_panchayat || '').trim().toLowerCase().replace(/[^a-z0-9 ]/g, '');
-                if (!aspGp) return false;
-                return candidates.some(c =>
-                  aspGp === c ||
-                  aspGp.includes(c) ||
-                  c.includes(aspGp) ||
-                  (aspGp.length > 3 && c.length > 3 && aspGp.substring(0, 4) === c.substring(0, 4))
-                );
-              });
-              console.log(`[Rural Asp GP] Lookup match → ${ruralAspData.length} records`);
-            }
-
-            // Fallback: if lookup gave nothing, try baseline GP names from the fetched data
-            if (ruralAspData.length === 0) {
-              const baselineGpNames = [...new Set(
-                data.map((r: any) => String(r.gram_panchayat || '').trim()).filter(Boolean)
-              )] as string[];
-
-              console.log(`[Rural Asp GP] Lookup gave 0, trying baseline GP names:`, baselineGpNames);
-
-              ruralAspData = allRural.filter((asp: any) => {
-                const aspGp = String(asp.gram_panchayat || '').trim().toLowerCase().replace(/[^a-z0-9 ]/g, '');
-                if (!aspGp) return false;
-                return baselineGpNames.some(bgp => {
-                  const bgpClean = bgp.toLowerCase().replace(/[^a-z0-9 ]/g, '');
-                  return aspGp === bgpClean ||
-                    aspGp.includes(bgpClean) ||
-                    bgpClean.includes(aspGp) ||
-                    (aspGp.length > 3 && bgpClean.length > 3 && aspGp.substring(0, 4) === bgpClean.substring(0, 4));
-                });
-              });
-              console.log(`[Rural Asp GP] Baseline fallback → ${ruralAspData.length} records`);
-            }
+          // If still 0, return district-level data (no partial/fuzzy matching)
+          if (ruralAspData.length === 0) {
+            console.log(`[Rural Asp] No GP match, falling back to district-level`);
+            const { data: districtFallback } = await supabase
+              .from('aspirations_rural')
+              .select(RURAL_ASP_SELECT)
+              .in('status', ['ACCEPT', 'FUNDED', 'REVIEW'])
+              .ilike('district', dbDistrict);
+            ruralAspData = districtFallback || [];
+          }
+        } else if (scope.block) {
+          // Block-level: filter by block, return all GPs
+          ruralAspQuery = ruralAspQuery
+            .ilike('district', dbDistrict)
+            .ilike('block', scope.block);
+          const { data: blockData, error: blockErr } = await ruralAspQuery;
+          if (blockErr) {
+            console.warn('[Rural Asp] block fetch error:', blockErr.message);
+            ruralAspData = [];
+          } else {
+            ruralAspData = blockData || [];
+          }
+        } else {
+          // District-level: filter by district only
+          ruralAspQuery = ruralAspQuery.ilike('district', dbDistrict);
+          const { data: distData, error: distErr } = await ruralAspQuery;
+          if (distErr) {
+            console.warn('[Rural Asp] district fetch error:', distErr.message);
+            ruralAspData = [];
+          } else {
+            ruralAspData = distData || [];
           }
         }
       } catch (err) {
@@ -525,127 +499,86 @@ export default function ReportsPage() {
       if (error || !data || data.length === 0) throw new Error('No urban data found.');
 
       // ── URBAN ASPIRATIONS ──────────────────────────────────────────────────────
-      // Key facts about urban aspiration data structure:
-      // - aspirations.district = English (e.g. "Bharatpur")  ← matches scope.district
-      // - aspirations.ulb = NULL always (ulb column is empty in source data)
-      // - aspirations.city = Hindi ULB name (e.g. "नाडबई")  ← this IS the ULB identifier
-      // - aspirations.ward = English "Ward No 32" format     ← match by number only
-      // - baseline_urban.ulb = Hindi ULB name (e.g. "नाडबई") ← scope.ulb comes from here
-      // - baseline_urban.ward = Hindi "वार्ड न. 03" format   ← scope.wardName comes from here
-      // Strategy: fetch all urban aspirations for district → filter by city=ulb + ward number
-
+      // aspirations_urban stores all names in Hindi:
+      //   district = Hindi | ulb = Hindi | ward = Hindi
+      //   scope.ulb = Hindi | scope.wardName = Hindi | scope.wardId = numeric (if available)
       let urbanAspData: any[] = [];
       try {
-        // Always fetch by English district — aspirations.district is always English
-        const { data: rawUrbanAsp, error: urbanAspError } = await supabase
-          .from('aspirations')
-          .select(ASP_SELECT)
-          .in('status', ['ACCEPT', 'FUNDED', 'REVIEW'])
-          .eq('area_type', 'Urban')
-          .eq('district', scope.district)  // English district name
-          .limit(5000);
+        if (scope.ulb && scope.wardName) {
+          // ULB + ward level: exact match on both
+          console.log(`[Urban Asp] Exact match: ulb="${scope.ulb}" ward="${scope.wardName}"`);
+          let q = supabase
+            .from('aspirations_urban')
+            .select(URBAN_ASP_SELECT)
+            .in('status', ['ACCEPT', 'FUNDED', 'REVIEW'])
+            .ilike('ulb', scope.ulb.trim())
+            .ilike('ward', scope.wardName.trim());
+          const { data: exact } = await q;
+          urbanAspData = exact || [];
+          console.log(`[Urban Asp] Exact ulb+ward match: ${urbanAspData.length} records`);
 
-        if (urbanAspError) {
-          console.warn('[Urban Asp] fetch error:', urbanAspError.message);
-          urbanAspData = [];
+          // Fallback to ward_id if name match gave 0
+          if (urbanAspData.length === 0 && scope.wardId) {
+            console.log(`[Urban Asp] Fallback to ward_id=${scope.wardId}`);
+            const { data: fallback } = await supabase
+              .from('aspirations_urban')
+              .select(URBAN_ASP_SELECT)
+              .in('status', ['ACCEPT', 'FUNDED', 'REVIEW'])
+              .ilike('ulb', scope.ulb.trim())
+              .eq('ward_id', scope.wardId);
+            urbanAspData = fallback || [];
+            console.log(`[Urban Asp] ward_id fallback: ${urbanAspData.length} records`);
+          }
+
+          if (urbanAspData.length === 0) {
+            console.log(`[Urban Asp] No match for ulb+ward, returning empty`);
+          }
+        } else if (scope.ulb) {
+          // ULB level only
+          console.log(`[Urban Asp] ULB match: ulb="${scope.ulb}"`);
+          const { data: ulbData } = await supabase
+            .from('aspirations_urban')
+            .select(URBAN_ASP_SELECT)
+            .in('status', ['ACCEPT', 'FUNDED', 'REVIEW'])
+            .ilike('ulb', scope.ulb.trim());
+          urbanAspData = ulbData || [];
+          console.log(`[Urban Asp] ULB match: ${urbanAspData.length} records`);
+        } else if (scope.wardName) {
+          // Ward only (rare — usually ward comes with ULB)
+          console.log(`[Urban Asp] Ward match: ward="${scope.wardName}"`);
+          let q = supabase
+            .from('aspirations_urban')
+            .select(URBAN_ASP_SELECT)
+            .in('status', ['ACCEPT', 'FUNDED', 'REVIEW'])
+            .ilike('ward', scope.wardName.trim());
+          const { data: wardExact } = await q;
+          urbanAspData = wardExact || [];
+          console.log(`[Urban Asp] Ward exact match: ${urbanAspData.length} records`);
+
+          if (urbanAspData.length === 0 && scope.wardId) {
+            console.log(`[Urban Asp] Ward fallback to ward_id=${scope.wardId}`);
+            const { data: fallback } = await supabase
+              .from('aspirations_urban')
+              .select(URBAN_ASP_SELECT)
+              .in('status', ['ACCEPT', 'FUNDED', 'REVIEW'])
+              .eq('ward_id', scope.wardId);
+            urbanAspData = fallback || [];
+            console.log(`[Urban Asp] ward_id fallback: ${urbanAspData.length} records`);
+          }
+
+          if (urbanAspData.length === 0) {
+            console.log(`[Urban Asp] No ward match, returning empty`);
+          }
         } else {
-          const allUrban = rawUrbanAsp || [];
-          console.log(`[Urban Asp] district=${scope.district} | total fetched=${allUrban.length} | scope.ulb=${scope.ulb || 'none'} | scope.wardName=${scope.wardName || 'none'}`);
-
-          // Debug: log unique city values found in aspirations
-          const uniqueCities = [...new Set(allUrban.map((a: any) => String(a.city || a.ulb || '').trim()))].filter(Boolean);
-          console.log(`[Urban Asp] unique city/ulb values in aspirations:`, uniqueCities.slice(0, 10));
-
-          if (!scope.ulb && !scope.wardName) {
-            // District level — return all urban aspirations for this district
-            urbanAspData = allUrban;
-          } else {
-            // Extract only digits from a ward/number string, strip leading zeros
-            // "वार्ड न. 03" → "3" | "Ward No 03" → "3" | "Ward No 32" → "32" | "वार्ड नंबर 33" → "33"
-            const extractWardNum = (wardStr: string): string => {
-              const digits = String(wardStr || '').replace(/[^0-9]/g, '');
-              return digits.replace(/^0+/, '') || (digits ? '0' : '');
-            };
-
-            // Normalize ULB name for fuzzy matching:
-            // scope.ulb comes from baseline_urban.ulb (Hindi, e.g. "नाडबई")
-            // asp.city contains Hindi ULB name (e.g. "नाडबई")
-            // Also handle cases where asp.city might be slightly different spelling
-            const targetUlbHi = String(scope.ulb || '').trim().toLowerCase();
-            const targetWardNum = scope.wardName ? extractWardNum(scope.wardName) : '';
-
-            console.log(`[Urban Asp] Matching: targetUlbHi="${targetUlbHi}" | targetWardNum="${targetWardNum}"`);
-
-            // ── STEP 1: Try ULB + ward combined match ──
-            urbanAspData = allUrban.filter((asp: any) => {
-              // ULB match: asp.city holds the Hindi ULB name; asp.ulb is always NULL
-              if (scope.ulb) {
-                const aspCity = String(asp.city || asp.ulb || '').trim().toLowerCase();
-                if (!aspCity) return false;
-
-                const HINDI_TO_EN: Record<string, string> = {
-                  'अजमेर': 'Ajmer', 'अलवर': 'Alwar', 'बालोतरा': 'Balotara',
-                  'बांसवाडा': 'Banswara', 'बारां': 'Baran', 'बाड़मेर': 'Barmer',
-                  'ब्यावर': 'Beawar', 'भरतपुर': 'Bharatpur', 'भीलवाड़ा': 'Bhilwara',
-                  'बीकानेर': 'Bikaner', 'बूंदी': 'Bundi', 'चित्तौड़गढ़': 'Chittorgarh',
-                  'चूरू': 'Churu', 'दौसा': 'Dausa', 'डीग': 'Deeg',
-                  'धौलपुर': 'Dholpur', 'डीडवाना कुचामन': 'Didwana-Kuchaman',
-                  'डूंगरपुर': 'Dungarpur', 'हनुमानगढ़': 'Hanumangarh',
-                  'जयपुर': 'Jaipur', 'जैसलमेर': 'Jaisalmer', 'जालोर': 'Jalore',
-                  'झालावाड़': 'Jhalawar', 'झुन्झुनू': 'Jhunjhunu', 'जोधपुर': 'Jodhpur',
-                  'करौली': 'Karauli', 'खैरथल -तिजारा': 'Khairthal-Tijara', 'कोटा': 'Kota',
-                  'कोटपूतली-बहरोड': 'Kotputli-Behror', 'नागौर': 'Nagaur', 'पाली': 'Pali',
-                  'फलोदी': 'Phalodi', 'प्रतापगढ़': 'Pratapgarh', 'राजसमन्द': 'Rajsamand',
-                  'सलूम्बर': 'Salumbar', 'सवाई माधोपुर': 'Sawai Madhopur',
-                  'सीकर': 'Sikar', 'सिरोही': 'Sirohi', 'श्री गंगानगर': 'Sri Ganganagar',
-                  'टोंक': 'Tonk', 'उदयपुर': 'Udaipur',
-                  'नाडबई': 'Nadbai', 'नगर': 'Nagar', 'नगर पालिका': 'Nagar Palika',
-                };
-
-                const ulbEnglish = (HINDI_TO_EN[scope.ulb] || scope.ulb).toLowerCase();
-
-                const ulbMatch =
-                  aspCity === targetUlbHi ||
-                  aspCity === ulbEnglish ||
-                  aspCity.includes(targetUlbHi) ||
-                  aspCity.includes(ulbEnglish) ||
-                  targetUlbHi.includes(aspCity) ||
-                  ulbEnglish.includes(aspCity) ||
-                  (aspCity.length > 2 && targetUlbHi.length > 2 &&
-                    aspCity.substring(0, 3) === targetUlbHi.substring(0, 3)) ||
-                  (aspCity.length > 2 && ulbEnglish.length > 2 &&
-                    aspCity.substring(0, 3) === ulbEnglish.substring(0, 3));
-
-                if (!ulbMatch) return false;
-              }
-
-              // Ward match: compare only the numeric part
-              if (scope.wardName && targetWardNum) {
-                const aspWardNum = extractWardNum(asp.ward || '');
-                if (!aspWardNum || aspWardNum !== targetWardNum) return false;
-              }
-
-              return true;
-            });
-
-            // ── STEP 2: If combined filter returned 0 but a ward was selected, retry with ward-only ──
-            if (urbanAspData.length === 0 && scope.wardName && scope.ulb && allUrban.length > 0) {
-              console.log(`[Urban Asp] ULB+ward gave 0, retrying ward-only match for number "${targetWardNum}"`);
-              urbanAspData = allUrban.filter((asp: any) => {
-                const aspWardNum = extractWardNum(asp.ward || '');
-                return aspWardNum && aspWardNum === targetWardNum;
-              });
-              console.log(`[Urban Asp] Ward-only fallback → ${urbanAspData.length} matches`);
-            }
-          }
-
-          console.log(`[Urban Asp] Final filtered count: ${urbanAspData.length}`);
-
-          if (urbanAspData.length === 0 && allUrban.length > 0 && (scope.ulb || scope.wardName)) {
-            console.warn(`[Urban Asp] ⚠️ Zero matches. scope.ulb="${scope.ulb}" scope.wardName="${scope.wardName}". Sample:`,
-              allUrban.slice(0, 5).map((a: any) => ({ city: a.city, ulb: a.ulb, ward: a.ward, gram_panchayat: a.gram_panchayat }))
-            );
-          }
+          // District level
+          console.log(`[Urban Asp] District match: district="${dbDistrict}"`);
+          const { data: distData } = await supabase
+            .from('aspirations_urban')
+            .select(URBAN_ASP_SELECT)
+            .in('status', ['ACCEPT', 'FUNDED', 'REVIEW'])
+            .ilike('district', dbDistrict);
+          urbanAspData = distData || [];
+          console.log(`[Urban Asp] District-level: ${urbanAspData.length} records`);
         }
       } catch (err) {
         console.warn('[Urban Asp] exception:', err);
