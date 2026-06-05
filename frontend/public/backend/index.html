@@ -1288,35 +1288,26 @@
                             <section class="section-panel">
                                 <div class="section-head">
                                     <h2 class="section-title">Upload Aspiration Files</h2>
-                                    <div class="section-subtitle">Load one or more planning horizon files</div>
+                                    <div class="section-subtitle">Upload one Excel file per sector</div>
                                 </div>
 
-                                <div class="upload-grid">
-                                    <label class="upload-card" id="uploadCard2030" for="file2030">
-                                        <div class="upload-year-badge year-2030">2030</div>
-                                        <div class="upload-icon">📁</div>
-                                        <p>Aspiration 2030</p>
-                                        <p class="upload-status" id="status2030">Not uploaded</p>
-                                        <p class="upload-filename" id="fileName2030">Choose .xlsx or .csv</p>
-                                        <input type="file" id="file2030" accept=".xlsx,.csv" data-year="2030" onchange="handleFileUpload(event)">
-                                    </label>
+                                <div style="display:inline-flex; gap:4px; padding:4px; background:#1a2236; border-radius:8px; margin-bottom:20px;">
+                                    <button id="areaTypeRural" onclick="setAreaType('rural')" style="border:none; border-radius:6px; padding:6px 20px; background:#3b82f6; color:#fff; font-weight:700; font-size:13px; cursor:pointer;">🌾 Rural</button>
+                                    <button id="areaTypeUrban" onclick="setAreaType('urban')" style="border:none; border-radius:6px; padding:6px 20px; background:transparent; color:#94a3b8; font-weight:600; font-size:13px; cursor:pointer;">🏙️ Urban</button>
+                                </div>
 
-                                    <label class="upload-card" id="uploadCard2035" for="file2035">
-                                        <div class="upload-year-badge year-2035">2035</div>
-                                        <div class="upload-icon">📁</div>
-                                        <p>Aspiration 2035</p>
-                                        <p class="upload-status" id="status2035">Not uploaded</p>
-                                        <p class="upload-filename" id="fileName2035">Choose .xlsx or .csv</p>
-                                        <input type="file" id="file2035" accept=".xlsx,.csv" data-year="2035" onchange="handleFileUpload(event)">
-                                    </label>
+                                <div style="margin-bottom:16px;">
+                                    <label style="display:block; color:#94a3b8; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:8px;">Sector Name</label>
+                                    <select id="sectorNameInput" style="width:100%; max-width:480px; background:#0a0f1e; border:1px solid #1f2d45; color:#f1f5f9; border-radius:10px; padding:12px 16px; font-size:14px; outline:none; cursor:pointer;"></select>
+                                </div>
 
-                                    <label class="upload-card" id="uploadCard2047" for="file2047">
-                                        <div class="upload-year-badge year-2047">2047</div>
+                                <div class="upload-grid" style="grid-template-columns: 1fr;">
+                                    <label class="upload-card" id="uploadCardSector" for="fileSector" style="max-width:480px;">
                                         <div class="upload-icon">📁</div>
-                                        <p>Aspiration 2047</p>
-                                        <p class="upload-status" id="status2047">Not uploaded</p>
-                                        <p class="upload-filename" id="fileName2047">Choose .xlsx or .csv</p>
-                                        <input type="file" id="file2047" accept=".xlsx,.csv" data-year="2047" onchange="handleFileUpload(event)">
+                                        <p style="font-size:15px; font-weight:600; color:#f1f5f9;">Upload Sector File</p>
+                                        <p class="upload-status" id="statusSector">Not uploaded</p>
+                                        <p class="upload-filename" id="fileNameSector">Choose .xlsx or .csv</p>
+                                        <input type="file" id="fileSector" accept=".xlsx,.csv" onchange="handleFileUpload(event)">
                                     </label>
                                 </div>
 
@@ -1540,21 +1531,27 @@
         let currentPages = { rules: 0, cni: 0, budget: 0 };
         let cniResultsCache = [];
         let budgetRowsCache = [];
-        let loadedByYear = {};
         
         let baselineMap = null;
+        let baselineDistrictMap = null;
         let baselineMapPromise = null;
         let isBaselineLoading = false;
         const SUPABASE_URL = "https://jnzhmcngxigtptztdjhl.supabase.co";
         const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpuemhtY25neGlndHB0enRkamhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyNDM0MDgsImV4cCI6MjA5NTgxOTQwOH0.wCsBF-uTxmyJXLa2SRm0pZ0XwiWwKAXC26qSHZ9wux8";
-        const BASELINE_CACHE_KEY = 'backend_baseline_map_v2';
+        const BASELINE_CACHE_KEY = 'backend_baseline_map_v3';
         const BATCH_SIZE_INSERT = 500;  // Supabase insert chunk size
         let currentBatchId = null;      // Set fresh per upload session
         let isSaving = false;
+        let currentAreaType = 'rural';
+        let currentSector = '';
 
         function normalizeStr(str) {
             if (!str) return '';
-            return str.toString().trim().toLowerCase().replace(/\s+/g, ' ');
+            return str.toString()
+                .replace(/[\u200B-\u200D\uFEFF\u00A0\u3000]/g, '')
+                .replace(/\s+/g, ' ')
+                .trim()
+                .toLowerCase();
         }
 
         function getStorageCandidates() {
@@ -1642,65 +1639,99 @@
 
         async function fetchAllSupabase(table, select) {
             let all = [];
-            let offset = 0;
-            const headers = { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` };
-            while(true) {
-                const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=${select}&offset=${offset}&limit=1000`, { headers });
+            let from = 0;
+            const PAGE = 1000;
+            const headers = {
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                'Range-Unit': 'items'
+            };
+            while (true) {
+                const res = await fetch(
+                    `${SUPABASE_URL}/rest/v1/${table}?select=${select}&limit=${PAGE}&offset=${from}`,
+                    { headers: { ...headers, 'Range': `${from}-${from + PAGE - 1}` } }
+                );
+                if (!res.ok) { console.warn(`fetchAllSupabase ${table} error:`, res.status); break; }
                 const data = await res.json();
-                if(!data || data.length === 0) break;
-                all.push(...data);
-                if(data.length < 1000) break;
-                offset += 1000;
+                if (!data || data.length === 0) break;
+                all = all.concat(data);
+                if (data.length < PAGE) break;
+                from += PAGE;
             }
+            console.log(`[fetchAllSupabase] ${table}: fetched ${all.length} rows`);
             return all;
         }
 
         function getLocationKeyCandidates(row) {
-            const district = row?.district || '';
-            const middles = [row?.block, row?.ulb, row?.city].filter(Boolean);
-            const leaves = [row?.gp, row?.ward, row?.village, row?.city, row?.block, row?.ulb].filter(Boolean);
+            const d  = normalizeStr(row?.district || '');
+            const b  = normalizeStr(row?.block || '');
+            const u  = normalizeStr(row?.ulb || '');
+            const c  = normalizeStr(row?.city || '');
+            const gp = normalizeStr(row?.gp || row?.gram_panchayat || '');
+            const w  = normalizeStr(row?.ward || '');
+            const v  = normalizeStr(row?.village || '');
+
             const keys = [];
             const seen = new Set();
 
-            for (let i = 0; i < middles.length; i++) {
-                for (let j = 0; j < leaves.length; j++) {
-                    const key = normalizeStr(`${district}||${middles[i]}||${leaves[j]}`);
-                    if (key && !seen.has(key)) {
-                        seen.add(key);
-                        keys.push(key);
-                    }
+            function add(k) {
+                const clean = k.replace(/\|+$/, '');
+                if (clean && !seen.has(clean)) { seen.add(clean); keys.push(clean); }
+            }
+
+            // Level 1: district + block/ulb/city + gp/ward/village  (most specific)
+            for (const mid of [b, u, c].filter(Boolean)) {
+                for (const leaf of [gp, w, v].filter(Boolean)) {
+                    add(`${d}||${mid}||${leaf}`);
                 }
             }
+
+            // Level 2: district + gp/ward/village only (no block — handles block name mismatch)
+            for (const leaf of [gp, w, v].filter(Boolean)) {
+                add(`${d}||${leaf}`);
+            }
+
+            // Level 3: district + block only (no GP — for district-level population fallback)
+            for (const mid of [b, u, c].filter(Boolean)) {
+                add(`${d}||${mid}`);
+            }
+
+            // Level 4: district only (last resort)
+            if (d) add(d);
 
             return keys;
         }
 
-        function buildBaselineMap(dimRows, factRows, idColumn) {
-            const popMap = {};
-            for (let i = 0; i < factRows.length; i++) {
-                const row = factRows[i] || {};
-                popMap[row[idColumn]] = row.pop_2026_est;
-            }
-
+        function buildBaselineMapFlat(rows, fields) {
             const map = {};
-            for (let i = 0; i < dimRows.length; i++) {
-                const row = dimRows[i] || {};
-                const population = popMap[row[idColumn]] || 0;
-                const keys = getLocationKeyCandidates({
-                    district: row.district,
-                    block: row.block,
-                    ulb: row.ulb,
-                    city: row.city,
-                    gp: row.gram_panchayat,
-                    ward: row.ward,
-                    village: row.village
-                });
+            for (let i = 0; i < rows.length; i++) {
+                const row = rows[i] || {};
+                const population = Number(row.pop_2026_est || 0);
+                if (!population) continue;
 
-                for (let j = 0; j < keys.length; j++) {
-                    map[keys[j]] = { population };
+                const syntheticRow = {
+                    district:       row[fields.district] || '',
+                    block:          row[fields.block]    || '',
+                    ulb:            row[fields.ulb]      || '',
+                    city:           '',
+                    gp:             row[fields.gp]       || '',
+                    ward:           row[fields.ward]     || '',
+                    village:        '',
+                };
+
+                const keys = getLocationKeyCandidates(syntheticRow);
+                for (const key of keys) {
+                    if (!map[key]) map[key] = { population };
+                }
+
+                // Guaranteed district+GP fallback (bypasses block name entirely)
+                const distNorm = normalizeStr(row[fields.district] || '');
+                const gpNorm   = normalizeStr(row[fields.gp] || row[fields.ward] || '');
+                if (distNorm && gpNorm) {
+                    const fallbackKey = `${distNorm}||${gpNorm}`;
+                    if (!map[fallbackKey]) map[fallbackKey] = { population };
                 }
             }
-
             return map;
         }
 
@@ -1711,7 +1742,39 @@
                 const entry = baselineMap[candidates[i]];
                 if (entry) return entry;
             }
+            // Fall back to district-level population
+            if (baselineDistrictMap) {
+                const distKey = normalizeStr(record.district || '');
+                return baselineDistrictMap[distKey] || null;
+            }
             return null;
+        }
+
+        function buildDistrictFallbackMap(districtRows) {
+            const map = {};
+            const DISTRICT_NAME_MAP = {
+                'ajmer': 'अजमेर', 'alwar': 'अलवर', 'banswara': 'बांसवाड़ा', 'baran': 'बाराँ',
+                'barmer': 'बाड़मेर', 'bharatpur': 'भरतपुर', 'bhilwara': 'भीलवाड़ा', 'bikaner': 'बीकानेर',
+                'bundi': 'बूंदी', 'chittorgarh': 'चित्तौड़गढ़', 'churu': 'चूरू', 'dausa': 'दौसा',
+                'dholpur': 'धौलपुर', 'dungarpur': 'डूंगरपुर', 'hanumangarh': 'हनुमानगढ़', 'jaipur': 'जयपुर',
+                'jaisalmer': 'जैसलमेर', 'jalore': 'जालौर', 'jhalawar': 'झालावाड़', 'jhunjhunu': 'झुंझुनू',
+                'jodhpur': 'जोधपुर', 'karauli': 'करौली', 'kota': 'कोटा', 'nagaur': 'नागौर',
+                'pali': 'पाली', 'pratapgarh': 'प्रतापगढ़', 'rajsamand': 'राजसमंद', 'sawai madhopur': 'सवाई माधोपुर',
+                'sikar': 'सीकर', 'sirohi': 'सिरोही', 'sriganganagar': 'श्रीगंगानगर', 'ganganagar': 'गंगानगर',
+                'tonk': 'टोंक', 'udaipur': 'उदयपुर',
+            };
+            for (let i = 0; i < districtRows.length; i++) {
+                const row = districtRows[i] || {};
+                const pop = Number(row.total_pop || 0);
+                if (!pop) continue;
+                const distEng = normalizeStr(row.district || '');
+                if (distEng) {
+                    map[distEng] = { population: pop };
+                    const distHin = DISTRICT_NAME_MAP[distEng];
+                    if (distHin) map[normalizeStr(distHin)] = { population: pop };
+                }
+            }
+            return map;
         }
 
         async function initBaselineMap() {
@@ -1722,6 +1785,11 @@
             if (cached) {
                 baselineMap = cached;
                 console.log('Loaded baseline data from cache for ' + Object.keys(baselineMap).length + ' GPs');
+                // Fetch district-level fallback in background (not cached, lightweight MV query)
+                fetchAllSupabase('mv_baseline_rural_district_kpis', 'district,total_pop').then(rows => {
+                    baselineDistrictMap = buildDistrictFallbackMap(rows);
+                    console.log('[BaselineDistrictMap] Built from cache path with ' + Object.keys(baselineDistrictMap).length + ' districts');
+                }).catch(() => {});
                 return baselineMap;
             }
 
@@ -1730,17 +1798,23 @@
             isBaselineLoading = true;
             baselineMapPromise = (async () => {
                 try {
-                    const [ruralDims, ruralFacts, urbanDims, urbanFacts] = await Promise.all([
-                        fetchAllSupabase('dim_rural_gps', 'gp_id,district,block,gram_panchayat'),
-                        fetchAllSupabase('fact_rural_admin', 'gp_id,pop_2026_est'),
-                        fetchAllSupabase('dim_urban_wards', 'ward_id,district,ulb,ward'),
-                        fetchAllSupabase('fact_urban_admin', 'ward_id,pop_2026_est')
+                    const [ruralRows, urbanRows, districtRows] = await Promise.all([
+                        fetchAllSupabase('baseline_rural', 'district,block,gram_panchayat,pop_2026_est'),
+                        fetchAllSupabase('baseline_urban', 'district,ulb,ward,pop_2026_est'),
+                        fetchAllSupabase('mv_baseline_rural_district_kpis', 'district,total_pop')
                     ]);
 
                     const map = {
-                        ...buildBaselineMap(ruralDims, ruralFacts, 'gp_id'),
-                        ...buildBaselineMap(urbanDims, urbanFacts, 'ward_id')
+                        ...buildBaselineMapFlat(ruralRows, { district: 'district', block: 'block', gp: 'gram_panchayat', ulb: '', ward: '' }),
+                        ...buildBaselineMapFlat(urbanRows, { district: 'district', block: '', gp: '', ulb: 'ulb', ward: 'ward' }),
                     };
+
+                    baselineDistrictMap = buildDistrictFallbackMap(districtRows);
+                    console.log('[BaselineDistrictMap] Built with ' + Object.keys(baselineDistrictMap).length + ' district entries');
+                    console.log(`[BaselineMap] Built with ${Object.keys(map).length} entries. Sample keys:`, Object.keys(map).slice(0, 3));
+                    // Log 5 sample keys so we can verify Hindi text is normalizing correctly
+                    const sampleKeys = Object.keys(map).slice(0, 5);
+                    console.log('[BaselineMap] Sample keys:', sampleKeys);
                     if (Object.keys(map).length > 0) {
                         baselineMap = map;
                         writeBaselineMapCache(map);
@@ -1802,29 +1876,81 @@
         }
 
         function resetUploadState() {
-            loadedByYear = {};
+            DATA = [];
+            currentSector = '';
             currentPages = { rules: 0, cni: 0, budget: 0 };
             cniResultsCache = [];
             budgetRowsCache = [];
-            ['2030', '2035', '2047'].forEach(year => {
-                const status = document.getElementById(`status${year}`);
-                const fileName = document.getElementById(`fileName${year}`);
-                const card = document.getElementById(`uploadCard${year}`);
-                const input = document.getElementById(`file${year}`);
-                if (status) {
-                    status.textContent = 'Not uploaded';
-                    status.classList.remove('loaded');
-                }
-                if (fileName) fileName.textContent = 'Choose .xlsx or .csv';
-                if (card) card.classList.remove('loaded');
-                if (input) input.value = '';
-            });
+
+            const sectorInput = document.getElementById('sectorNameInput');
+            if (sectorInput) sectorInput.value = '';
+
+            const status = document.getElementById('statusSector');
+            const fileName = document.getElementById('fileNameSector');
+            const card = document.getElementById('uploadCardSector');
+            const fileInput = document.getElementById('fileSector');
+            if (status) {
+                status.textContent = 'Not uploaded';
+                status.classList.remove('loaded');
+            }
+            if (fileName) fileName.textContent = 'Choose .xlsx or .csv';
+            if (card) card.classList.remove('loaded');
+            if (fileInput) fileInput.value = '';
 
             const processBtn = document.getElementById('processBtn');
             if (processBtn) {
                 processBtn.disabled = true;
                 processBtn.classList.remove('enabled');
             }
+        }
+
+        const RURAL_SECTORS = [
+            'प्रशासनिक एवं जनसांख्यिकीय विवरण',
+            'कृषि एवं आजीविका',
+            'स्वास्थ्य एवं कल्याण',
+            'शिक्षा संबंधी जानकारी',
+            'सामाजिक सशक्तिकरण और समावेशन',
+            'औद्योगिक, खनन और आर्थिक विकास',
+            'मुख्य (इंफ्रास्ट्रक्चर) आवागमन संबंधित',
+            'जल सुरक्षा और समुदाय आधारित क्षमता',
+            'पर्यावरणीय स्थिरता और जलवायु अनुकूलता',
+            'प्रभावी शासन और सार्वजनिक सेवाएं',
+            'पर्यटन एवं सांस्कृतिक विकास',
+        ];
+
+        const URBAN_SECTORS = [
+            'स्वास्थ्य एवं कल्याण',
+            'शिक्षा संबंधी जानकारी',
+            'सामाजिक सशक्तिकरण और समावेशन',
+            'औद्योगिक, खनन और आर्थिक विकास',
+            'मुख्य (इंफ्रास्ट्रक्चर) आवागमन संबंधित',
+            'जल सुरक्षा और समुदाय आधारित क्षमता',
+            'पर्यावरणीय स्थिरता और जलवायु अनुकूलता',
+            'प्रभावी शासन और सार्वजनिक सेवाएं',
+            'पर्यटन एवं सांस्कृतिक विकास',
+        ];
+
+        function populateSectorDropdown() {
+            const select = document.getElementById('sectorNameInput');
+            if (!select) return;
+            const sectors = currentAreaType === 'urban' ? URBAN_SECTORS : RURAL_SECTORS;
+            select.innerHTML = sectors.map(s => `<option value="${s}">${s}</option>`).join('');
+            currentSector = select.value;
+        }
+
+        function setAreaType(type) {
+            currentAreaType = type;
+            document.getElementById('areaTypeRural').style.background = type === 'rural' ? '#3b82f6' : 'transparent';
+            document.getElementById('areaTypeRural').style.color = type === 'rural' ? '#fff' : '#94a3b8';
+            document.getElementById('areaTypeUrban').style.background = type === 'urban' ? '#3b82f6' : 'transparent';
+            document.getElementById('areaTypeUrban').style.color = type === 'urban' ? '#fff' : '#94a3b8';
+            updateTableHeaders();
+            populateSectorDropdown();
+        }
+
+        function updateTableHeaders() {
+            const gpHeader = document.querySelector('#rulesTable thead th:nth-child(4)');
+            if (gpHeader) gpHeader.textContent = currentAreaType === 'urban' ? 'Ward' : 'GP';
         }
 
         // ==================== LOGIN ====================
@@ -1868,13 +1994,18 @@
             const file = event.target.files[0];
             if (!file) return;
 
-            // New upload session always gets a fresh batch ID.
+            currentSector = document.getElementById('sectorNameInput')?.value || '';
+            if (!currentSector) {
+                showToast('Pehle sector name likho', true);
+                event.target.value = '';
+                return;
+            }
+
             currentBatchId = `batch_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
-            const year = event.target.dataset.year || '2030';
-            const statusEl = document.getElementById(`status${year}`);
-            const fileNameEl = document.getElementById(`fileName${year}`);
-            const cardEl = document.getElementById(`uploadCard${year}`);
+            const statusEl = document.getElementById('statusSector');
+            const fileNameEl = document.getElementById('fileNameSector');
+            const cardEl = document.getElementById('uploadCardSector');
             const processBtn = document.getElementById('processBtn');
             const saveBtn = document.getElementById('saveToSupabaseBtn');
             const statusDiv = document.getElementById('supabaseSaveStatus');
@@ -1885,32 +2016,28 @@
             if (saveBtn) saveBtn.style.display = 'none';
             if (statusDiv) statusDiv.style.display = 'none';
 
-            parseFile(file, year)
+            parseFile(file)
                 .then(async (records) => {
                     await initBaselineMap();
-                    loadedByYear[year] = records;
-                    DATA = Object.values(loadedByYear).flat();
+                    DATA = records;
 
                     if (records.length === 0) {
-                        showToast('No valid records found in uploaded file', true);
+                        showToast('No valid records found in file', true);
                         if (statusEl) statusEl.textContent = 'No valid rows';
                     } else {
                         if (statusEl) {
                             statusEl.textContent = `✓ ${records.length} records loaded`;
                             statusEl.classList.add('loaded');
                         }
-                        showToast(`${records.length} records loaded successfully`);
+                        showToast(`${records.length} records loaded`);
                     }
 
-                    const hasAnyData = DATA.length > 0;
+                    const hasData = DATA.length > 0;
                     if (processBtn) {
-                        processBtn.disabled = !hasAnyData;
-                        processBtn.classList.toggle('enabled', hasAnyData);
+                        processBtn.disabled = !hasData;
+                        processBtn.classList.toggle('enabled', hasData);
                     }
-
-                    if (hasAnyData) {
-                        runRulesEngine();
-                    }
+                    if (hasData) runRulesEngine();
                 })
                 .catch((err) => {
                     showToast('Error parsing file: ' + err.message, true);
@@ -1918,7 +2045,7 @@
                 });
         }
 
-        function parseFile(file, year) {
+        function parseFile(file) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
 
@@ -1945,7 +2072,7 @@
                         const parsed = [];
 
                         for (let i = 1; i < records.length; i++) {
-                            const record = parseRowFast(records[i], columnIndex, year);
+                            const record = parseRowFast(records[i], columnIndex);
                             if (record) parsed.push(record);
                         }
 
@@ -1961,18 +2088,29 @@
 
         // ==================== DATA MAPPING ====================
         const HEADER_MAP = {
-            // Legacy Hindi headers
             'जिला': 'district',
+            'लोकसभा': 'lok_sabha',
+            'विधानसभा': 'vidhan_sabha',
             'ब्लॉक': 'block',
-            'ग्राम पंचायत': 'gp',
-            'ग्राम पंचायत / वार्ड': 'gp',
+            'ग्राम पंचायत': 'gram_panchayat',
+            'ग्राम पंचायत ': 'gram_panchayat',
+            'ग्राम पंचायत ID': 'gp_id',
+            'ULB': 'ulb',
+            'वार्ड': 'ward',
+            'वार्ड ID': 'ward_id',
             'सब-इंडिकेटर्स': 'item',
+            'अन्य सब-इंडिकेटर': 'item_other',
             'प्राथमिकता स्तर': 'priority',
             '2030': 'qty_2030',
             '2030-35': 'qty_2035',
             '2035-47': 'qty_2047',
             'वित्तीय स्वीकृति': 'funded',
             'योजना का नाम': 'scheme',
+            'अक्षांश': 'lat',
+            'देशांतर': 'lng',
+
+            // Legacy Hindi headers
+            'ग्राम पंचायत / वार्ड': 'gp',
             'अक्षांश मान': 'lat',
             'देशांतर मान': 'lng',
             'राजधारा संदर्भ संख्या': 'rajdhara_ref',
@@ -1991,7 +2129,6 @@
             'GP_ENG': 'gp',
             'VILLAGE_ENG': 'village',
             'CITY_ENG': 'city',
-            'ULB': 'ulb',
             'ULB_ENG': 'ulb',
             'WARD_ENG': 'ward',
             'Address_ENG': 'address_eng',
@@ -2048,7 +2185,7 @@
             return Number.isFinite(parsed) ? parsed : 0;
         }
 
-        function parseRowFast(row, colIndex, year) {
+        function parseRowFast(row, colIndex) {
             const record = {};
 
             for (let i = 0; i < colIndex.length; i++) {
@@ -2076,23 +2213,33 @@
             record.qty_2035 = toNumber(record.qty_2035);
             record.qty_2047 = toNumber(record.qty_2047);
 
-            if (!record.qty_2030 && !record.qty_2035 && !record.qty_2047 && record.qty) {
-                if (year === '2030') record.qty_2030 = record.qty;
-                if (year === '2035') record.qty_2035 = record.qty;
-                if (year === '2047') record.qty_2047 = record.qty;
-            }
-
             const isFinancial = TRUE_VALUES.has(record.is_financial) || TRUE_VALUES.has(String(record.is_financial).trim());
             const isApproved = TRUE_VALUES.has(record.is_financial_approved) || TRUE_VALUES.has(String(record.is_financial_approved).trim());
 
             record.is_financial = isFinancial;
             record.is_financial_approved = isApproved;
-            record.funded = (isFinancial && isApproved) ? 'YES' : 'NO';
-            record.scheme = record.scheme || (record.scheme_id ? `Scheme #${record.scheme_id}` : '');
-            record.planning_year = year;
 
-            if (!record.area_type) {
-                record.area_type = (record.ward || record.city) && !record.gp && !record.village ? 'Urban' : 'Rural';
+            // Preserve direct वित्तीय स्वीकृति value if already set to YES/हाँ,
+            // otherwise derive from Rajdhara is_financial + is_financial_approved flags
+            const directFunded = String(record.funded || '').trim();
+            const TRUE_FUNDED = new Set(['YES', 'yes', 'Y', 'y', 'हाँ', 'हां', 'TRUE', 'true', '1']);
+            if (TRUE_FUNDED.has(directFunded)) {
+                record.funded = 'YES';
+            } else if (isFinancial && isApproved) {
+                record.funded = 'YES';
+            } else {
+                record.funded = 'NO';
+            }
+            record.scheme = record.scheme || (record.scheme_id ? `Scheme #${record.scheme_id}` : '');
+            record.sector = currentSector;
+
+            if (currentAreaType === 'rural') {
+                record.gp = record.gram_panchayat || record.gp || null;
+                record.area_type = 'Rural';
+                if (!record.district || (!record.gram_panchayat && !record.gp_id) || !record.item) return null;
+            } else {
+                record.area_type = 'Urban';
+                if (!record.district || (!record.ward && !record.ward_id) || !record.item) return null;
             }
 
             if (!record.block && record.city) {
@@ -2104,10 +2251,6 @@
             }
 
             return record;
-        }
-
-        function mapRowToRecord(headers, row, year) {
-            return parseRowFast(row, buildColumnIndex(headers), year);
         }
 
         function mapRowToRecord(headers, row) {
@@ -2291,6 +2434,17 @@
 
             // R3 — Population Norm
             const baselineEntry = findBaselineEntry(record);
+            if (record.index <= 5) {
+                console.log(
+                    `[R3 debug #${record.index}]`,
+                    'district:', normalizeStr(record.district),
+                    '| block:', normalizeStr(record.block),
+                    '| gp:', normalizeStr(record.gp),
+                    '| candidates:', getLocationKeyCandidates(record),
+                    '| found:', !!baselineEntry,
+                    '| pop:', baselineEntry?.population || 0
+                );
+            }
             const locKey = getLocationKeyCandidates(record)[0] || normalizeStr(`${record.district}||${record.block || record.city || record.ulb || ''}||${record.gp || record.ward || record.village || ''}`);
             const zone = getZone(record.district);
 
@@ -2359,41 +2513,45 @@
                 reasons.push('⚡ Fast-tracked: Critical sector (Water/Health/Sanitation) — accepted regardless of baseline documentation. | महत्वपूर्ण क्षेत्र (जल/स्वास्थ्य/स्वच्छता) — फास्ट-ट्रैक स्वीकृत।');
             }
 
-            // R9 — GIS-only rows are acceptable when GIS is the only issue.
-            if (statusCodes.length === 1 && statusCodes[0] === 'R2-NOGIS' && record.status !== 'REJECT') {
-                record.status = 'ACCEPT';
-            }
+            // R9 — GIS-only and/or baseline-nodata records are acceptable (soft codes only)
+            const softOnly = statusCodes.length > 0 &&
+                statusCodes.every(c => c === 'R2-NOGIS' || c === 'R3-NODATA');
 
             // Final status assignment
             if (record.status !== 'REJECT') {
-                if (!(statusCodes.length === 1 && statusCodes[0] === 'R2-NOGIS') && statusCodes.length > 0) {
-                    record.status = 'REVIEW';
+                if (softOnly) {
+                    // Only soft codes (GIS / baseline-nodata) → ACCEPT
+                    record.status = 'ACCEPT';
+                } else {
+                    // Real rule violations → REVIEW
+                    const blockingCodes = statusCodes.filter(c =>
+                        c !== 'R2-NOGIS' && c !== 'R3-NODATA'
+                    );
+                    record.status = blockingCodes.length > 0 ? 'REVIEW' : 'ACCEPT';
                 }
-                if (record.status === 'ACCEPT' && record.funded === 'YES' && record.scheme && !(statusCodes.length === 1 && statusCodes[0] === 'R2-NOGIS')) {
+
+                // Upgrade to FUNDED if financially approved
+                if (record.status === 'ACCEPT' && record.funded === 'YES') {
                     record.status = 'FUNDED';
                 }
 
-                // Generate end-to-end detailed verification audit log for ACCEPT / FUNDED records
+                // Generate audit log for ACCEPT/FUNDED
                 if (record.status === 'ACCEPT' || record.status === 'FUNDED') {
                     const gpPop = baselineEntry ? (baselineEntry.population || 0) : 0;
                     const normConfig = getPopulationNormConfig(record.item, zone);
-                    let normStr = '';
-                    if (normConfig) {
-                        const maxAllowed = Math.floor(gpPop / normConfig.normValue);
-                        normStr = `Population Norm Verified: Approved (Requested Qty: ${qty2030 + qty2035 + qty2047} <= Max Allowed: ${maxAllowed} units based on GP population of ${gpPop} and adjusted ${zone} Zone norm threshold of 1 per ${normConfig.normValue} residents for ${normConfig.label}).`;
-                    } else {
-                        normStr = `Population Check: GP population is ${gpPop} (Standard item type; population capacity check not required).`;
-                    }
+                    let normStr = normConfig
+                        ? `Population Norm Verified: Approved (Requested: ${qty2030 + qty2035 + qty2047} <= Max: ${Math.floor(gpPop / normConfig.normValue)}, GP pop: ${gpPop}, Zone: ${zone}, Threshold: 1 per ${normConfig.normValue} for ${normConfig.label}).`
+                        : `Population Check: GP population ${gpPop} (standard item — capacity check not required).`;
 
-                    const successReason = `✅ VERIFIED ACCEPTABLE (स्वचालित सत्यापन पूर्ण):\n` +
-                        `- District Zone: Mapped to "${zone}" Geographic Zone (special relaxed criteria applied where applicable).\n` +
-                        `- GIS: Coordinates (${record.lat || 'N/A'}, ${record.lng || 'N/A'}) verified and correctly located within Rajasthan's boundaries.\n` +
-                        `- ${normStr}\n` +
-                        `- Duplication Check: Full 1-to-1 unique record check completed. No matching entry found.\n` +
-                        `${record.status === 'FUNDED' ? `- Scheme Funding: Officially approved under existing scheme "${record.scheme}".` : '- General Aspiration: Registered for future scheme alignment.'}`;
-                    
                     reasons.length = 0;
-                    reasons.push(successReason);
+                    reasons.push(
+                        `✅ VERIFIED ACCEPTABLE:\n` +
+                        `- Zone: ${zone}\n` +
+                        `- GIS: ${record.lat && record.lng ? `(${record.lat}, ${record.lng}) verified` : 'Missing GPS — field capture pending (R2-NOGIS)'}\n` +
+                        `- ${normStr}\n` +
+                        `- Duplication Check: No duplicate found.\n` +
+                        `${record.status === 'FUNDED' ? `- Scheme: Approved under "${record.scheme}".` : '- General aspiration registered.'}`
+                    );
                 }
             }
         }
@@ -2468,76 +2626,74 @@
             }
 
             try {
-                const yearsInThisUpload = [...new Set(recordsToSave.map(r => r.planning_year).filter(Boolean))];
+                const targetTable = currentAreaType === 'urban' ? 'aspirations_urban' : 'aspirations_rural';
 
-                // Build every row with a guaranteed-unique natural_key
-                // base_natural_key holds the logical key for duplicate analysis
+                const isUrban = currentAreaType === 'urban';
+
                 const validRows = recordsToSave.map((r, idx) => {
-                    const isUrban = String(r.area_type || 'Rural').trim().toLowerCase() === 'urban';
-                    const baseParts = [
-                        String(r.planning_year || '').trim(),
-                        isUrban ? 'urban' : 'rural',
-                        String(r.district || '').trim().toLowerCase(),
-                        String(r.block || '').trim().toLowerCase(),
-                        String(r.gp || '').trim().toLowerCase(),
-                        String(r.village || '').trim().toLowerCase(),
-                        isUrban ? String(r.city || r.ulb || r.block || '').trim().toLowerCase() : '',
-                        String(r.ward || '').trim().toLowerCase(),
-                        String(r.item || '').trim().toLowerCase(),
-                        String(r.sector || '').trim().toLowerCase(),
-                        String(r.dept || '').trim().toLowerCase(),
-                        String(r.priority || 0),
-                        String(r.qty_2030 || 0),
-                        String(r.qty_2035 || 0),
-                        String(r.qty_2047 || 0),
-                        String(r.funded || 'NO').toLowerCase(),
-                        String(r.lat || ''),
-                        String(r.lng || '')
-                    ];
-                    const baseKey = baseParts.join('|');
-
-                    return {
-                        natural_key:           baseKey,
-                        base_natural_key:      baseKey,
-                        aspiration_id:         r.aspiration_id || null,
-                        rajdhara_ref:          r.rajdhara_ref || null,
-                        planning_year:         String(r.planning_year || '2047'),
-                        upload_batch_id:       currentBatchId,
-                        district:              r.district || null,
-                        block:                 r.block || null,
-                        gram_panchayat:        isUrban ? null : (r.gp || null),
-                        village:               r.village || null,
-                        ulb:                   null,
-                        ward:                  r.ward || null,
-                        city:                  isUrban ? (r.city || r.ulb || r.block || null) : null,
-                        area_type:             r.area_type || 'Rural',
-                        sector:                r.sector || null,
-                        dept:                  r.dept || null,
-                        item:                  r.item || '',
-                        priority:              r.priority || 0,
-                        qty_2030:              r.qty_2030 || 0,
-                        qty_2035:              r.qty_2035 || 0,
-                        qty_2047:              r.qty_2047 || 0,
-                        funded:                r.funded || 'NO',
-                        scheme:                r.scheme || null,
-                        is_financial:          r.is_financial || false,
-                        is_financial_approved: r.is_financial_approved || false,
-                        lat:                   r.lat || null,
-                        lng:                   r.lng || null,
-                        landmark:              r.landmark || null,
-                        address_eng:           r.address_eng || null,
-                        status:                r.status,
-                        status_codes:          r.status_codes || [],
-                        reasons:               r.reasons || [],
-                        fast_track:            r.fastTrack || false,
-                        budget_2030:           r.budget_2030 || 0,
-                        budget_2035:           r.budget_2035 || 0,
-                        budget_2047:           r.budget_2047 || 0,
-                        total_budget:          r.total_budget || 0,
-                        baseline_population:   findBaselineEntry(r)?.population || 0,
-                        zone:                  getZone(r.district)
+                    const row = isUrban ? {
+                        upload_batch_id:     currentBatchId,
+                        sector:              currentSector,
+                        district:            r.district || null,
+                        lok_sabha:           r.lok_sabha || null,
+                        vidhan_sabha:        r.vidhan_sabha || null,
+                        ulb:                 r.ulb || null,
+                        ward:                r.ward || null,
+                        ward_id:             r.ward_id || null,
+                        item:                r.item || '',
+                        item_other:          r.item_other || null,
+                        priority:            r.priority || 0,
+                        qty_2030:            r.qty_2030 || 0,
+                        qty_2035:            r.qty_2035 || 0,
+                        qty_2047:            r.qty_2047 || 0,
+                        funded:              r.funded || 'NO',
+                        scheme:              r.scheme || null,
+                        lat:                 r.lat || null,
+                        lng:                 r.lng || null,
+                        status:              r.status,
+                        status_codes:        r.status_codes || [],
+                        reasons:             r.reasons || [],
+                        fast_track:          r.fastTrack || false,
+                        budget_2030:         0,
+                        budget_2035:         0,
+                        budget_2047:         0,
+                        total_budget:        0,
+                        baseline_population: findBaselineEntry(r)?.population || 0,
+                        zone:                getZone(r.district),
+                        base_natural_key:    buildNaturalKey(r)
+                    } : {
+                        upload_batch_id:     currentBatchId,
+                        sector:              currentSector,
+                        district:            r.district || null,
+                        lok_sabha:           r.lok_sabha || null,
+                        vidhan_sabha:        r.vidhan_sabha || null,
+                        block:               r.block || null,
+                        gram_panchayat:      r.gram_panchayat || r.gp || null,
+                        gp_id:               r.gp_id || null,
+                        item:                r.item || '',
+                        item_other:          r.item_other || null,
+                        priority:            r.priority || 0,
+                        qty_2030:            r.qty_2030 || 0,
+                        qty_2035:            r.qty_2035 || 0,
+                        qty_2047:            r.qty_2047 || 0,
+                        funded:              r.funded || 'NO',
+                        scheme:              r.scheme || null,
+                        lat:                 r.lat || null,
+                        lng:                 r.lng || null,
+                        status:              r.status,
+                        status_codes:        r.status_codes || [],
+                        reasons:             r.reasons || [],
+                        fast_track:          r.fastTrack || false,
+                        budget_2030:         0,
+                        budget_2035:         0,
+                        budget_2047:         0,
+                        total_budget:        0,
+                        baseline_population: findBaselineEntry(r)?.population || 0,
+                        zone:                getZone(r.district),
+                        base_natural_key:    buildNaturalKey(r)
                     };
-                }).filter(r => r.natural_key);
+                    return row;
+                });
 
                 if (validRows.length === 0) {
                     throw new Error('No valid rows to save.');
@@ -2560,7 +2716,7 @@
                     const chunk = chunks[ci];
 
                     const upsertRes = await fetch(
-                        `${SUPABASE_URL}/rest/v1/aspirations?on_conflict=base_natural_key`,
+                        `${SUPABASE_URL}/rest/v1/${targetTable}?on_conflict=base_natural_key`,
                         {
                             method: 'POST',
                             headers: {
@@ -2599,7 +2755,8 @@
                     },
                     body: JSON.stringify([{
                         batch_id:       currentBatchId,
-                        planning_years: yearsInThisUpload,
+                        area_type:      currentAreaType,
+                        sector:         currentSector,
                         total_records:  DATA.length,
                         accept_count:   counts.ACCEPT,
                         funded_count:   counts.FUNDED,
@@ -2897,26 +3054,33 @@
 
         // ==================== UTILITIES ====================
         function buildNaturalKey(r) {
-            const isUrban = String(r.area_type || '').toLowerCase() === 'urban';
-            const parts = [
-                String(r.planning_year || '').trim(),
-                isUrban ? 'urban' : 'rural',
+            const isUrban = currentAreaType === 'urban';
+            const parts = isUrban ? [
+                'urban',
                 String(r.district || '').trim().toLowerCase(),
-                String(r.block || '').trim().toLowerCase(),
-                String(r.gp || '').trim().toLowerCase(),
-                String(r.village || '').trim().toLowerCase(),
-                isUrban ? String(r.city || r.ulb || r.block || '').trim().toLowerCase() : '',
+                String(r.ulb || '').trim().toLowerCase(),
                 String(r.ward || '').trim().toLowerCase(),
-                String(r.item || '').trim().toLowerCase(),
+                String(r.ward_id || '').trim().toLowerCase(),
                 String(r.sector || '').trim().toLowerCase(),
-                String(r.dept || '').trim().toLowerCase(),
+                String(r.item || '').trim().toLowerCase(),
                 String(r.priority || 0),
                 String(r.qty_2030 || 0),
                 String(r.qty_2035 || 0),
                 String(r.qty_2047 || 0),
-                String(r.funded || 'NO').toLowerCase(),
-                String(r.lat || ''),
-                String(r.lng || '')
+                String(r.funded || 'NO').toLowerCase()
+            ] : [
+                'rural',
+                String(r.district || '').trim().toLowerCase(),
+                String(r.block || '').trim().toLowerCase(),
+                String(r.gram_panchayat || r.gp || '').trim().toLowerCase(),
+                String(r.gp_id || '').trim().toLowerCase(),
+                String(r.sector || '').trim().toLowerCase(),
+                String(r.item || '').trim().toLowerCase(),
+                String(r.priority || 0),
+                String(r.qty_2030 || 0),
+                String(r.qty_2035 || 0),
+                String(r.qty_2047 || 0),
+                String(r.funded || 'NO').toLowerCase()
             ];
             return parts.join('|');
         }
@@ -3133,6 +3297,7 @@
                     }
                 });
             }
+            populateSectorDropdown();
         });
     </script>
 </html>

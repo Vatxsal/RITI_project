@@ -1,0 +1,9 @@
+▲ Next.js 16.2.6 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://10.31.252.50:3000
+- Environments: .env.local
+✓ Ready in 763ms
+
+○ Compiling /login ...
+ GET /login 200 in 4.1s (next.js: 3.9s, application-code: 212ms)
+ GET /favicon.ico 200 in 963ms (next.js: 921ms, application-code: 42ms)

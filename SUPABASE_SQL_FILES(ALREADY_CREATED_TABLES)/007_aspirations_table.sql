@@ -1,35 +1,26 @@
--- ================================================================
--- MANTHAAN OS — Aspiration Rules Engine Results
--- Stores processed aspiration records from backend portal
--- ================================================================
+-- Drop and recreate without planning_year
 
--- Main aspirations table
-CREATE TABLE IF NOT EXISTS aspirations (
+DROP TABLE IF EXISTS aspirations_rural CASCADE;
+DROP TABLE IF EXISTS aspirations_urban CASCADE;
+DROP TABLE IF EXISTS aspiration_batches CASCADE;
+
+CREATE TABLE aspirations_rural (
   id                    BIGSERIAL PRIMARY KEY,
-  
-  -- Identity / traceability
-  aspiration_id         TEXT,
-  rajdhara_ref          TEXT,
-  planning_year         TEXT NOT NULL,  -- '2030', '2035', '2047'
-  upload_batch_id       TEXT NOT NULL,  -- UUID generated per upload session
   uploaded_at           TIMESTAMPTZ DEFAULT NOW(),
+  upload_batch_id       TEXT NOT NULL,
+  sector                TEXT,
 
-  -- Location (rural)
+  -- Location
   district              TEXT,
+  lok_sabha             TEXT,
+  vidhan_sabha          TEXT,
   block                 TEXT,
   gram_panchayat        TEXT,
-  village               TEXT,
-
-  -- Location (urban)
-  ulb                   TEXT,
-  ward                  TEXT,
-  city                  TEXT,
-  area_type             TEXT,  -- 'Rural' or 'Urban'
+  gp_id                 TEXT,
 
   -- Aspiration content
-  sector                TEXT,
-  dept                  TEXT,
   item                  TEXT NOT NULL,
+  item_other            TEXT,
   priority              INTEGER DEFAULT 0,
 
   -- Quantities
@@ -40,59 +31,107 @@ CREATE TABLE IF NOT EXISTS aspirations (
   -- Funding
   funded                TEXT DEFAULT 'NO',
   scheme                TEXT,
-  is_financial          BOOLEAN DEFAULT FALSE,
-  is_financial_approved BOOLEAN DEFAULT FALSE,
 
   -- GIS
   lat                   NUMERIC,
   lng                   NUMERIC,
-  landmark              TEXT,
-  address_eng           TEXT,
 
-  -- Rules engine output
+  -- Rules engine
   status                TEXT NOT NULL CHECK (status IN ('ACCEPT','FUNDED','REVIEW','REJECT')),
-  status_codes          TEXT[],   -- e.g. ['R2-NOGIS', 'R3-NODATA']
-  reasons               TEXT[],   -- full reason strings
+  status_codes          TEXT[],
+  reasons               TEXT[],
   fast_track            BOOLEAN DEFAULT FALSE,
 
-  -- Budget (computed)
+  -- Budget
   budget_2030           NUMERIC DEFAULT 0,
   budget_2035           NUMERIC DEFAULT 0,
   budget_2047           NUMERIC DEFAULT 0,
   total_budget          NUMERIC DEFAULT 0,
 
-  -- Baseline linkage
   baseline_population   INTEGER DEFAULT 0,
-  zone                  TEXT   -- 'Plains', 'Desert', 'Tribal'
+  zone                  TEXT,
+
+  base_natural_key      TEXT,
+  CONSTRAINT asp_rural_bnk_unique UNIQUE (base_natural_key)
 );
 
--- This is a plain TEXT column we will populate ourselves from JS
-ALTER TABLE aspirations ADD COLUMN IF NOT EXISTS natural_key TEXT;
+CREATE INDEX IF NOT EXISTS idx_asp_rural_district        ON aspirations_rural(district);
+CREATE INDEX IF NOT EXISTS idx_asp_rural_gp_id           ON aspirations_rural(gp_id);
+CREATE INDEX IF NOT EXISTS idx_asp_rural_status          ON aspirations_rural(status);
+CREATE INDEX IF NOT EXISTS idx_asp_rural_sector          ON aspirations_rural(sector);
+CREATE INDEX IF NOT EXISTS idx_asp_rural_district_status ON aspirations_rural(district, status);
+CREATE INDEX IF NOT EXISTS idx_asp_rural_batch           ON aspirations_rural(upload_batch_id);
 
--- The base_natural_key is now the true upsert key — must be unique
-ALTER TABLE aspirations ADD CONSTRAINT aspirations_base_natural_key_unique UNIQUE (base_natural_key);
 
-ALTER TABLE aspirations ADD COLUMN IF NOT EXISTS base_natural_key TEXT;
-CREATE INDEX IF NOT EXISTS idx_asp_base_natural_key ON aspirations(base_natural_key);
+CREATE TABLE aspirations_urban (
+  id                    BIGSERIAL PRIMARY KEY,
+  uploaded_at           TIMESTAMPTZ DEFAULT NOW(),
+  upload_batch_id       TEXT NOT NULL,
+  sector                TEXT,
 
--- Upload batches metadata table
-CREATE TABLE IF NOT EXISTS aspiration_batches (
-  batch_id          TEXT PRIMARY KEY,
-  uploaded_at       TIMESTAMPTZ DEFAULT NOW(),
-  planning_years    TEXT[],        -- which years were in this upload
-  total_records     INTEGER DEFAULT 0,
-  accept_count      INTEGER DEFAULT 0,
-  funded_count      INTEGER DEFAULT 0,
-  review_count      INTEGER DEFAULT 0,
-  reject_count      INTEGER DEFAULT 0,
-  total_budget      NUMERIC DEFAULT 0,
-  notes             TEXT
+  -- Location
+  district              TEXT,
+  lok_sabha             TEXT,
+  vidhan_sabha          TEXT,
+  ulb                   TEXT,
+  ward                  TEXT,
+  ward_id               TEXT,
+
+  -- Aspiration content
+  item                  TEXT NOT NULL,
+  item_other            TEXT,
+  priority              INTEGER DEFAULT 0,
+
+  -- Quantities
+  qty_2030              NUMERIC DEFAULT 0,
+  qty_2035              NUMERIC DEFAULT 0,
+  qty_2047              NUMERIC DEFAULT 0,
+
+  -- Funding
+  funded                TEXT DEFAULT 'NO',
+  scheme                TEXT,
+
+  -- GIS
+  lat                   NUMERIC,
+  lng                   NUMERIC,
+
+  -- Rules engine
+  status                TEXT NOT NULL CHECK (status IN ('ACCEPT','FUNDED','REVIEW','REJECT')),
+  status_codes          TEXT[],
+  reasons               TEXT[],
+  fast_track            BOOLEAN DEFAULT FALSE,
+
+  -- Budget
+  budget_2030           NUMERIC DEFAULT 0,
+  budget_2035           NUMERIC DEFAULT 0,
+  budget_2047           NUMERIC DEFAULT 0,
+  total_budget          NUMERIC DEFAULT 0,
+
+  baseline_population   INTEGER DEFAULT 0,
+  zone                  TEXT,
+
+  base_natural_key      TEXT,
+  CONSTRAINT asp_urban_bnk_unique UNIQUE (base_natural_key)
 );
 
--- Indexes for fast querying
-CREATE INDEX IF NOT EXISTS idx_asp_district    ON aspirations(district);
-CREATE INDEX IF NOT EXISTS idx_asp_status      ON aspirations(status);
-CREATE INDEX IF NOT EXISTS idx_asp_batch       ON aspirations(upload_batch_id);
-CREATE INDEX IF NOT EXISTS idx_asp_planning_yr ON aspirations(planning_year);
-CREATE INDEX IF NOT EXISTS idx_asp_district_status ON aspirations(district, status);
-CREATE INDEX IF NOT EXISTS idx_asp_sector      ON aspirations(sector);
+CREATE INDEX IF NOT EXISTS idx_asp_urban_district        ON aspirations_urban(district);
+CREATE INDEX IF NOT EXISTS idx_asp_urban_ward_id         ON aspirations_urban(ward_id);
+CREATE INDEX IF NOT EXISTS idx_asp_urban_status          ON aspirations_urban(status);
+CREATE INDEX IF NOT EXISTS idx_asp_urban_sector          ON aspirations_urban(sector);
+CREATE INDEX IF NOT EXISTS idx_asp_urban_district_status ON aspirations_urban(district, status);
+CREATE INDEX IF NOT EXISTS idx_asp_urban_batch           ON aspirations_urban(upload_batch_id);
+
+
+CREATE TABLE aspiration_batches (
+  batch_id        TEXT PRIMARY KEY,
+  uploaded_at     TIMESTAMPTZ DEFAULT NOW(),
+  area_type       TEXT,
+  sector          TEXT,
+  total_records   INTEGER DEFAULT 0,
+  accept_count    INTEGER DEFAULT 0,
+  funded_count    INTEGER DEFAULT 0,
+  review_count    INTEGER DEFAULT 0,
+  reject_count    INTEGER DEFAULT 0,
+  total_budget    NUMERIC DEFAULT 0,
+  notes           TEXT
+);

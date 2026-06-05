@@ -1083,23 +1083,23 @@
             if (baselineMap || isBaselineLoading) return;
             isBaselineLoading = true;
             try {
-                const dims = await fetchAllSupabase('dim_rural_gps', 'gp_id,district,block,gram_panchayat');
-                const facts = await fetchAllSupabase('fact_rural_admin', 'gp_id,pop_2026_est');
-                
-                const popMap = {};
-                for (let i = 0; i < facts.length; i++) {
-                    popMap[facts[i].gp_id] = facts[i].pop_2026_est;
-                }
-                
+                const [ruralRows, urbanRows] = await Promise.all([
+                    fetchAllSupabase('baseline_rural', 'district,block,gram_panchayat,pop_2026_est'),
+                    fetchAllSupabase('baseline_urban', 'district,ulb,ward,pop_2026_est')
+                ]);
+
                 baselineMap = {};
-                for (let i = 0; i < dims.length; i++) {
-                    const d = dims[i];
-                    const key = normalizeStr(`${d.district}||${d.block}||${d.gram_panchayat}`);
-                    baselineMap[key] = {
-                        population: popMap[d.gp_id] || 0
-                    };
+                for (let i = 0; i < ruralRows.length; i++) {
+                    const r = ruralRows[i];
+                    const key = normalizeStr(`${r.district}||${r.block}||${r.gram_panchayat}`);
+                    baselineMap[key] = { population: Number(r.pop_2026_est || 0) };
                 }
-                console.log("Loaded baseline data for " + Object.keys(baselineMap).length + " GPs");
+                for (let i = 0; i < urbanRows.length; i++) {
+                    const r = urbanRows[i];
+                    const key = normalizeStr(`${r.district}||${r.ulb}||${r.ward}`);
+                    baselineMap[key] = { population: Number(r.pop_2026_est || 0) };
+                }
+                console.log("Loaded baseline data for " + Object.keys(baselineMap).length + " rural/urban locations");
             } catch (err) {
                 console.error("Failed to load baseline map:", err);
             } finally {
@@ -1389,19 +1389,18 @@
                         record.reasons.push('⚡ Fast-tracked: Critical sector (Water/Health/Sanitation) — accepted regardless of baseline documentation. | महत्वपूर्ण क्षेत्र (जल/स्वास्थ्य/स्वच्छता) — फास्ट-ट्रैक स्वीकृत।');
                     }
 
-                    // R9 — GIS-only Failure rejection logic
-                    if (record.status_codes.includes('R2-NOGIS')) {
-                        if (!record.status_codes.includes('R7-DUPL') && !record.status_codes.includes('R3-NODATA')) {
-                            record.status = 'REJECT';
-                        }
+                    // R9 — GIS-only rows are acceptable when GIS is the only issue.
+                    const gisOnlyIssue = record.status_codes.length === 1 && record.status_codes[0] === 'R2-NOGIS';
+                    if (gisOnlyIssue && record.status !== 'REJECT') {
+                        record.status = 'ACCEPT';
                     }
 
                     // Final status assignment
                     if (record.status !== 'REJECT') {
-                        if (record.status_codes.length > 0) {
+                        if (!gisOnlyIssue && record.status_codes.length > 0) {
                             record.status = 'REVIEW';
                         }
-                        if (record.status === 'ACCEPT' && record.funded === 'YES' && record.scheme) {
+                        if (record.status === 'ACCEPT' && record.funded === 'YES' && record.scheme && !gisOnlyIssue) {
                             record.status = 'FUNDED';
                         }
 
