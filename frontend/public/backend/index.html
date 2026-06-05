@@ -2633,13 +2633,13 @@
                 const validRows = recordsToSave.map((r, idx) => {
                     const row = isUrban ? {
                         upload_batch_id:     currentBatchId,
-                        sector:              currentSector,
+                        sector:              currentSector || null,
                         district:            r.district || null,
                         lok_sabha:           r.lok_sabha || null,
                         vidhan_sabha:        r.vidhan_sabha || null,
                         ulb:                 r.ulb || null,
                         ward:                r.ward || null,
-                        ward_id:             r.ward_id || null,
+                        ward_id:             r.ward_id ? String(r.ward_id) : null,
                         item:                r.item || '',
                         item_other:          r.item_other || null,
                         priority:            r.priority || 0,
@@ -2663,13 +2663,13 @@
                         base_natural_key:    buildNaturalKey(r)
                     } : {
                         upload_batch_id:     currentBatchId,
-                        sector:              currentSector,
+                        sector:              currentSector || null,
                         district:            r.district || null,
                         lok_sabha:           r.lok_sabha || null,
                         vidhan_sabha:        r.vidhan_sabha || null,
                         block:               r.block || null,
                         gram_panchayat:      r.gram_panchayat || r.gp || null,
-                        gp_id:               r.gp_id || null,
+                        gp_id:               r.gp_id ? String(r.gp_id) : null,
                         item:                r.item || '',
                         item_other:          r.item_other || null,
                         priority:            r.priority || 0,
@@ -2756,7 +2756,6 @@
                     body: JSON.stringify([{
                         batch_id:       currentBatchId,
                         area_type:      currentAreaType,
-                        sector:         currentSector,
                         total_records:  DATA.length,
                         accept_count:   counts.ACCEPT,
                         funded_count:   counts.FUNDED,
