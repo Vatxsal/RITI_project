@@ -1328,9 +1328,9 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
           </td>
           <td style="text-align:center; font-family:sans-serif; font-weight:700; font-size:11px; max-width:80px; word-break:break-word;">
             ${escapeHtml(
-        aspiration.area_type === 'Urban'
-          ? (aspiration.ward || aspiration.city || '—')
-          : (aspiration.gram_panchayat || '—')
+        (aspiration.area_type === 'Urban' || aspiration.area_type === 'urban' || aspiration.ward)
+          ? (aspiration.ward || aspiration.ward_name || aspiration.city || aspiration.ulb || String(aspiration.ward_id || '') || '—')
+          : (aspiration.gram_panchayat || aspiration.gp_name || '—')
       )}
           </td>
           <td style="font-family:sans-serif;">${escapeHtml(aspiration.qty_2030 ?? '—')}</td>
@@ -1340,8 +1340,8 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
             <span class="status-badge ${aspiration.status === 'FUNDED' ? 'active' : aspiration.status === 'ACCEPT' ? 'ready' : 'proposal'}">${escapeHtml(aspiration.status || '—')}</span>
             <div style="color:#1a1a2e; font-size:11px; line-height:1.5; font-family:'Noto Sans Devanagari',sans-serif; margin-top:4px;">
               ${escapeHtml([
-        aspiration.area_type === 'Urban'
-          ? (aspiration.ward ? `${aspiration.ward} वार्ड में` : aspiration.city ? `${aspiration.city} में` : '')
+        (aspiration.area_type === 'Urban' || aspiration.area_type === 'urban' || aspiration.ward)
+          ? (aspiration.ward ? `${aspiration.ward} वार्ड में` : aspiration.ward_name ? `${aspiration.ward_name} वार्ड में` : aspiration.ulb ? `${aspiration.ulb} में` : aspiration.city ? `${aspiration.city} में` : '')
           : (aspiration.gram_panchayat ? `${aspiration.gram_panchayat} में` : aspiration.village ? `${aspiration.village} में` : ''),
         aspiration.scheme ? `योजना: ${aspiration.scheme}` : '',
         aspiration.fast_track ? 'Fast-track' : ''
