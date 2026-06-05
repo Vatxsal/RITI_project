@@ -764,7 +764,7 @@ async function fetchAspirationsBySector(sectorId: string, areaType: AreaType, di
   while (keepFetching) {
     let query = supabase
       .from('mv_aspirations_summary')
-      .select('item, sector, qty_2030:sum_qty_2030, qty_2035:sum_qty_2035, qty_2047:sum_qty_2047, status, priority, district, area_type, fast_track, total_budget, total_count')
+      .select('item, sector, dept, qty_2030:sum_qty_2030, qty_2035:sum_qty_2035, qty_2047:sum_qty_2047, status, priority, district, area_type, fast_track, total_budget, total_count')
       .range(from, from + PAGE_SIZE - 1);
 
     if (district) {
@@ -792,6 +792,36 @@ async function fetchAspirationsBySector(sectorId: string, areaType: AreaType, di
     } else {
       from += PAGE_SIZE;
     }
+  }
+
+  // Post-fetch split for sectors sharing the same Hindi name
+  if (sectorId === 'agri') {
+    const dairyTerms = ['dairy', 'dugdh', 'दुग्ध', 'pashu', 'पशु', 'milk', 'goat', 'poultry', 'saras', 'milch', 'veterinary', 'पशुपालन', 'पशुचिकित्स'];
+    return rows.filter((row: any) => {
+      const text = [row.item || '', row.dept || ''].join(' ').toLowerCase();
+      return !dairyTerms.some(t => text.includes(t.toLowerCase()));
+    });
+  }
+  if (sectorId === 'dairy') {
+    const dairyTerms = ['dairy', 'dugdh', 'दुग्ध', 'pashu', 'पशु', 'milk', 'goat', 'poultry', 'saras', 'milch', 'veterinary', 'पशुपालन', 'पशुचिकित्स'];
+    return rows.filter((row: any) => {
+      const text = [row.item || '', row.dept || ''].join(' ').toLowerCase();
+      return dairyTerms.some(t => text.includes(t.toLowerCase()));
+    });
+  }
+  if (sectorId === 'welfare') {
+    const welfareTerms = ['pension', 'awas', 'housing', 'ujjwala', 'pwd', 'divyang', 'bpl', 'old age', 'vridha', 'widow', 'pmay', 'पेंशन', 'आवास', 'उज्ज्वला', 'विधवा'];
+    return rows.filter((row: any) => {
+      const text = [row.item || '', row.dept || ''].join(' ').toLowerCase();
+      return welfareTerms.some(t => text.includes(t.toLowerCase()));
+    });
+  }
+  if (sectorId === 'women') {
+    const welfareTerms = ['pension', 'awas', 'housing', 'ujjwala', 'pwd', 'divyang', 'bpl', 'old age', 'vridha', 'widow', 'pmay', 'पेंशन', 'आवास', 'उज्ज्वला', 'विधवा'];
+    return rows.filter((row: any) => {
+      const text = [row.item || '', row.dept || ''].join(' ').toLowerCase();
+      return !welfareTerms.some(t => text.includes(t.toLowerCase()));
+    });
   }
 
   return rows;
@@ -935,7 +965,7 @@ export async function fetchSectorPageData(params: { sectorId: string; areaType: 
       if (!existing) {
         itemMap.set(key, {
           item: String(row.item || '').trim(),
-          dept: String(row.sector || '').trim(),
+          dept: String(row.dept || row.sector || '').trim(),
           qty2030: toNumber(row.qty_2030),
           qty2035: toNumber(row.qty_2035),
           qty2047: toNumber(row.qty_2047),
