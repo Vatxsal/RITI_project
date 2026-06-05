@@ -777,8 +777,11 @@ async function fetchAspirationsBySector(sectorId: string, areaType: AreaType, di
 
     const hindiSectorNames = SECTOR_ID_TO_HINDI[sectorId] || [];
     if (hindiSectorNames.length > 0) {
+      function escapePgRestIlike(value: string): string {
+        return value.replace(/[(),]/g, '\\$&');
+      }
       const clauses = hindiSectorNames.map(
-        (name) => `sector.ilike.%${name}%`
+        (name) => `sector.ilike.%${escapePgRestIlike(name)}%`
       );
       query = query.or(clauses.join(','));
     }
@@ -796,14 +799,24 @@ async function fetchAspirationsBySector(sectorId: string, areaType: AreaType, di
 
   // Post-fetch split for sectors sharing the same Hindi name
   if (sectorId === 'agri') {
-    const dairyTerms = ['dairy', 'dugdh', 'दुग्ध', 'pashu', 'पशु', 'milk', 'goat', 'poultry', 'saras', 'milch', 'veterinary', 'पशुपालन', 'पशुचिकित्स'];
+    const dairyTerms = [
+      'दुग्ध', 'पशु', 'पशुपालन', 'पशुचिकित्स', 'बकरी', 'मुर्गी', 'गाय', 'भैंस',
+      'दूध', 'सारस', 'गोशाला', 'नस्ल सुधार', 'कृत्रिम गर्भाधान', 'पशु आहार',
+      'dairy', 'dugdh', 'pashu', 'milk', 'goat', 'poultry', 'saras', 'milch',
+      'veterinary', 'livestock',
+    ];
     return rows.filter((row: any) => {
       const text = [row.item || '', row.dept || ''].join(' ').toLowerCase();
       return !dairyTerms.some(t => text.includes(t.toLowerCase()));
     });
   }
   if (sectorId === 'dairy') {
-    const dairyTerms = ['dairy', 'dugdh', 'दुग्ध', 'pashu', 'पशु', 'milk', 'goat', 'poultry', 'saras', 'milch', 'veterinary', 'पशुपालन', 'पशुचिकित्स'];
+    const dairyTerms = [
+      'दुग्ध', 'पशु', 'पशुपालन', 'पशुचिकित्स', 'बकरी', 'मुर्गी', 'गाय', 'भैंस',
+      'दूध', 'सारस', 'गोशाला', 'नस्ल सुधार', 'कृत्रिम गर्भाधान', 'पशु आहार',
+      'dairy', 'dugdh', 'pashu', 'milk', 'goat', 'poultry', 'saras', 'milch',
+      'veterinary', 'livestock',
+    ];
     return rows.filter((row: any) => {
       const text = [row.item || '', row.dept || ''].join(' ').toLowerCase();
       return dairyTerms.some(t => text.includes(t.toLowerCase()));
