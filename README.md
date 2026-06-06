@@ -1,403 +1,728 @@
-# Manthaan OS - Planning Intelligence for Viksit Rajasthan 2047
+# Manthaan OS — Planning Intelligence for Viksit Rajasthan 2047
 
-A planning intelligence platform for aspirational governance that combines Supabase-backed data services, GIS visualization, authentication, ETL tooling, and dashboard analytics.
+A planning intelligence platform for aspirational governance under the **Viksit Rajasthan @ 2047** initiative by **Aasvaa Innovation Labs**. Combines Supabase-backed data services, GIS visualization, authentication, ETL tooling, and dashboard analytics across **41 districts** of Rajasthan.
 
-## 📁 Project Structure
+---
+
+## Table of Contents
+
+1. [Project Overview](#project-overview)
+2. [Architecture](#architecture)
+3. [Features](#features)
+4. [Pages & Routes](#pages--routes)
+5. [API Routes](#api-routes)
+6. [Database Schema](#database-schema)
+7. [Component Architecture](#component-architecture)
+8. [State Management](#state-management)
+9. [AI Integration](#ai-integration)
+10. [Data Model — 41 Districts & 11 Sectors](#data-model--41-districts--11-sectors)
+11. [ETL Pipeline](#etl-pipeline)
+12. [Validation & Scoring Engines](#validation--scoring-engines)
+13. [Authentication & RBAC](#authentication--rbac)
+14. [Cache System](#cache-system)
+15. [Quick Start](#quick-start)
+16. [Environment Variables](#environment-variables)
+17. [Deployment](#deployment)
+18. [Project Structure](#project-structure)
+19. [Tech Stack](#tech-stack)
+20. [Current Status](#current-status)
+
+---
+
+## Project Overview
+
+**Manthaan OS** is a full-stack planning intelligence platform designed to support data-driven governance for **Viksit Rajasthan @ 2047**. It provides:
+
+- **Command Center Dashboard** — Real-time KPI monitoring across 11 development sectors
+- **Aspiration Analytics** — Track and manage aspirational projects across rural/urban areas
+- **GIS Mapping** — Spatial visualization of district-level development data
+- **AI Planning Assistant** — Gemini-powered chat with live data context
+- **Budget Engine** — Compute budget allocations with central/state funding splits
+- **Report Generation** — Drill-down reports from state → district → block → GP level
+- **Data Validation** — 8-rule engine + CNI scoring for data quality and prioritization
+- **ETL Pipeline** — Excel → CSV → Supabase data ingestion
+
+---
+
+## Architecture
 
 ```
-.
-├── frontend/                  # Next.js frontend application
-│   ├── app/                   # App directory
-│   ├── components/            # React components
-│   ├── lib/                   # Utilities, types, API clients
-│   ├── store/                 # Zustand state management
-│   ├── public/                # Static assets
-│   ├── package.json           # Dependencies
-│   ├── .env.local             # 🔐 LOCAL ONLY (not in git)
-│   ├── .env.example           # 📋 TEMPLATE for .env.local
-│   └── tsconfig.json          # TypeScript config
-│
-├── ETL/                       # Data pipeline scripts (Python)
-│   ├── export_to_csv.py       # Generate import-ready CSVs from Excel baselines
-│   ├── enrich_csv_with_ids.py # Add Supabase IDs to fact CSVs
-│   ├── rural_baseline_pipeline.py
-│   ├── urban_baseline_pipeline.py
-│   ├── simple_csv_import.py   # Direct CSV import helper
-│   ├── requirements.txt        # Python dependencies
-│   ├── .env                    # 🔐 LOCAL ONLY (not in git)
-│   └── .env.example            # 📋 TEMPLATE for .env
-│
-├── DATA/                      # Data files (local storage)
-│   ├── RAW/
-│   │   ├── RURAL_ASPIRATIONS/
-│   │   ├── RURAL_BASELINE/
-│   │   ├── URBAN_ASPIRATIONS/
-│   │   └── URBAN_BASELINE/
-│   └── CSV_EXPORT/
-│
-├── SUPABASE_SQL_FILES/        # Database migrations
-│   ├── 001_rural_baseline_foundation.sql
-│   ├── 002_indicator_master.sql
-│   ├── 003_urban_baseline_foundations.sql
-│   ├── 004_aspiration_storage.sql
-│   ├── 005_auth_sessions_rbac.sql
-│   └── 006_dashboard_kpi_cache.sql
-├── SUPABASE_SQL_FILES(ALREADY_CREATED_TABLES)/  # Post-deployment SQL patches
-│   └── baseline_materialized_views.sql
-│
-├── .kiro/                     # Steering docs (product roadmap, architecture, tech decisions)
-├── .gitignore                 # Excludes sensitive & auto-generated files
-├── .env                       # 🔐 NOT TRACKED - Root config (backend)
-├── .env.example               # 📋 TEMPLATE (safe for git)
-├── README.md                  # This file
-└── CSV_IMPORT_GUIDE.md        # Data import documentation
+┌─────────────────────────────────────────────────────┐
+│                   Next.js 16 App                    │
+│  ┌─────────┐  ┌──────────┐  ┌───────────────────┐  │
+│  │ Pages   │  │ API      │  │ Components        │  │
+│  │ (17)    │  │ Routes   │  │ (20+)             │  │
+│  └────┬────┘  └────┬─────┘  └────────┬──────────┘  │
+│       │            │                  │             │
+│  ┌────┴────────────┴──────────────────┴──────────┐  │
+│  │           Lib Layer (13 files)                │  │
+│  │  supabase.ts │ data.ts │ ruleEngine.ts        │  │
+│  │  cniEngine.ts │ aiContext.ts │ budgetEngine.ts│  │
+│  └─────────────────────┬─────────────────────────┘  │
+│                        │                            │
+│  ┌─────────────────────┴─────────────────────────┐  │
+│  │           Zustand Store (2 stores)            │  │
+│  └─────────────────────┬─────────────────────────┘  │
+└────────────────────────┼────────────────────────────┘
+                         │
+┌────────────────────────┼────────────────────────────┐
+│              Supabase (PostgreSQL)                   │
+│  ┌──────────┐ ┌──────────────┐ ┌────────────────┐  │
+│  │ Dimension│ │ Fact Tables  │ │ Materialized    │  │
+│  │ Tables   │ │ (20)         │ │ Views (3)       │  │
+│  └──────────┘ └──────────────┘ └────────────────┘  │
+│  ┌──────────┐ ┌──────────────┐ ┌────────────────┐  │
+│  │ Auth     │ │ Cache Tables │ │ RPC Functions   │  │
+│  │ Sessions │ │              │ │ (3)             │  │
+│  └──────────┘ └──────────────┘ └────────────────┘  │
+└────────────────────────────────────────────────────┘
+                         │
+┌────────────────────────┼────────────────────────────┐
+│              ETL Pipeline (Python)                   │
+│  export_to_csv.py → enrich_csv_with_ids.py →        │
+│  baseline_upload.py → validate_audit.py             │
+└────────────────────────────────────────────────────┘
 ```
 
-## 🚀 Quick Start
+### Data Flow
+
+```
+Excel Baseline Files
+       ↓
+ETL Pipeline (Python)
+  - export_to_csv.py (12 rural sheets + 9 urban sheets)
+  - enrich_csv_with_ids.py (add Supabase IDs)
+  - baseline_upload.py (upload to Supabase)
+  - validate_audit.py (validate uploaded data)
+       ↓
+Supabase PostgreSQL
+  - Dimension tables (dim_rural_gps, dim_urban_wards)
+  - Fact tables (20: admin, health, education, infra, water, etc.)
+  - Materialized Views (district KPIs, aspirations summary)
+  - Cache tables (dashboard KPI cache)
+       ↓
+Next.js API Routes (server-side)
+  - Dashboard KPI aggregation (/api/dashboard/kpis)
+  - GP baseline lookup (/api/gp-baseline)
+  - AI chat context building (/api/chat)
+  - Authentication (/api/auth/login, /api/auth/logout)
+       ↓
+React Components (client-side)
+  - DashboardLayout, Sidebar, Topbar
+  - KPICard, charts (Recharts, Chart.js)
+  - GIS Map (Leaflet)
+  - Data tables (TanStack Table)
+       ↓
+User Interface (17 routes)
+```
+
+---
+
+## Features
+
+### ✅ Dashboard & Analytics
+| Feature | Description |
+|---------|-------------|
+| **Command Center** (`/`) | 9 KPI cards, sector pie charts, aspiration status mix, top strategic aspirations table, sector-wise top aspirations grid, year filter pills (2030/2035/2047), urban/rural/all filter |
+| **District Scores** (`/districts`) | Sortable/searchable table of 41 districts with composite scores and 11 sector scores |
+| **Sector Dashboards** (`/sector/[sector]`) | 11 dynamic sector pages with baseline KPIs, aspiration data, district rankings, AI-generated insights |
+| **GP Performance Ranking** (`/gp-ranking`) | Zone/tribal/desert-aware ranking with CNI banding (Critical/Moderate/On Track) |
+| **GP Baseline Viewer** (`/gp-baseline`) | Lookup by GP ID or Ward ID, fetches from 7-15 fact tables |
+
+### ✅ GIS & Mapping
+| Feature | Description |
+|---------|-------------|
+| **Primary GIS Map** (`/gis-map`) | Leaflet with 41 district circle markers (score-based coloring), predicate builder, layer toggles (schools, health, AYUSH, police, anganwadi) |
+| **Alternate GIS View** (`/gis-map-new`) | Simplified map with area-type filter and demo markers |
+
+### ✅ AI Planning Assistant
+| Feature | Description |
+|---------|-------------|
+| **AI Chat** (`/ai-chat`) | Gemini-powered chat with Markdown rendering, copy button, suggestion buttons, loading animation |
+| **Context Builder** (`aiContext.ts`, 862 lines) | Intelligent query parser detecting districts (41 in English & Hindi), sectors (12 with keyword maps), intent classification (FULL_REPORT/INTERVENTIONS/COMPARISON/GENERAL), fetches live Supabase baseline data |
+
+### ✅ Data Management
+| Feature | Description |
+|---------|-------------|
+| **CSV Upload Portal** (`/upload`) | Drag-and-drop CSV dropzone with data preview |
+| **Backend Portal** (`/backend`) | Super-admin static HTML portal for data management |
+| **Cache System** | `cache_dashboard_kpis` table with keyed caching, refresh endpoint, manual refresh button |
+| **Cache Refresh** (`/api/dashboard/refresh`) | Clears cache, refreshes materialized views and aspiration summaries |
+
+### ✅ Validation & Processing
+| Feature | Description |
+|---------|-------------|
+| **8-Rule Validation Engine** | R1 (Integrity), R2 (GIS bounds), R3 (Population Norm), R4 (Scheme), R5 (Priority), R6 (Budget Ceiling 50Cr), R7 (Duplicate), R8 (Baseline Gap/Fast-track) |
+| **CNI Scoring Engine** | Weighted sector scoring (health 22%, education 22%, water 13%, etc.) with desert/tribal adjustments |
+| **Budget Engine** | Unit costs for 15 item types, central/state split ratios, aggregate budgeting |
+| **Web Worker** | Offloads rule computation to background thread via `public/workers/ruleWorker.js` |
+
+### ✅ Reports & Export
+| Feature | Description |
+|---------|-------------|
+| **Report Library** (`/reports`, 3118 lines) | Comprehensive reports with rural/urban tabs, district/block/GP drill-down, generated report history, Supabase-backed report generation |
+| **Budget Report Download** | Offline HTML report from budget engine |
+
+---
+
+## Pages & Routes
+
+| Route | File (lines) | Purpose |
+|-------|-------------|---------|
+| `/` | `app/page.tsx` (714) | **Command Center** — Main dashboard with KPI cards, sector charts, aspiration analytics, year/area filters |
+| `/login` | `app/login/page.tsx` (246) | **Admin Login** — Two-panel layout, username/password/role form, displays dev credentials |
+| `/overview` | Same as `/` | Alias to Command Center |
+| `/aspirations` | `app/aspirations/page.tsx` (77) | **Aspiration Analytics** — Filterable table with district/block/status/priority/search, stats summary |
+| `/districts` | `app/districts/page.tsx` (129) | **District Scores** — Searchable/sortable table of 41 districts with composite scores |
+| `/gp-ranking` | `app/gp-ranking/page.tsx` (184) | **GP Performance Ranking** — Zone-aware ranking with CNI banding |
+| `/gp-baseline` | `app/gp-baseline/page.tsx` (115) | **GP Baseline Viewer** — Lookup by GP/Ward ID across 7-15 fact tables |
+| `/sector/[sector]` | `app/sector/[sector]/page.tsx` (783) | **Sector Detail Pages** — 11 dynamic sector dashboards |
+| `/budget-engine` | `app/budget-engine/page.tsx` (160) | **Budget Engine** — Aggregated budgets by sector/phase/central-state split, HTML report download |
+| `/gis-map` | `app/gis-map/page.tsx` (400) | **GIS Map** — Leaflet with predicate builder, layer toggles, district markers |
+| `/gis-map-new` | `app/gis-map-new/page.tsx` (103) | **Alternate GIS View** — Simplified map with area-type filter |
+| `/ai-chat` | `app/ai-chat/page.tsx` (177) | **AI Planning Assistant** — Gemini-powered chat with Markdown rendering |
+| `/reports` | `app/reports/page.tsx` (3118) | **Report Library** — Full-featured report engine with drill-down, generated reports |
+| `/upload` | `app/upload/page.tsx` (16) | **CSV Upload Portal** — Drag-and-drop with data preview |
+| `/backend` | `app/backend/page.tsx` (55) | **Backend Portal Gate** — Super-admin only, links to static HTML portal |
+| `/dashboard/backend` | `app/dashboard/backend/page.tsx` (5) | Redirect to `/backend` |
+| `/[view]` | `app/[view]/page.tsx` (22) | **Catch-all** — Maps view slugs to DashboardFrame |
+
+---
+
+## API Routes
+
+| Method | Route | File (lines) | Purpose |
+|--------|-------|-------------|---------|
+| POST | `/api/auth/login` | `api/auth/login/route.ts` (70) | Validates credentials, creates SHA-256 session token, sets HttpOnly cookie |
+| POST | `/api/auth/logout` | `api/auth/logout/route.ts` (36) | Revokes session in DB, clears cookie |
+| GET | `/api/dashboard/kpis` | `api/dashboard/kpis/route.ts` (416) | Main KPI aggregation — checks cache, queries materialized views, computes 11 sector scores per district |
+| POST | `/api/dashboard/refresh` | `api/dashboard/refresh/route.ts` (42) | Clears KPI cache, refreshes materialized views and aspiration summaries |
+| GET | `/api/gp-baseline` | `api/gp-baseline/route.ts` (35) | Fetches dim table + 7 fact tables for given GP/Ward ID |
+| GET | `/api/gp-search` | `api/gp-search/route.ts` (24) | Autocomplete search against dim_rural_gps / dim_urban_wards |
+| GET | `/api/sidebar-stats` | `api/sidebar-stats/route.ts` (68) | Rural GP count, urban ward count, data quality |
+| GET | `/api/stats` | `api/stats/route.ts` (34) | District count (41), block count (457), GP count (14,404) |
+| GET | `/api/compliance-norms` | `api/compliance-norms/route.ts` (12) | Fetches compliance norms from Supabase |
+| POST | `/api/chat` | `api/chat/route.ts` (118) | AI Chat — builds context via aiContext.ts, calls Google Gemini API with model fallback chain |
+
+---
+
+## Database Schema
+
+### Dimension Tables
+| Table | Purpose |
+|-------|---------|
+| `dim_rural_gps` | Rural Gram Panchayats (gp_id, district, block, gram_panchayat, is_desert, is_tribal) |
+| `dim_urban_wards` | Urban wards (ward_id, district, ulb, ward) |
+
+### Fact Tables (20 total)
+**Rural (11):** `fact_rural_admin`, `fact_rural_livelihood`, `fact_rural_health`, `fact_rural_education`, `fact_rural_social`, `fact_rural_economy`, `fact_rural_infra`, `fact_rural_governance`, `fact_rural_water`, `fact_rural_environment`, `fact_rural_tourism`
+
+**Urban (9):** `fact_urban_admin`, `fact_urban_health`, `fact_urban_education`, `fact_urban_social`, `fact_urban_economy`, `fact_urban_infra`, `fact_urban_governance`, `fact_urban_water`, `fact_urban_environment`, `fact_urban_tourism`
+
+### Baseline Tables
+| Table | Purpose |
+|-------|---------|
+| `baseline_rural` | Raw rural baseline data (denormalized, many rows per GP) |
+| `baseline_urban` | Raw urban baseline data |
+
+### Aspiration Tables
+| Table | Purpose |
+|-------|---------|
+| `aspirations_rural` | Rural aspiration data |
+| `aspirations_urban` | Urban aspiration data |
+
+### System Tables
+| Table | Purpose |
+|-------|---------|
+| `auth_sessions` | Session records (username, user_type, token_hash, ip, user_agent, expires_at, revoked_at) |
+| `cache_dashboard_kpis` | Precomputed KPI cache (cache_key, district, area_type, kpi_data JSONB, computed_at) |
+| `compliance_norms` | Compliance norm reference data |
+| `generated_reports` | Generated report storage |
+
+### Materialized Views
+| View | Lines | Purpose |
+|------|-------|---------|
+| `mv_baseline_rural_district_kpis` | 522 (file) | Pre-aggregated district-level KPIs from 200+ columns of baseline_rural |
+| `mv_baseline_urban_district_kpis` | Same file | Pre-aggregated district-level KPIs from baseline_urban |
+| `mv_aspirations_summary` | Same file | Aggregated aspiration summaries by district/sector/item/status |
+
+### SQL Migrations
+| File | Lines | Purpose |
+|------|-------|---------|
+| `baseline_materialized_views.sql` | 522 | Creates 3 materialized views, 15+ indexes, 3 RPC functions |
+| `005_auth_sessions_rbac.sql` | 55 | Auth sessions table with RLS policies |
+| `006_dashboard_kpi_cache.sql` | 17 | Dashboard KPI cache table |
+| `007_aspirations_table.sql` | — | Aspirations table schema |
+| `008_generated_reports.sql` | — | Generated reports table |
+
+### RPC Functions
+- `refresh_materialized_views()` — Refreshes all 3 materialized views
+- `refresh_aspirations_summary()` — Quick refresh of aspirations MV only
+
+---
+
+## Component Architecture
+
+### Dashboard Layout (`components/dashboard/`)
+| Component | Lines | Purpose |
+|-----------|-------|---------|
+| `DashboardLayout.tsx` | 84 | Main wrapper — auth check, sidebar, topbar, right panel, filter provider, mobile responsive |
+| `Sidebar.tsx` | 211 | Navigation — brand logo, 11 sector links, GIS Map, Report Library, AI Chat, admin-only links, mobile overlay |
+| `Topbar.tsx` | 254 | Header — district selector (41), area-type filter, ask-AI button, refresh button, session info, user badge, logout |
+| `RightPanel.tsx` | 118 | Slide-in district detail — 11-sector scores, key metrics, snapshot |
+| `KPICard.tsx` | 41 | Reusable KPI card with label, value, status, color-keyed progress bar |
+| `Map.tsx` | 257 | Leaflet GIS map — 41 district circle markers with score-based coloring |
+| `DashboardFrame.tsx` | 14 | Placeholder frame component |
+
+### Charts (`components/dashboard/charts/`)
+| Component | Lines | Purpose |
+|-----------|-------|---------|
+| `RadarChart.tsx` | 45 | Chart.js Radar chart for sector scores |
+| `SectorBarChart.tsx` | 35 | Chart.js horizontal bar chart |
+| `SectorDistributionChart.tsx` | — | Sector distribution visualization |
+
+### Shared Components
+| Component | Lines | Purpose |
+|-----------|-------|---------|
+| `AuthProvider.tsx` | 129 | Auth context with `useAuth()` hook, login/logout, localStorage session, 15-second expiry check |
+| `FilterContext.tsx` | 33 | Shared filter state — `selectedDistrict`, `urbanFilter`, `useFilter()` hook |
+| `Chips.tsx` | — | Tag/chip UI element |
+| `StatCard.tsx` | — | Reusable stat card |
+| `AspirationTable.tsx` | — | Aspiration data table |
+| `CSVDropzone.tsx` | — | Drag-and-drop CSV upload zone |
+| `DataPreview.tsx` | — | Uploaded CSV data preview |
+
+---
+
+## State Management
+
+### Zustand Stores
+| Store | File (lines) | State | Actions |
+|-------|-------------|-------|---------|
+| `aspirationStore.ts` | 52 | `aspirationData`, `ruleResults`, `baselineCache`, `complianceNorms` | `loadBaselineCache()`, `loadComplianceNorms()` |
+| `lib/store.ts` | 16 | Legacy minimal store | — |
+
+### React Contexts
+| Context | File (lines) | State |
+|---------|-------------|-------|
+| `AuthProvider` | 129 | `user`, `userType`, `token`, `isAuthenticated`, `login()`, `logout()` |
+| `FilterContext` | 33 | `selectedDistrict`, `urbanFilter` |
+
+---
+
+## AI Integration
+
+### Architecture
+```
+User Query → /api/chat → aiContext.ts → Gemini API → Markdown Response
+                              ↓
+                    Supabase (live data)
+                    - District baselines
+                    - Sector KPIs
+                    - Aspiration data
+```
+
+### aiContext.ts (862 lines)
+- **District Detection**: All 41 districts in English & Hindi
+- **Sector Detection**: 12 sectors with keyword maps
+- **Intent Classification**: FULL_REPORT, INTERVENTIONS, COMPARISON, GENERAL
+- **Data Aggregation**: Fetches live baseline data per district/sector
+- **Prompt Builder**: Constructs comprehensive Gemini prompts with 11-sector metrics
+
+### Gemini Model Fallback Chain
+1. `gemini-3-flash-preview`
+2. `gemini-3-pro-preview`
+3. `gemini-3-flash-thinking`
+4. `gemini-3-pro-thinking`
+
+---
+
+## Data Model — 41 Districts & 11 Sectors
+
+### 11 Development Sectors
+| Key | Label | Weight | Example Metrics |
+|-----|-------|--------|-----------------|
+| water | Water & Sanitation | 13% | FHTC, JJM, groundwater depth |
+| health | Health & Nutrition | 22% | SAM children, Ayushman, beds, AWC, ASHA |
+| agri | Agriculture | — | Irrigation %, PM-Kisan, KCC |
+| dairy | Dairy & Livestock | — | Milk production, milch animals |
+| edu | Education | 22% | Schools, enrollment, dropout |
+| employ | Employment & Skills | — | SHG, Lakhpati Didi, DDU-GKY |
+| women | Social Empowerment | — | Gender parity, Shakti |
+| welfare | Welfare & Housing | — | PM Awas, pensions |
+| infra | Infrastructure | — | Roads, electricity, sewerage |
+| tourism | Tourism & Heritage | — | Heritage sites, fairs |
+| env | Environment & Forest | — | Afforestation, CAMPA |
+
+### 41 Districts Reference Data
+Stored in `lib/data.ts` (202 lines, 41 entries) with 30+ metrics per district:
+- Identifiers: name, GP count (14,404 total), block count (457), population
+- Infrastructure: FHTC, irrigation, groundwater
+- Social: SHG, Lakhpati Didi, pensions
+- Health: SAM children, Ayushman coverage, hospital beds
+- Scores: 11 sector scores + composite development score (0-100)
+
+---
+
+## ETL Pipeline
+
+### Python Scripts (`ETL/`)
+
+| Script | Lines | Purpose |
+|--------|-------|---------|
+| `export_to_csv.py` | 539 | Reads Rural_GP_Final_Baseline.xlsx (12 sheets) + Urban_Ward_Final_Baseline.xlsx (9 sheets), exports dimension + fact CSVs |
+| `enrich_csv_with_ids.py` | — | Adds Supabase foreign key IDs to fact CSVs |
+| `baseline_upload.py` | — | Uploads baseline data to Supabase tables |
+| `simple_csv_import.py` | — | Direct CSV import helper utility |
+| `validate_audit.py` | — | Validates uploaded data integrity |
+| `test_timing_diagnostic.py` | — | Timing/performance diagnostics |
+
+### Dependencies (`requirements.txt`)
+```
+pandas, SQLAlchemy, psycopg2-binary, openpyxl, python-dotenv, supabase-py, python-calamine
+```
+
+### Export Pipeline
+```
+Excel Files
+  ├── Rural_GP_Final_Baseline.xlsx (12 sheets)
+  │   ├── Admin → fact_rural_admin
+  │   ├── Health → fact_rural_health
+  │   ├── Education → fact_rural_education
+  │   ├── Infrastructure → fact_rural_infra
+  │   ├── Water → fact_rural_water
+  │   ├── Environment → fact_rural_environment
+  │   ├── Livelihood → fact_rural_livelihood
+  │   ├── Economy → fact_rural_economy
+  │   ├── Social → fact_rural_social
+  │   ├── Tourism → fact_rural_tourism
+  │   └── Governance → fact_rural_governance
+  │
+  └── Urban_Ward_Final_Baseline.xlsx (9 sheets)
+      └── (same structure: admin, health, education, social,
+           economy, infra, governance, water, environment)
+```
+
+---
+
+## Validation & Scoring Engines
+
+### 8-Rule Validation Engine (`lib/ruleEngine.ts`, 105 lines)
+
+| Rule | Code | Description |
+|------|------|-------------|
+| R1 | Integrity | Missing fields, required data validation |
+| R2 | GIS Bounds | Latitude/longitude within Rajasthan bounds |
+| R3 | Population Norm | Compliance with population-based norms |
+| R4 | Scheme | Scheme name requirement validation |
+| R5 | Priority Alignment | Alignment with development priorities |
+| R6 | Budget Ceiling | Per-item budget cap of ₹50 Cr |
+| R7 | Duplicate | Duplicate aspiration detection |
+| R8 | Baseline Gap/Fast-track | Gap analysis enabling fast-track processing |
+
+### CNI Scoring Engine (`lib/cniEngine.ts`, 60 lines)
+
+- **Sector Weights**: Health 22%, Education 22%, Water 13%, Infrastructure 11%, Agriculture 8%, etc.
+- **Adjustments**: Desert zone, tribal zone, urban zone modifiers
+- **Banding**: `bandFromCNI()` → Critical, Moderate, On Track
+
+### Budget Engine (`lib/budgetEngine.ts`, 52 lines)
+
+- Unit costs for 15 item types (agricultural, infrastructure, social)
+- Central/state funding split ratios
+- `computeRowBudget()`, `aggregateBudget()`
+
+---
+
+## Authentication & RBAC
+
+### Login Credentials
+- **Username:** `sakshamaasvaa`
+- **Password:** `Aasvaa@2026`
+- **Roles:** `admin` (standard), `super_admin` (backend access)
+
+### Session Flow
+```
+Login → Credentials validated (hardcoded)
+      → SHA-256 session token generated
+      → Session stored in auth_sessions (Supabase)
+      → riti_session HttpOnly cookie set (30-min expiry)
+      → Every 15s: AuthProvider checks session validity
+      → Logout: Session revoked in DB, cookie cleared
+```
+
+### Route Protection
+- `DashboardLayout.tsx` checks authentication state
+- Backend routes restricted to `super_admin` role
+- Login page redirects authenticated users to overview
+
+---
+
+## Cache System
+
+### Architecture
+```
+Request → /api/dashboard/kpis
+        → Check cache_dashboard_kpis (cache hit → return)
+        → Query materialized views (cache miss)
+        → Compute KPIs
+        → Store in cache_dashboard_kpis
+        → Return response
+```
+
+### Cache Components
+| Component | Description |
+|-----------|-------------|
+| `cache_dashboard_kpis` table | Keyed by (cache_key, district, area_type), stores JSONB payloads |
+| `/api/dashboard/refresh` | Clears cache, calls refresh RPCs |
+| Manual refresh button | In Topbar for on-demand refresh |
+| Cache key strategy | District + area_type + year combination |
+
+---
+
+## Quick Start
 
 ### Prerequisites
-- **Node.js** 18+ (for frontend)
-- **Python** 3.8+ (for ETL pipeline)
+- **Node.js** 18+
+- **Python** 3.8+
 - **Supabase Account** (database backend)
+- **Google AI API Key** (for Gemini features)
 
-### 1️⃣ Clone & Install
-
+### 1. Clone & Install
 ```bash
 git clone <repo-url>
 cd RITI_data_test
-```
-
-### 2️⃣ Setup Frontend
-
-```bash
 cd frontend
 npm install
 ```
 
-Create `.env.local` in `frontend/` directory (copy from `.env.example`):
+### 2. Configure Environment
+Create `frontend/.env.local`:
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
-NEXT_PUBLIC_GEMINI_API_KEY=your-gemini-api-key-here
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+NEXT_PUBLIC_GEMINI_API_KEY=your-gemini-key
 NEXT_PUBLIC_GEMINI_MODEL=gemini-3-flash-preview
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 ```
 
-**Get these credentials from:**
-1. **Supabase:** [Dashboard](https://supabase.com) → Select project → Settings → API
-2. **Gemini API:** [Google AI Studio](https://aistudio.google.com/app/apikey) → Create API key
+### 3. Setup Database
+Run SQL migrations in order from `SUPABASE_SQL_FILES(ALREADY_CREATED_TABLES)/`:
+1. `new_updated_baseline.sql`
+2. `005_auth_sessions_rbac.sql`
+3. `006_dashboard_kpi_cache.sql`
+4. `007_aspirations_table.sql`
+5. `008_generated_reports.sql`
+6. `baseline_materialized_views.sql`
 
-### 3️⃣ Setup Python Environment
-
+### 4. Load Data
 ```bash
 cd ETL
 python -m venv venv
-
-# Windows
-venv\Scripts\activate
-
-# macOS/Linux
-source venv/bin/activate
-
+venv\Scripts\activate  # Windows
 pip install -r requirements.txt
+python export_to_csv.py
+python enrich_csv_with_ids.py
+python baseline_upload.py
 ```
 
-Create `.env` in `ETL/` directory (copy from `.env.example`):
-```env
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here
-DATABASE_URL=postgresql://user:password@db.supabase.co:5432/postgres
-GEMINI_API_KEY=your-gemini-api-key-here
-```
-
-**Get service key from:**
-1. [Supabase Dashboard](https://supabase.com) → Project → Settings → API
-2. Copy the **Service Role Key** (🔒 Secret - do NOT expose)
-
-### 4️⃣ Setup Database
-
-1. **Create Supabase tables** - Run SQL files in `SUPABASE_SQL_FILES/` in order:
-   ```bash
-   # Use Supabase SQL Editor
-   1. 001_rural_baseline_foundation.sql
-   2. 002_indicator_master.sql
-   3. 003_urban_baseline_foundations.sql
-   4. 004_aspiration_storage.sql
-   5. 005_auth_sessions_rbac.sql
-   6. 006_dashboard_kpi_cache.sql
-   ```
-
-2. **Load baseline data** - Run ETL pipelines:
-   ```bash
-   cd ETL
-   python export_to_csv.py
-   python enrich_csv_with_ids.py
-   python rural_baseline_pipeline.py
-   python urban_baseline_pipeline.py
-   ```
-
-### 5️⃣ Run Application
-
-**Frontend (Next.js Dev Server):**
+### 5. Run
 ```bash
 cd frontend
 npm run dev
 # Open http://localhost:3000
 ```
 
-**Access Pages:**
-- `/overview` - Dashboard with statistics
-- `/aspirations` - Aspiration intelligence & filtering
-- `/gp-ranking` - GP performance ranking
-- `/budget-engine` - Budget allocation engine
-- `/gis-map` - Spatial data visualization
-- `/gis-map-new` - Alternate GIS/data exploration view
-- `/gp-baseline` - Baseline data viewer
-- `/districts` - District summary and scores
-- `/ai-chat` - Gemini-powered planning assistant
-- `/login` - Admin sign-in
-- `/reports` - Reports view
-- `/sector/[sector]` - Sector detail pages with baseline + aspiration analytics
-- `/upload` - CSV data upload
-- `/backend` - Backend upload portal
-- `/dashboard/backend` - Backend dashboard portal
+---
 
-## 🔐 Environment Variables & Security
-
-### Sensitive Files (NOT in Git)
-
-These files are **gitignored** for security:
-
-| File | Purpose | Contains |
-|------|---------|----------|
-| `frontend/.env.local` | Frontend (client-side) config | Supabase URL, Anon Key, Gemini API Key |
-| `.env` | Backend (Python ETL) config | Service keys, database URLs |
-| `frontend/node_modules/` | Dependencies (auto-installed) | Generated by `npm install` |
-| `frontend/.next/` | Build cache | Auto-generated |
-
-**⚠️ NEVER commit .env files with sensitive keys!**
-
-### Create `.env.example` (Safe for Git)
-
-Create `frontend/.env.example` to document required variables:
-
-```env
-# Supabase Configuration
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key_here
-
-# Gemini AI Configuration
-NEXT_PUBLIC_GEMINI_API_KEY=your_gemini_api_key_here
-NEXT_PUBLIC_GEMINI_MODEL=gemini-3-flash-preview
-
-# Backend (for API routes only)
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_here
-```
-
-Create `ETL/.env.example`:
-
-```env
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_here
-DATABASE_URL=postgresql://user:password@host:5432/postgres
-GEMINI_API_KEY=your_gemini_api_key_here
-```
-
-### Environment Variables Reference
+## Environment Variables
 
 | Variable | Visibility | Purpose | Required |
 |----------|-----------|---------|----------|
-| `NEXT_PUBLIC_SUPABASE_URL` | Public | Supabase project endpoint | ✅ Frontend |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public | Public Supabase authentication | ✅ Frontend |
-| `NEXT_PUBLIC_GEMINI_API_KEY` | Public | Google Gemini API for AI features | ✅ Frontend |
-| `NEXT_PUBLIC_GEMINI_MODEL` | Public | Gemini model version | ✅ Frontend |
-| `SUPABASE_SERVICE_ROLE_KEY` | 🔒 Secret | Admin Supabase access (server-only) | ✅ Backend/API |
-| `SUPABASE_DB_URL` | 🔒 Secret | Direct database connection | ❌ Optional |
+| `NEXT_PUBLIC_SUPABASE_URL` | Public | Supabase project URL | ✅ |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public | Supabase anon key | ✅ |
+| `NEXT_PUBLIC_GEMINI_API_KEY` | Public | Gemini API key | ✅ |
+| `NEXT_PUBLIC_GEMINI_MODEL` | Public | Gemini model version | ✅ |
+| `SUPABASE_SERVICE_ROLE_KEY` | 🔒 Secret | Admin Supabase access (server-only) | ✅ |
+| `DATABASE_URL` | 🔒 Secret | Direct PostgreSQL connection | Optional |
 
-## 🛠️ Development
+---
 
-### Frontend Stack
-- **Framework:** Next.js (App Router)
-- **Styling:** Tailwind CSS
-- **State Management:** Zustand
-- **Charts:** Recharts
-- **Database Client:** Supabase JS SDK
-- **Maps:** Leaflet
+## Deployment
 
-### Backend Stack
-- **Database:** Supabase (PostgreSQL)
-- **ETL:** Python with pandas
-- **Data Processing:** Rule engine, CNI scoring
+### Vercel (Production)
+- **Root Directory:** `frontend/`
+- **Build Command:** `npm run build`
+- **Auto-deploys** on push to `main`
+- Set all environment variables in Vercel dashboard
 
-### Key Features
-- **Authentication** - Admin login/logout with session tracking backed by Supabase auth session tables.
-- **Dashboard command center** - Overview page with KPI cards, sector summaries, district scores, and cached baseline coverage data.
-- **Aspirations analytics** - Aspirations-first views with sector mix, top strategic aspirations, coverage bars, timelines, density, and district-aware filtering.
-- **GIS maps** - Interactive GIS pages with layered filters and alternate map exploration views.
-- **AI chat** - Gemini-powered planning assistant for data-aware responses.
-- **Upload pipeline** - CSV upload portal, backend upload portal, Supabase-backed storage, and batch import/export helpers.
-- **ETL tooling** - Excel to CSV export, ID enrichment, baseline validation, and import helpers for rural and urban data.
-- **Cache and API routes** - Server-side KPI routes, warm/cache helpers, and Supabase RPC-backed aggregation for faster dashboard loads.
-
-### Implemented Features (Current)
-- **Frontend routes**: `/overview`, `/aspirations`, `/districts`, `/gp-ranking`, `/budget-engine`, `/gis-map`, `/gis-map-new`, `/gp-baseline`, `/reports`, `/login`, `/ai-chat`, `/upload`, `/backend`, and `/dashboard/backend` are implemented.
-- **Supabase API layer**: App routes exist for chat, compliance norms, dashboard KPIs, GP search, GP baseline, sidebar stats, stats, auth login/logout, dashboard refresh, and other dashboard queries.
-- **Auth and RBAC**: Login/logout routes store session records and rely on the service-role key server-side only.
-- **Reports engine**: Full-featured reports page with dynamic data fetching, filtering, and export capabilities.
-- **Dashboard cache system**: Server-side KPI caching with a dedicated refresh endpoint (`/api/dashboard/refresh`) and refresh button in the Topbar for real-time dashboard updates.
-- **Materialized views**: Baseline data materialized views in Supabase for faster dashboard aggregations.
-- **AI Chat improvements**: Enhanced AI context builder (`aiContext.ts`) for more accurate Gemini-powered responses.
-- **GIS Map updates**: Refined map component with better data rendering and district-aware visualizations.
-- **Data processing**: The ETL folder includes Excel export, CSV enrichment with IDs, direct CSV import, timing diagnostics, and validation helpers.
-- **Environment cleanup**: The repo now uses `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` instead of the older `SUPABASE_KEY` naming.
-- **Deployment readiness**: `npm run build` passes in the frontend, so the app is currently buildable for Vercel deployment.
-
-### Deployment & Checklist Notes
-- `.env` and `.env.local` files must remain uncommitted and are correctly ignored.
-- Important: `frontend/.env.example` should be tracked in git so developers can see required variables — the repo now allows committing `frontend/.env.example` (see `.gitignore` change).
-- Confirm the following files/directories are ignored for deployment builds: `frontend/node_modules/`, `frontend/.next/`, `frontend/out/`, `frontend/dist/`.
-- Frontend build was validated locally: run `cd frontend && npm run build` and ensure the build succeeds before deploying.
-
-If you want, I can commit these README and `.gitignore` changes and push them to `main`.
-## 🗺️ Project Roadmap (.kiro/)
-
-The project includes steering documentation under `.kiro/steering/`:
-- **`product.md`** — Product vision and roadmap
-- **`structure.md`** — Codebase architecture overview
-- **`tech.md`** — Technology decisions and stack rationale
-
-## 📊 Data Flow
-
-```
-CSV Upload
-    ↓
-Data Validation (8 Rules)
-    ↓
-CNI Calculation
-    ↓
-Rule Engine Processing
-    ↓
-Supabase Storage
-    ↓
-Dashboard Visualization
-```
-
-## 🐛 Troubleshooting
-
-### White Screen on Pages
-- Check browser console for errors (F12)
-- Verify `.env.local` has correct Supabase credentials
-- Ensure `npm install` completed successfully
-- Check Next.js server logs for API errors
-
-### Database Connection Errors
-- Verify `SUPABASE_URL` and anon key in `.env.local`
-- Check Supabase project is active (not suspended)
-- Ensure row-level security (RLS) policies allow access
-
-### Python Package Errors
-- Ensure virtual environment is activated: `source venv/bin/activate`
-- Reinstall: `pip install -r requirements.txt --force-reinstall`
-- Check Python version: `python --version` (3.8+)
-
-## 🚀 Vercel Deployment (Production)
-
-### Prerequisites
-- Vercel account ([vercel.com](https://vercel.com))
-- GitHub repository connected to Vercel
-- Supabase project active
-
-### Deploy Steps
-
-1. **Connect Repository to Vercel:**
-   - Go to [Vercel Dashboard](https://vercel.com/dashboard)
-   - Click "Add New" → "Project"
-   - Import your GitHub repository
-   - Select `frontend` as root directory
-
-2. **Add Environment Variables:**
-   
-   Go to **Project Settings** → **Environment Variables** and add:
-
-   ```
-   NEXT_PUBLIC_SUPABASE_URL = https://your-project.supabase.co
-   NEXT_PUBLIC_SUPABASE_ANON_KEY = your_anon_key_here
-   SUPABASE_SERVICE_ROLE_KEY = your_service_role_key_here (🔒 Secret)
-   NEXT_PUBLIC_GEMINI_API_KEY = your_gemini_api_key_here
-   NEXT_PUBLIC_GEMINI_MODEL = gemini-3-flash-preview
-   ```
-
-3. **Deploy:**
-   - Vercel automatically deploys on every push to `main`
-   - Or manually trigger via **Vercel Dashboard** → **Deployments** → **Redeploy**
-
-4. **Verify Deployment:**
-   - Check Vercel deployment logs for errors
-   - Visit your Vercel project URL
-   - Test database connectivity and AI features
-
-### Security Notes for Production
-- ✅ All `.env` files are gitignored and NOT in repository
-- ✅ Public variables are marked with `NEXT_PUBLIC_` prefix
-- ✅ Secret keys are set only in Vercel (never in git)
-- ⚠️ Rotate credentials if accidentally exposed
-
-
-
-## 📝 Git Workflow
-
-**Before Committing:**
-1. ✅ **Never** add `.env`, `.env.local`, or `.env.production` files
-2. ✅ **Never** add `node_modules/` or `.next/` directories
-3. ✅ **Always** create/update `.env.example` files (without secrets)
-4. ✅ **Always** test locally before pushing
-5. ✅ **Verify** `.gitignore` is up-to-date
-
-**Push Changes:**
+### Build Verification
 ```bash
-git add .
-git commit -m "feat: description of changes"
-git push origin main
+cd frontend
+npm run build
+# Must pass without errors
 ```
 
-**If you accidentally committed secrets:**
-```bash
-# IMMEDIATELY rotate credentials in Supabase & Google Cloud
-# Then remove from git history using:
-git rm --cached .env .env.local
-git commit --amend -m "Remove sensitive files"
-git push --force-with-lease origin main
+---
+
+## Project Structure
+
+```
+RITI_data_test/
+├── frontend/                     # Next.js 16 application
+│   ├── app/                      # App Router (pages + API)
+│   │   ├── page.tsx              # Command Center (/)
+│   │   ├── login/page.tsx        # Admin Login
+│   │   ├── aspirations/page.tsx  # Aspiration Analytics
+│   │   ├── districts/page.tsx    # District Scores
+│   │   ├── gp-ranking/page.tsx   # GP Ranking
+│   │   ├── gp-baseline/page.tsx  # GP Baseline Viewer
+│   │   ├── sector/[sector]/page.tsx  # Sector Dashboards
+│   │   ├── budget-engine/page.tsx    # Budget Engine
+│   │   ├── gis-map/page.tsx      # GIS Map
+│   │   ├── gis-map-new/page.tsx  # Alternate GIS
+│   │   ├── ai-chat/page.tsx      # AI Chat
+│   │   ├── reports/page.tsx      # Report Library
+│   │   ├── upload/page.tsx       # CSV Upload
+│   │   ├── backend/page.tsx      # Backend Portal
+│   │   └── api/                  # API Routes
+│   │       ├── auth/login/route.ts
+│   │       ├── auth/logout/route.ts
+│   │       ├── dashboard/kpis/route.ts
+│   │       ├── dashboard/refresh/route.ts
+│   │       ├── gp-baseline/route.ts
+│   │       ├── gp-search/route.ts
+│   │       ├── sidebar-stats/route.ts
+│   │       ├── stats/route.ts
+│   │       ├── compliance-norms/route.ts
+│   │       └── chat/route.ts
+│   ├── components/               # React Components
+│   │   ├── dashboard/            # Dashboard Layout components
+│   │   │   ├── DashboardLayout.tsx
+│   │   │   ├── Sidebar.tsx
+│   │   │   ├── Topbar.tsx
+│   │   │   ├── RightPanel.tsx
+│   │   │   ├── KPICard.tsx
+│   │   │   ├── Map.tsx
+│   │   │   └── charts/           # Chart components
+│   │   ├── upload/               # Upload components
+│   │   ├── AuthProvider.tsx      # Auth context
+│   │   ├── FilterContext.tsx     # Filter context
+│   │   └── aspirations/          # Aspiration components
+│   ├── lib/                      # Utilities
+│   │   ├── supabase.ts           # Supabase client + fetchAll()
+│   │   ├── supabaseAdmin.ts      # Admin Supabase client
+│   │   ├── data.ts               # 41 districts, 11 sectors
+│   │   ├── types.ts              # Shared TypeScript types
+│   │   ├── ruleEngine.ts         # 8-Rule validation
+│   │   ├── cniEngine.ts          # CNI scoring
+│   │   ├── budgetEngine.ts       # Budget allocation
+│   │   ├── aiContext.ts          # AI context builder
+│   │   ├── dashboard-kpis.ts     # KPI types & fetchers
+│   │   ├── store.ts              # Legacy store
+│   │   └── cache/                # Cache utilities
+│   ├── store/                    # Zustand stores
+│   │   └── aspirationStore.ts    # Primary store
+│   ├── public/                   # Static assets
+│   │   ├── backend/index.html    # Static backend portal
+│   │   └── workers/ruleWorker.js # Web worker
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── next.config.js
+│   ├── tailwind.config.cjs
+│   └── vercel.json
+│
+├── ETL/                          # Python ETL pipeline
+│   ├── export_to_csv.py          # Excel → CSVs (539 lines)
+│   ├── enrich_csv_with_ids.py    # Add Supabase IDs
+│   ├── baseline_upload.py        # Upload to Supabase
+│   ├── simple_csv_import.py      # CSV import helper
+│   ├── validate_audit.py         # Data validation
+│   ├── test_timing_diagnostic.py # Performance diagnostics
+│   ├── requirements.txt
+│   └── .env.example
+│
+├── SUPABASE_SQL_FILES(ALREADY_CREATED_TABLES)/
+│   ├── new_updated_baseline.sql
+│   ├── 005_auth_sessions_rbac.sql
+│   ├── 006_dashboard_kpi_cache.sql
+│   ├── 007_aspirations_table.sql
+│   ├── 008_generated_reports.sql
+│   └── baseline_materialized_views.sql  (522 lines)
+│
+├── .kiro/steering/               # Product docs
+│   ├── product.md
+│   ├── structure.md
+│   └── tech.md
+│
+├── README.md
+├── CSV_IMPORT_GUIDE.md
+├── .gitignore
+└── .env.example
 ```
 
-## 📚 Key Technologies
+---
 
-| Component | Technology | Version |
-|-----------|-----------|---------|
-| Node.js Runtime | Node.js | 18+ |
-| Frontend Framework | Next.js | 14.0.0 |
-| Frontend Styling | Tailwind CSS | 3.4.19 |
-| State Management | Zustand | 4.4.0 |
-| Database | Supabase | 2.25.0 |
-| ETL Language | Python | 3.8+ |
-| Maps | Leaflet | 1.9.4 |
+## Tech Stack
 
-## 🤝 Contributing
+| Layer | Technology | Version |
+|-------|-----------|---------|
+| **Framework** | Next.js | ^16.2.6 |
+| **UI Library** | React | 18.2.0 |
+| **Language** | TypeScript | 5.4.4 |
+| **Styling** | Tailwind CSS | 3.4.19 |
+| **State Management** | Zustand | 4.4.0 |
+| **Database** | Supabase (PostgreSQL) | — |
+| **DB Client** | @supabase/supabase-js | 2.25.0 |
+| **Maps** | Leaflet | 1.9.4 |
+| **Charts** | Recharts + Chart.js | 2.5.0 / 4.5.1 |
+| **Tables** | TanStack React Table | 8.7.0 |
+| **Virtualization** | TanStack React Virtual | 3.7.0 |
+| **AI** | Google Gemini API | — |
+| **CSV** | PapaParse | 5.4.1 |
+| **Excel** | ExcelJS | 4.4.0 |
+| **Markdown** | marked | 18.0.3 |
+| **ETL** | Python (pandas, SQLAlchemy) | 3.8+ |
+| **Deployment** | Vercel | — |
 
-1. Create a new branch: `git checkout -b feature/your-feature`
-2. Make changes and test locally
-3. Commit with clear messages
-4. Push and create Pull Request
+---
 
-## 📞 Support
+## Current Status
 
-- **Supabase Docs:** https://supabase.com/docs
-- **Next.js Docs:** https://nextjs.org/docs
-- **Tailwind CSS:** https://tailwindcss.com/docs
+### Implemented & Working (Complete)
+- All 17 routes rendering correctly
+- 10 API routes functional with Supabase integration
+- Authentication with session management (admin + super_admin roles)
+- Command Center dashboard with live KPI cards, charts, and filters
+- All 11 sector dashboards with baseline data and aspiration analytics
+- 41-district scores page with sorting and search
+- GP performance ranking with CNI banding (Critical/Moderate/On Track)
+- GP baseline viewer with multi-table fact data
+- GIS Map with district markers, predicate builder, and layer toggles
+- AI Chat with Gemini integration and live data context
+- Budget engine with central/state split and HTML report download
+- Full report library with rural/urban tabs and district/block/GP drill-down
+- CSV upload portal with dropzone and preview
+- Backend portal for super-admin data management
+- Cache system (cache_dashboard_kpis + refresh endpoint)
+- Materialized views for dashboard performance
+- ETL pipeline from Excel → CSV → Supabase
+- 8-rule validation engine + CNI scoring engine
+- Build passes (`npm run build` succeeds)
+- Vercel deployment configuration
 
-## 📄 License
+### Known Gaps
+- Some API route directories exist but are empty (`api/aspirations/kpis/`, `api/backend/ingest/`, `api/cache-invalidate/`, `api/warm-aspirations/`)
+- Old middleware file present but unused (`middleware_old.ts`)
 
-Private Repository - All rights reserved.
+---
+
+## Git Branches
+- `main` — Primary development branch
+- `raghav/main` — Secondary remote origin
 
 ---
 
 **Last Updated:** June 2026  
-**Status:** Active Development
+**Status:** Active Development  
+**Built by:** Aasvaa Innovation Labs for Viksit Rajasthan @ 2047
