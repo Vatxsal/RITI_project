@@ -1138,7 +1138,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
       ${pageHeader('01 / 07', 'आवरण एवं परिचय', 'Cover · Introduction', 'PAGE 01 / 07 · आवरण एवं परिचय')}
       <div class="cover-kicker">विकसित राजस्थान @ 2047 · जिला मास्टर प्लान · SURVEY-VALIDATED</div>
       <h1 class="cover-district">${escapeHtml(coverMainName)}<span>${escapeHtml(coverTypeLabel)}</span></h1>
-      <div class="cover-subtitle">${escapeHtml(coverParentLine)} · Rajasthan · District Master Plan · FY 2026-27</div>
+      <div class="cover-subtitle">${escapeHtml(coverParentLine)} · Rajasthan</div>
       <div class="pill-row">
         ${kpiPill('नागरिक', `${fmtLakh(totalPopulation)}`, isRural ? `${fmt(d.meta?.gpCount || 0)} ग्राम पंचायतें` : `${fmt(d.meta?.wardCount || 0)} वार्ड`)}
         ${scopeLevel === 'district'

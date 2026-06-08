@@ -61,7 +61,7 @@ function LoginContent() {
             <span style={{ color: '#e85d04' }}>•</span> 10,245 Urban Wards
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#ffffff', fontSize: 13, opacity: 0.8 }}>
-            <span style={{ color: '#e85d04' }}>•</span> 2.23M+ Planning Aspirations
+            <span style={{ color: '#e85d04' }}>•</span> 11.9L+ Planning Aspirations
           </div>
         </div>
 
