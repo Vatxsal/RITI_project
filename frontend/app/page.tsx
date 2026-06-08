@@ -280,19 +280,19 @@ export default function CommandCenterPage() {
     {
       label: 'ASPIRATIONS · 2030',
       value: aspKpis ? formatCompact(year2030Count) : '—',
-      subLabel: '',
+      subLabel: 'आकांक्षाएं · 2030',
       accent: '#e85d04',
     },
     {
       label: 'ASPIRATIONS · 2035',
       value: aspKpis ? formatCompact(year2035Count) : '—',
-      subLabel: '',
+      subLabel: 'आकांक्षाएं · 2035',
       accent: '#e85d04',
     },
     {
       label: 'ASPIRATIONS · 2047',
       value: aspKpis ? formatCompact(year2047Count) : '—',
-      subLabel: '',
+      subLabel: 'आकांक्षाएं · 2047',
       accent: '#e85d04',
     },
   ];
