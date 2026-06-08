@@ -275,21 +275,21 @@ export default function CommandCenterPage() {
 
   const aspirationCards = [
     {
-      label: 'ASPIRATIONS · 2030 QTY COUNT',
-      value: aspKpis ? formatCompact(aspKpis.qty2030Total ?? 0) : '—',
-      subLabel: aspKpis ? `${formatCount(year2030Count)} rows (value > 0)` : 'short-term',
+      label: 'ASPIRATIONS · 2030',
+      value: aspKpis ? formatCount(year2030Count) : '—',
+      subLabel: '',
       accent: '#e85d04',
     },
     {
-      label: 'ASPIRATIONS · 2035 QTY COUNT',
-      value: aspKpis ? formatCompact(aspKpis.qty2035Total ?? 0) : '—',
-      subLabel: aspKpis ? `${formatCount(year2035Count)} rows (value > 0)` : 'mid-term',
+      label: 'ASPIRATIONS · 2035',
+      value: aspKpis ? formatCount(year2035Count) : '—',
+      subLabel: '',
       accent: '#e85d04',
     },
     {
-      label: 'ASPIRATIONS · 2047 QTY COUNT',
-      value: aspKpis ? formatCompact(aspKpis.qty2047Total ?? 0) : '—',
-      subLabel: aspKpis ? `${formatCount(year2047Count)} rows (value > 0)` : 'long-term',
+      label: 'ASPIRATIONS · 2047',
+      value: aspKpis ? formatCount(year2047Count) : '—',
+      subLabel: '',
       accent: '#e85d04',
     },
   ];
@@ -508,7 +508,7 @@ export default function CommandCenterPage() {
                     <th style={{ padding: '12px 10px', borderBottom: '1px solid #f1f5f9', textAlign: 'left', width: '29%' }}>Area</th>
                     <th style={{ padding: '12px 10px', borderBottom: '1px solid #f1f5f9', textAlign: 'left', width: '22%' }}>Sector</th>
                     <th style={{ padding: '12px 10px', borderBottom: '1px solid #f1f5f9', textAlign: 'center', width: '7%' }}>P</th>
-                    <th style={{ padding: '12px 10px', borderBottom: '1px solid #f1f5f9', textAlign: 'right', width: '8%', whiteSpace: 'nowrap' }}>{aspirationYearFilter} Qty</th>
+                    <th style={{ padding: '12px 10px', borderBottom: '1px solid #f1f5f9', textAlign: 'right', width: '8%', whiteSpace: 'nowrap' }}>Records</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -570,7 +570,7 @@ export default function CommandCenterPage() {
                               P-{Number(entry.priority || 0)}
                             </span>
                           </td>
-                          <td style={{ padding: '14px 10px', textAlign: 'right', verticalAlign: 'top', color: '#1a2744', fontWeight: 800, whiteSpace: 'nowrap' }}>{formatCompact(Number((entry as any)[aspirationQtyKey] || 0))}</td>
+                          <td style={{ padding: '14px 10px', textAlign: 'right', verticalAlign: 'top', color: '#1a2744', fontWeight: 800, whiteSpace: 'nowrap' }}>{formatCount((entry as any).occurrences ?? 1)}</td>
                       </tr>
                     );
                   })}
@@ -692,8 +692,8 @@ export default function CommandCenterPage() {
                         <div style={{ marginTop: 2, color: '#1a2744', fontWeight: 800 }}>{formatCount((entry as any).uniqueItems ?? entry.count)}</div>
                       </div>
                       <div>
-                        <div style={{ color: '#64748b', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{sectorYearFilter} Qty</div>
-                        <div style={{ marginTop: 2, color: '#1a2744', fontWeight: 800 }}>{formatCount((entry as any).displayQty ?? 0)}</div>
+                        <div style={{ color: '#64748b', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Records</div>
+                        <div style={{ marginTop: 2, color: '#1a2744', fontWeight: 800 }}>{formatCount(entry.count ?? 0)}</div>
                       </div>
                     </div>
                   </div>
