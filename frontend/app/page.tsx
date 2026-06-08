@@ -696,7 +696,7 @@ export default function CommandCenterPage() {
                       </div>
                       <div>
                         <div style={{ color: '#64748b', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Records</div>
-                        <div style={{ marginTop: 2, color: '#1a2744', fontWeight: 800 }}>{formatCount(entry.count ?? 0)}</div>
+                        <div style={{ marginTop: 2, color: '#1a2744', fontWeight: 800 }}>{formatCount((entry as any).topItemCount ?? entry.count ?? 0)}</div>
                       </div>
                     </div>
                   </div>

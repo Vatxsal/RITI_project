@@ -292,6 +292,7 @@ export interface AspirationSectorBreakdown {
   topItemQty2035?: number;
   topItemQty2047?: number;
   topItemCombinedQty?: number;
+  topItemCount?: number;
   totalQty2030?: number;
   totalQty2035?: number;
   totalQty2047?: number;
@@ -543,7 +544,7 @@ export async function fetchAspirationsKpis(params: { areaType?: 'rural' | 'urban
         }
 
         const itemList = Array.from(itemMap.values())
-          .sort((left, right) => right.combinedQty - left.combinedQty || left.priority - right.priority);
+          .sort((left, right) => right.count - left.count || left.priority - right.priority);
         const topEntry = itemList[0];
 
         const totalQty2030 = rowsForSector.reduce((sum, row) => sum + Number(row.qty_2030 || 0), 0);
@@ -558,6 +559,7 @@ export async function fetchAspirationsKpis(params: { areaType?: 'rural' | 'urban
           topItemQty2035: topEntry?.qty_2035 ?? 0,
           topItemQty2047: topEntry?.qty_2047 ?? 0,
           topItemCombinedQty: topEntry?.combinedQty ?? 0,
+          topItemCount: topEntry?.count ?? 0,
           totalQty2030,
           totalQty2035,
           totalQty2047,
