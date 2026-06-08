@@ -1040,7 +1040,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
         <div class="page-header-left">
           <div class="vr-logo">VR</div>
           <div>
-            <div>VIKSIT RAJASTHAN 2047 | RITI · Government of Rajasthan · जिला मास्टर प्लान</div>
+            <div>VIKSIT RAJASTHAN 2047 | RITI · Government of Rajasthan · ${escapeHtml(scopeMasterLabel)}</div>
             <div style="color:#94a3b8; font-weight:500; margin-top:2px;">${escapeHtml(title)}</div>
           </div>
         </div>
@@ -1048,13 +1048,13 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
       </div>
     `;
 
-    const scopeLevel = scope.gpName ? 'gp'
+    const scopeLevel = (scope.gpName || scope.gpNameEn) ? 'gp'
       : scope.wardName ? 'ward'
         : scope.block ? 'block'
           : scope.ulb ? 'ulb'
             : 'district';
 
-    const coverMainName = scope.gpName || scope.wardName || scope.block || scope.ulb || district;
+    const coverMainName = (scope.gpName || scope.gpNameEn) || scope.wardName || scope.block || scope.ulb || district;
 
     const coverTypeLabel = {
       gp: 'ग्राम पंचायत',
@@ -1134,9 +1134,17 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
 
     const pageShell = (inner: string, extraClass = '') => `<section class="report-page ${extraClass}">${inner}</section>`;
 
+    const scopeMasterLabel = {
+      gp:       `ग्राम पंचायत मास्टर प्लान`,
+      ward:     `वार्ड मास्टर प्लान`,
+      block:    `विकास खंड मास्टर प्लान`,
+      ulb:      `नगर निकाय मास्टर प्लान`,
+      district: `जिला मास्टर प्लान`,
+    }[scopeLevel] || 'मास्टर प्लान';
+
     const coverPage = pageShell(`
       ${pageHeader('01 / 07', 'आवरण एवं परिचय', 'Cover · Introduction', 'PAGE 01 / 07 · आवरण एवं परिचय')}
-      <div class="cover-kicker">विकसित राजस्थान @ 2047 · जिला मास्टर प्लान · SURVEY-VALIDATED</div>
+      <div class="cover-kicker">विकसित राजस्थान @ 2047 · ${escapeHtml(scopeMasterLabel)} · SURVEY-VALIDATED</div>
       <h1 class="cover-district">${escapeHtml(coverMainName)}<span>${escapeHtml(coverTypeLabel)}</span></h1>
       <div class="cover-subtitle">${escapeHtml(coverParentLine)} · Rajasthan</div>
       <div class="pill-row">
@@ -1595,13 +1603,6 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
         phase2047: '100% ग्रामीण FHTC',
       },
       {
-        indicator: 'FHTC · शहरी',
-        current: fmtPct(d.water?.urbanFhtcAvg),
-        phase1: `${fmt(d.meta?.ulbCount || 0)} ULBs AMRUT 2.0`,
-        phase2: 'सीवरेज चक्र पूर्ण',
-        phase2047: 'सार्वभौमिक जल + सीवरेज',
-      },
-      {
         indicator: 'पौधारोपण',
         current: fmt(d.environment?.govtNurseries || 0) + ' सरकारी नर्सरी',
         phase1: `${fmt(Math.max(Number(d.environment?.govtNurseries || 0), 1) * 10)} लाख पौधे`,
@@ -1675,7 +1676,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
     ];
 
     const schemeRows = isRural ? [
-      ['जल एवं स्वच्छता', 'JJM / AMRUT 2.0', 'Tap + sewerage completion', 'सक्रिय'],
+      ['जल एवं स्वच्छता', 'JJM', 'Tap connection saturation', 'सक्रिय'],
       ['कृषि एवं credit', 'PMKSY / KCC', 'Irrigation + credit saturation', 'योजना-तैयार'],
       ['आजीविका', 'SRLM / MSME', 'SHG + enterprise linkage', 'स्थल चयनित'],
       ['अवसंरचना', 'PMGSY / 15th FC', 'Road + sanitation linkage', 'सक्रिय'],
@@ -1688,9 +1689,21 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
       ['पर्यावरण एवं विरासत', 'Swadesh Darshan 2.0 / HRIDAY', 'Heritage + nursery circuit', 'अवधारणा स्तर'],
     ] as const;
 
+    const scopeMasterFullLabel = `${escapeHtml(coverMainName)} · ${scopeMasterLabel}`;
+
+    const scopeMasterSummaryText = scopeLevel === 'gp'
+      ? `<b>${escapeHtml(coverMainName)}</b> ग्राम पंचायत का मास्टर प्लान आधारभूत डेटा, विषयगत आकांक्षाओं और योजना अभिसरण को एकीकृत नियोजन प्रणाली में जोड़ता है। <b>${fmtLakh(totalPopulation)}</b> नागरिकों और जीपी-स्तरीय अवसंरचना अंतराल के आधार पर यह ढांचा FY 2026-27 से FY 2047 तक चरणबद्ध, मापनीय और सर्वे-सत्यापित विकास पथ प्रस्तुत करता है।`
+      : scopeLevel === 'ward'
+      ? `<b>${escapeHtml(coverMainName)}</b> वार्ड का मास्टर प्लान आधारभूत डेटा, शहरी आकांक्षाओं और योजना अभिसरण को एकीकृत नियोजन प्रणाली में जोड़ता है। <b>${fmtLakh(totalPopulation)}</b> नागरिकों और वार्ड-स्तरीय अवसंरचना अंतराल के आधार पर यह ढांचा FY 2026-27 से FY 2047 तक चरणबद्ध विकास पथ प्रस्तुत करता है।`
+      : scopeLevel === 'block'
+      ? `<b>${escapeHtml(coverMainName)}</b> विकास खंड का मास्टर प्लान आधारभूत डेटा, विषयगत आकांक्षाओं और योजना अभिसरण को एकीकृत नियोजन प्रणाली में जोड़ता है। <b>${fmtLakh(totalPopulation)}</b> नागरिकों, <b>${fmt(d.meta?.gpCount || 0)}</b> ग्राम पंचायतों और खंड-स्तरीय अवसंरचना अंतराल के आधार पर यह ढांचा FY 2026-27 से FY 2047 तक चरणबद्ध, मापनीय और सर्वे-सत्यापित विकास पथ प्रस्तुत करता है।`
+      : scopeLevel === 'ulb'
+      ? `<b>${escapeHtml(coverMainName)}</b> नगर निकाय का मास्टर प्लान आधारभूत डेटा, शहरी आकांक्षाओं और योजना अभिसरण को एकीकृत नियोजन प्रणाली में जोड़ता है। <b>${fmtLakh(totalPopulation)}</b> नागरिकों, <b>${fmt(d.meta?.wardCount || 0)}</b> वार्ड और नगर-स्तरीय अवसंरचना अंतराल के आधार पर यह ढांचा FY 2026-27 से FY 2047 तक चरणबद्ध विकास पथ प्रस्तुत करता है।`
+      : `<b>${escapeHtml(district)}</b> जिले का मास्टर प्लान आधारभूत डेटा, विषयगत आकांक्षाओं और योजना अभिसरण को एकीकृत नियोजन प्रणाली में जोड़ता है। <b>${fmtLakh(totalPopulation)}</b> नागरिकों, <b>${fmt(d.meta?.gpCount || 0)}</b> ग्राम पंचायतों / <b>${fmt(d.meta?.wardCount || 0)}</b> वार्ड और जिला-स्तरीय अवसंरचना अंतराल के आधार पर यह ढांचा FY 2026-27 से FY 2047 तक चरणबद्ध, मापनीय और सर्वे-सत्यापित विकास पथ प्रस्तुत करता है।`;
+
     const strategicPageNo = `${totalPages} / ${totalPages}`;
     const strategicPage = pageShell(`
-      ${pageHeader(strategicPageNo, 'रणनीतिक विकास ढाँचा · विकसित राजस्थान 2047', 'Strategic Development Framework - Viksit Rajasthan 2047', `PAGE ${strategicPageNo} · रणनीतिक विकास ढाँचा`)}
+      ${pageHeader(strategicPageNo, `रणनीतिक विकास ढाँचा · ${scopeMasterLabel}`, 'Strategic Development Framework - Viksit Rajasthan 2047', `PAGE ${strategicPageNo} · रणनीतिक विकास ढाँचा`)}
       <div class="section-kicker">खंड 07</div>
       <h2 class="section-title">रणनीतिक विकास ढाँचा · विकसित राजस्थान 2047</h2>
       <div class="section-subtitle">Strategic Development Framework - Viksit Rajasthan 2047</div>
@@ -1744,8 +1757,8 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
       </table>
 
       <div class="master-summary">
-        <div class="master-summary-head">जिला मास्टर प्लान सारांश</div>
-        <div class="master-summary-body"><b>${escapeHtml(district)}</b> जिले का मास्टर प्लान आधारभूत डेटा, विषयगत आकांक्षाओं और योजना अभिसरण को एकीकृत नियोजन प्रणाली में जोड़ता है। <b>${fmtLakh(totalPopulation)}</b> नागरिकों, <b>${fmt(d.meta?.gpCount || 0)}</b> ग्राम पंचायतों / <b>${fmt(d.meta?.wardCount || 0)}</b> वार्ड और जिला-स्तरीय अवसंरचना अंतराल के आधार पर यह ढांचा FY 2026-27 से FY 2047 तक चरणबद्ध, मापनीय और सर्वे-सत्यापित विकास पथ प्रस्तुत करता है।</div>
+        <div class="master-summary-head">${scopeMasterFullLabel}</div>
+        <div class="master-summary-body">${scopeMasterSummaryText}</div>
       </div>
 
       <div class="footer-line">विकसित राजस्थान @ 2047 · RITI - Government of Rajasthan | Manthaan OS द्वारा संचालित · सर्वे-सत्यापित · ${escapeHtml(reportMonth)}</div>
@@ -1878,7 +1891,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
   .metrics-row { align-items: start; }
   .bottom-note-box { margin-top: 18px; background: #f8fafc; border-left: 4px solid var(--report-orange); border-radius: 12px; padding: 14px 16px; color: #334155; font-size: 13px; line-height: 1.8; font-family: 'Noto Sans Devanagari', sans-serif; }
   .group-band {
-    margin: -40px -48px 22px;
+    margin: 16px -48px 22px;
     padding: 24px 28px 20px;
     color: white;
     display: grid;
@@ -2026,7 +2039,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
 
           /* Fix group band negative margins in print — they cause left-side clipping */
           .group-band {
-            margin: 0 0 22px 0 !important;
+            margin: 16px 0 22px 0 !important;
             padding: 20px 24px 18px !important;
             width: 100% !important;
             box-sizing: border-box !important;
