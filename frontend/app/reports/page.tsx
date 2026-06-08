@@ -1594,100 +1594,78 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
       `, 'thematic-page');
     }).join('');
 
-    const strategicRows = isRural ? [
-      {
-        indicator: 'FHTC · ग्रामीण',
-        current: fmtPct(d.water?.ruralFhtcAvg),
-        phase1: `+${Math.max(0, 100 - Number(d.water?.ruralFhtcAvg || 0)).toFixed(0)} connections (JJM Phase 2)`,
-        phase2: 'Additional saturation & quality upgrades',
-        phase2047: '100% ग्रामीण FHTC',
-      },
-      {
-        indicator: 'पौधारोपण',
-        current: fmt(d.environment?.govtNurseries || 0) + ' सरकारी नर्सरी',
-        phase1: `${fmt(Math.max(Number(d.environment?.govtNurseries || 0), 1) * 10)} लाख पौधे`,
-        phase2: `${fmt(Math.max(Number(d.environment?.govtNurseries || 0), 1) * 20)} लाख अतिरिक्त`,
-        phase2047: 'हरित जिला नेटवर्क',
-      },
-      {
-        indicator: 'Solar Pump घनत्व',
-        current: fmt(d.agriculture?.solarPumps || 0) + ' baseline installations',
-        phase1: 'PM-KUSUM Phase-I',
-        phase2: 'Additional solar units',
-        phase2047: 'पूर्ण जिला कवरेज',
-      },
-      {
-        indicator: 'ग्रामीण सड़क नेटवर्क',
-        current: fmtKm(d.infrastructure?.roadKm || 0),
-        phase1: 'PMGSY expansion',
-        phase2: 'All-weather connectivity',
-        phase2047: 'Universal last-mile access',
-      },
-      {
-        indicator: 'डिजिटल शासन / e-Mitra',
-        current: fmtKm(d.governance?.distEmitraKm || 0),
-        phase1: 'Service point mapping',
-        phase2: 'Integrated citizen services',
-        phase2047: 'Paperless district',
-      },
-    ] : [
-      {
-        indicator: 'FHTC · शहरी',
-        current: fmtPct(d.water?.urbanFhtcAvg),
-        phase1: `${fmt(d.meta?.ulbCount || 0)} ULBs AMRUT 2.0`,
-        phase2: 'सीवरेज नेटवर्क विस्तार',
-        phase2047: 'सार्वभौमिक जल + सीवरेज',
-      },
-      {
-        indicator: 'शौचालय रहित घर',
-        current: fmt(d.environment?.housesWithoutToilets || 0) + ' घर',
-        phase1: 'SBM Phase 2 — शहरी ODF+',
-        phase2: 'सामुदायिक शौचालय उन्नयन',
-        phase2047: '100% स्वच्छ शहरी आवास',
-      },
-      {
-        indicator: 'PM Surya Ghar (शहरी)',
-        current: fmt(d.environment?.suryaGharHomes || 0) + ' घर',
-        phase1: 'PM Surya Ghar Phase-I',
-        phase2: 'Additional rooftop solar',
-        phase2047: 'हरित शहरी ऊर्जा नेटवर्क',
-      },
-      {
-        indicator: 'शहरी सड़क नेटवर्क',
-        current: fmtKm(d.infrastructure?.roadKm || 0),
-        phase1: 'AMRUT 2.0 road component',
-        phase2: 'All-weather urban connectivity',
-        phase2047: 'Smart road infrastructure',
-      },
-      {
-        indicator: 'सक्रिय SHG · उद्योग',
-        current: `${fmt(d.economy?.activeShgs || 0)} SHG · ${fmt(Number(d.economy?.largeIndustrialUnits || 0) + Number(d.economy?.smallScaleIndustries || 0))} units`,
-        phase1: 'SRLM + MSME cluster linkage',
-        phase2: 'Urban enterprise hubs',
-        phase2047: 'आत्मनिर्भर शहरी अर्थव्यवस्था',
-      },
-      {
-        indicator: 'डिजिटल शासन / e-Mitra',
-        current: fmtKm(d.governance?.distEmitraKm || d.governance?.urbanEmitraKm || 0),
-        phase1: 'Urban service point mapping',
-        phase2: 'Integrated citizen portal',
-        phase2047: 'Paperless smart city',
-      },
-    ];
+    const sectorCounts: Record<string, number> = {};
+    (d.aspirations || []).forEach((a: any) => {
+      const s = a.sector || 'अन्य';
+      sectorCounts[s] = (sectorCounts[s] || 0) + 1;
+    });
+    const topSectors = Object.entries(sectorCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6)
+      .map(([sector]) => sector);
 
-    const schemeRows = isRural ? [
-      ['जल एवं स्वच्छता', 'JJM', 'Tap connection saturation', 'सक्रिय'],
-      ['कृषि एवं credit', 'PMKSY / KCC', 'Irrigation + credit saturation', 'योजना-तैयार'],
-      ['आजीविका', 'SRLM / MSME', 'SHG + enterprise linkage', 'स्थल चयनित'],
-      ['अवसंरचना', 'PMGSY / 15th FC', 'Road + sanitation linkage', 'सक्रिय'],
-      ['पर्यावरण एवं विरासत', 'SBM / Swadesh Darshan 2.0', 'Nursery + heritage circuit', 'अवधारणा स्तर'],
-    ] as const : [
-      ['जल एवं सीवरेज', 'AMRUT 2.0 / JJM Urban', 'FHTC + sewerage saturation', 'सक्रिय'],
-      ['स्वास्थ्य एवं पोषण', 'NHM / POSHAN 2.0', 'AWC + health centre upgrade', 'सक्रिय'],
-      ['शहरी आजीविका', 'SRLM / PM SVANidhi', 'SHG + street vendor linkage', 'योजना-तैयार'],
-      ['अवसंरचना एवं स्वच्छता', 'SBM Urban / 15th FC', 'Toilet + road + solar', 'स्थल चयनित'],
-      ['पर्यावरण एवं विरासत', 'Swadesh Darshan 2.0 / HRIDAY', 'Heritage + nursery circuit', 'अवधारणा स्तर'],
-    ] as const;
+    const strategicRows = topSectors.map(sector => {
+      const sectorAsps = (d.aspirations || []).filter((a: any) => a.sector === sector);
+      const funded = sectorAsps.filter((a: any) => a.status === 'FUNDED');
+      const accepted = sectorAsps.filter((a: any) => a.status === 'ACCEPT');
+      const qty2030 = sectorAsps.reduce((sum: number, a: any) => sum + (Number(a.qty_2030) || 0), 0);
+      const qty2035 = sectorAsps.reduce((sum: number, a: any) => sum + (Number(a.qty_2035) || 0), 0);
+      const qty2047 = sectorAsps.reduce((sum: number, a: any) => sum + (Number(a.qty_2047) || 0), 0);
+      const topItem = sectorAsps[0]?.item || sector;
+      const reviewCount = sectorAsps.filter((a: any) => a.status === 'REVIEW').length;
+      const fastTrackCount = sectorAsps.filter((a: any) => a.fast_track).length;
+      const topScheme = sectorAsps.find((a: any) => a.scheme)?.scheme || null;
+
+      const phase2 = qty2035 > 0
+        ? `${qty2035} units · ${fastTrackCount > 0 ? `${fastTrackCount} fast-track` : topScheme || 'scale-up'}`
+        : fastTrackCount > 0
+          ? `${fastTrackCount} fast-track · ${reviewCount} review pending`
+          : reviewCount > 0
+            ? `${reviewCount} under review`
+            : topScheme
+              ? `${topScheme} scale-up`
+              : `${accepted.length} accepted · scale-up phase`;
+
+      return {
+        indicator: sector,
+        current: `${sectorAsps.length} आकांक्षाएं · ${funded.length} Funded`,
+        phase1: qty2030 > 0 ? `${fmt(qty2030)} units by 2030` : `${accepted.length} accepted aspirations`,
+        phase2,
+        phase2047: qty2047 > 0 ? `${fmt(qty2047)} units · ${topItem}` : `Complete coverage`,
+      };
+    });
+
+    if (strategicRows.length === 0) {
+      strategicRows.push({
+        indicator: 'आकांक्षा डेटा',
+        current: 'उपलब्ध नहीं',
+        phase1: '—', phase2: '—', phase2047: '—',
+      });
+    }
+
+    const schemeMap: Record<string, Set<string>> = {};
+    (d.aspirations || []).forEach((a: any) => {
+      if (!a.scheme) return;
+      const sector = a.sector || 'अन्य';
+      if (!schemeMap[sector]) schemeMap[sector] = new Set();
+      schemeMap[sector].add(a.scheme);
+    });
+
+    const schemeRows = Object.entries(schemeMap)
+      .slice(0, 6)
+      .map(([sector, schemesSet]) => {
+        const schemes = Array.from(schemesSet).slice(0, 2).join(' / ');
+        const sectorAsps = (d.aspirations || []).filter((a: any) => a.sector === sector);
+        const funded = sectorAsps.filter((a: any) => a.status === 'FUNDED').length;
+        const fastTrack = sectorAsps.filter((a: any) => a.fast_track).length;
+        const statusLabel = funded > 0 ? 'सक्रिय' : fastTrack > 0 ? 'योजना-तैयार' : 'अवधारणा स्तर';
+        const opportunity = `${sectorAsps.length} aspirations · ${funded} funded`;
+        return [sector, schemes || '—', opportunity, statusLabel];
+      });
+
+    if (schemeRows.length === 0) {
+      schemeRows.push(['डेटा उपलब्ध नहीं', '—', '—', 'अवधारणा स्तर']);
+    }
 
     const scopeMasterFullLabel = `${escapeHtml(coverMainName)} · ${scopeMasterLabel}`;
 
