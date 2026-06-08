@@ -23,8 +23,8 @@ function formatCount(value: number | null | undefined) {
 }
 
 function formatCompact(value: number): string {
-  if (value >= 10000000) return `${(value / 10000000).toFixed(1)}Cr`;
-  if (value >= 100000)   return `${(value / 100000).toFixed(1)}L`;
+  if (value >= 10000000) return `${(value / 10000000).toFixed(2)}Cr`;
+  if (value >= 100000)   return `${(value / 100000).toFixed(2)}L`;
   if (value >= 1000)     return `${(value / 1000).toFixed(1)}k`;
   return value.toLocaleString('en-IN');
 }
@@ -279,19 +279,19 @@ export default function CommandCenterPage() {
   const aspirationCards = [
     {
       label: 'ASPIRATIONS · 2030',
-      value: aspKpis ? formatCount(year2030Count) : '—',
+      value: aspKpis ? formatCompact(year2030Count) : '—',
       subLabel: '',
       accent: '#e85d04',
     },
     {
       label: 'ASPIRATIONS · 2035',
-      value: aspKpis ? formatCount(year2035Count) : '—',
+      value: aspKpis ? formatCompact(year2035Count) : '—',
       subLabel: '',
       accent: '#e85d04',
     },
     {
       label: 'ASPIRATIONS · 2047',
-      value: aspKpis ? formatCount(year2047Count) : '—',
+      value: aspKpis ? formatCompact(year2047Count) : '—',
       subLabel: '',
       accent: '#e85d04',
     },
