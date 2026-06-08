@@ -212,6 +212,7 @@ export default function CommandCenterPage() {
       city: string;
       district: string;
       occurrences: number;
+      rawRecordCount: number;
       districtList: string[];
     }>();
 
@@ -227,6 +228,7 @@ export default function CommandCenterPage() {
           qty_2035: Number(row.qty_2035 || 0),
           qty_2047: Number(row.qty_2047 || 0),
           occurrences: 1,
+          rawRecordCount: Number((row as any).total_count || 0),
           districtList: row.district ? [row.district] : [],
         });
       } else {
@@ -234,6 +236,7 @@ export default function CommandCenterPage() {
         existing.qty_2035 += Number(row.qty_2035 || 0);
         existing.qty_2047 += Number(row.qty_2047 || 0);
         existing.occurrences += 1;
+        existing.rawRecordCount += Number((row as any).total_count || 0);
 
         if (statusRankForTable(row.status) < statusRankForTable(existing.status)) {
           existing.status = row.status;
@@ -249,8 +252,8 @@ export default function CommandCenterPage() {
 
     return Array.from(groupMap.values())
       .sort((left, right) => {
-        const qtyDiff = Number((right as any)[aspirationQtyKey] || 0) - Number((left as any)[aspirationQtyKey] || 0);
-        if (qtyDiff !== 0) return qtyDiff;
+        const recordsDiff = Number((right as any).rawRecordCount || 0) - Number((left as any).rawRecordCount || 0);
+        if (recordsDiff !== 0) return recordsDiff;
         return statusRankForTable(left.status) - statusRankForTable(right.status);
       })
       .slice(0, urbanFilter === 'urban' ? 10 : 11);
@@ -494,7 +497,7 @@ export default function CommandCenterPage() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
               <div>
                 <div className="ct" style={{ color: '#1a2744' }}>Top Strategic Aspirations</div>
-                <div className="cs" style={{ color: '#64748b' }}>P-1 items · grouped by sub-indicator · sorted by highest {aspirationYearFilter} quantity</div>
+                <div className="cs" style={{ color: '#64748b' }}>P-1 items · grouped by sub-indicator · sorted by highest records count</div>
               </div>
               <YearFilterPills value={aspirationYearFilter} onChange={setAspirationYearFilter} />
             </div>
@@ -506,9 +509,9 @@ export default function CommandCenterPage() {
                   <tr style={{ background: '#f8fafc', color: '#475569', textTransform: 'uppercase', fontSize: 10, letterSpacing: '0.08em' }}>
                     <th style={{ padding: '12px 10px', borderBottom: '1px solid #f1f5f9', textAlign: 'left', width: '34%' }}>Aspiration</th>
                     <th style={{ padding: '12px 10px', borderBottom: '1px solid #f1f5f9', textAlign: 'left', width: '29%' }}>Area</th>
-                    <th style={{ padding: '12px 10px', borderBottom: '1px solid #f1f5f9', textAlign: 'left', width: '22%' }}>Sector</th>
+                    <th style={{ padding: '12px 10px', borderBottom: '1px solid #f1f5f9', textAlign: 'left', width: '18%' }}>Sector</th>
                     <th style={{ padding: '12px 10px', borderBottom: '1px solid #f1f5f9', textAlign: 'center', width: '7%' }}>P</th>
-                    <th style={{ padding: '12px 10px', borderBottom: '1px solid #f1f5f9', textAlign: 'right', width: '8%', whiteSpace: 'nowrap' }}>Records</th>
+                    <th style={{ padding: '12px 10px', borderBottom: '1px solid #f1f5f9', textAlign: 'right', width: '12%', whiteSpace: 'nowrap' }}>Records</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -570,7 +573,7 @@ export default function CommandCenterPage() {
                               P-{Number(entry.priority || 0)}
                             </span>
                           </td>
-                          <td style={{ padding: '14px 10px', textAlign: 'right', verticalAlign: 'top', color: '#1a2744', fontWeight: 800, whiteSpace: 'nowrap' }}>{formatCount((entry as any).occurrences ?? 1)}</td>
+                          <td style={{ padding: '14px 10px', textAlign: 'right', verticalAlign: 'top', color: '#1a2744', fontWeight: 800, whiteSpace: 'nowrap' }}>{formatCount((entry as any).rawRecordCount ?? (entry as any).occurrences ?? 1)}</td>
                       </tr>
                     );
                   })}
