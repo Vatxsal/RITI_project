@@ -148,7 +148,7 @@ export default function CommandCenterPage() {
 
   const visibleSectorRows = ((aspKpis?.sectorBreakdown || []) as any[])
     .filter((entry: any) => urbanFilter === 'urban' ? !isAgricultureSector(entry) : true)
-    .slice(0, urbanFilter === 'urban' ? 10 : 11)
+    .slice(0, urbanFilter === 'urban' ? 9 : 10)
     .map((entry: any) => ({
       ...entry,
       displayQty: sectorYearFilter === '2030'
@@ -256,7 +256,7 @@ export default function CommandCenterPage() {
         if (recordsDiff !== 0) return recordsDiff;
         return statusRankForTable(left.status) - statusRankForTable(right.status);
       })
-      .slice(0, urbanFilter === 'urban' ? 10 : 11);
+      .slice(0, urbanFilter === 'urban' ? 9 : 10);
   })();
 
   const year2030Count = aspKpis?.count2030 ?? 0;
@@ -585,7 +585,7 @@ export default function CommandCenterPage() {
           <div className="flex flex-col gap-4 min-w-0">
             <div style={{ ...LIGHT_CARD_STYLE, minWidth: 0, padding: 20 }}>
               <div className="ct" style={{ color: '#1a2744' }}>Count-Wise Sector Allocation</div>
-              <div className="cs" style={{ color: '#64748b' }}>Percentage share of aspiration counts across {urbanFilter === 'urban' ? 10 : 11} visible sectors, normalized to the total shown in 2030 + 2035 + 2047</div>
+              <div className="cs" style={{ color: '#64748b' }}>Percentage share of aspiration counts across {urbanFilter === 'urban' ? 9 : 10} visible sectors, normalized to the total shown in 2030 + 2035 + 2047</div>
               {!aspKpis || sectorPieData.length === 0 ? (
                 <div style={{ color: '#64748b' }}>— Loading data —</div>
               ) : (

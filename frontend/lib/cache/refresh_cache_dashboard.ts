@@ -612,6 +612,7 @@ export type SectorPageData = {
   sectorId: string;
   areaType: AreaType;
   aspTotalCount: number;
+  aspCount2030: number;
   aspQty2030: number;
   aspQty2035: number;
   aspQty2047: number;
@@ -639,7 +640,6 @@ const SECTOR_ASPIRATION_KEYWORDS: Record<string, string[]> = {
   agri: ['Agriculture and Livelihoods', 'irrigation', 'sinchai', 'kisan', 'fpo', 'solar pump', 'tarbandi', 'diggi', 'pmksy', 'pmfby', 'soil', 'कृषि'],
   dairy: ['Agriculture and Livelihoods', 'dairy', 'livestock', 'pashu', 'milk', 'goat', 'poultry', 'saras', 'rcdf', 'veterinary', 'पशुपालन'],
   edu: ['Education and Knowledge', 'school', 'vidyalay', 'teacher', 'classroom', 'hostel', 'skill', 'iti', 'samagra', 'शिक्षा'],
-  employ: ['Industry and Economic Development', 'shg', 'self help', 'livelihood', 'mudra', 'msme', 'rozgar', 'srlm', 'nrlm', 'lakhpati', 'artisan'],
   women: ['Social Empowerment', 'mahila', 'women', 'shg', 'lakhpati', 'ujjwala', 'widow', 'beti', 'kishori'],
   welfare: ['Social Empowerment', 'pension', 'awas', 'housing', 'ujjwala', 'pwd', 'divyang', 'bpl', 'nfsa', 'old age', 'pmay'],
   infra: ['Key Infrastructure', 'road', 'sadak', 'bridge', 'electricity', 'bijli', 'street light', 'bus stand', 'panchayat bhawan', 'pmgsy', 'सड़क'],
@@ -673,12 +673,6 @@ const SECTOR_BASELINE_CONFIG: Record<string, SectorBaselineConfig> = {
     ruralCols: ['anganwadi_centers', 'anganwadi_workers', 'anganwadi_helpers', 'anganwadi_enrolled_children', 'anganwadi_pregnant_women', 'asha_workers', 'sam_children', 'govt_schools', 'pvt_schools', 'total_schools', 'useful_classrooms_count', 'working_teachers', 'sanctioned_teachers', 'computers', 'total_enrolled_students', 'students_class_0_5_boys', 'students_class_0_5_girls', 'students_class_6_8_boys', 'students_class_6_8_girls', 'students_class_9_10_boys', 'students_class_9_10_girls', 'students_class_11_12_boys', 'students_class_11_12_girls', 'dropout_children', 'skill_training_centers', 'govt_hostels', 'higher_edu_institutions'],
     urbanTable: 'baseline_urban',
     urbanCols: ['anganwadi_centers', 'anganwadi_workers', 'anganwadi_enrolled_children', 'asha_workers', 'sam_children', 'snp_children', 'govt_schools', 'pvt_schools', 'total_schools', 'total_enrolled_students', 'useful_classrooms_count', 'working_teachers', 'sanctioned_teachers', 'computers', 'dropout_children', 'govt_hostels'],
-  },
-  employ: {
-    ruralTable: 'baseline_rural',
-    ruralCols: ['active_shg_count', 'women_in_shgs', 'lakhpati_didis', 'millionaire_didis', 'local_artisans', 'large_industrial_units', 'mudra_loan_beneficiaries'],
-    urbanTable: 'baseline_urban',
-    urbanCols: ['active_shg_count', 'local_artisans', 'large_industrial_units', 'small_scale_industries'],
   },
   women: {
     ruralTable: 'baseline_rural',
@@ -735,7 +729,6 @@ const SECTOR_DB_NAMES: Record<string, string[]> = {
   agri: ['Agriculture and Livelihoods'],
   dairy: ['Agriculture and Livelihoods'],
   edu: ['Education and Knowledge'],
-  employ: ['Industry and Economic Development', 'Social Empowerment'],
   women: ['Social Empowerment'],
   welfare: ['Social Empowerment'],
   infra: ['Key Infrastructure'],
@@ -749,7 +742,6 @@ const SECTOR_ID_TO_HINDI: Record<string, string[]> = {
   agri:    ['कृषि एवं आजीविका'],
   dairy:   ['कृषि एवं आजीविका'],
   edu:     ['शिक्षा संबंधी जानकारी'],
-  employ:  ['औद्योगिक, खनन और आर्थिक विकास'],
   women:   ['सामाजिक सशक्तिकरण और समावेशन'],
   welfare: ['सामाजिक सशक्तिकरण और समावेशन'],
   infra:   ['मुख्य (इंफ्रास्ट्रक्चर) आवागमन संबंधित'],
@@ -962,6 +954,9 @@ export async function fetchSectorPageData(params: { sectorId: string; areaType: 
     ]);
 
     const aspTotalCount = aspRows.reduce((sum: number, row: any) => sum + toNumber(row.total_count), 0);
+    const aspCount2030 = aspRows
+      .filter((row: any) => toNumber(row.qty_2030) > 0)
+      .reduce((sum: number, row: any) => sum + toNumber(row.total_count), 0);
     const aspQty2030 = aspRows.reduce((sum: number, row: any) => sum + toNumber(row.qty_2030), 0);
     const aspQty2035 = aspRows.reduce((sum: number, row: any) => sum + toNumber(row.qty_2035), 0);
     const aspQty2047 = aspRows.reduce((sum: number, row: any) => sum + toNumber(row.qty_2047), 0);
@@ -1045,6 +1040,7 @@ export async function fetchSectorPageData(params: { sectorId: string; areaType: 
       sectorId,
       areaType,
       aspTotalCount,
+      aspCount2030,
       aspQty2030,
       aspQty2035,
       aspQty2047,
@@ -1067,6 +1063,7 @@ export async function fetchSectorPageData(params: { sectorId: string; areaType: 
       sectorId: params.sectorId,
       areaType: params.areaType,
       aspTotalCount: 0,
+      aspCount2030: 0,
       aspQty2030: 0,
       aspQty2035: 0,
       aspQty2047: 0,

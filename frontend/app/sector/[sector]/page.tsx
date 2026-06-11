@@ -37,7 +37,6 @@ const SECTOR_PRIMARY_BASELINE_LABEL: Record<string, string> = {
   agri: 'Total Farmers',
   dairy: 'Total Livestock',
   edu: 'Total Schools',
-  employ: 'Active SHGs',
   women: 'Women in SHGs',
   welfare: 'Old Age Pensioners',
   infra: 'Road Network (km)',
@@ -51,7 +50,6 @@ const SECTOR_SECONDARY_BASELINE_LABEL: Record<string, string> = {
   agri: 'Irrigated Area (Ha)',
   dairy: 'Daily Milk (LPD)',
   edu: 'Enrolled Students',
-  employ: 'Lakhpati Didis',
   women: 'Active SHGs',
   welfare: 'Widow Pensioners',
   infra: 'Electrified Houses',
@@ -81,7 +79,6 @@ const SECTOR_PRIMARY_BASELINE_COLUMN: Record<string, string> = {
   agri: 'total_farmers',
   dairy: 'total_livestock',
   edu: 'total_schools',
-  employ: 'active_shg_count',
   women: 'women_in_shgs',
   welfare: 'old_age_pensioners',
   infra: 'road_length_km',
@@ -95,7 +92,6 @@ const SECTOR_SECONDARY_BASELINE_COLUMN: Record<string, string> = {
   agri: 'irrigated_area_ha',
   dairy: 'daily_milk_litres',
   edu: 'total_enrolled_students',
-  employ: 'lakhpati_didis',
   women: 'active_shg_count',
   welfare: 'widow_pensioners',
   infra: 'houses_with_electricity',
@@ -169,14 +165,6 @@ function getBaselineMetricCards(sectorId: string, metrics: Record<string, number
       { label: 'Dropouts', col: 'dropout_children', note: 'Retention gap' },
       { label: 'Enrolled Students', col: 'total_enrolled_students', note: 'Demand base' },
     ],
-    employ: [
-      { label: 'Active SHGs', col: 'active_shg_count', note: 'Community groups' },
-      { label: 'Women in SHGs', col: 'women_in_shgs', note: 'Collective power' },
-      { label: 'Lakhpati Didis', col: 'lakhpati_didis', note: 'Income milestone' },
-      { label: 'Mudra Loans', col: 'mudra_loan_beneficiaries', note: 'MSME credit' },
-      { label: 'Local Artisans', col: 'local_artisans', note: 'Craft economy' },
-      { label: 'Large Industries', col: 'large_industrial_units', note: 'Industrial base' },
-    ],
     women: [
       { label: 'Women in SHGs', col: 'women_in_shgs', note: 'Organized collective' },
       { label: 'Active SHGs', col: 'active_shg_count', note: 'Group count' },
@@ -245,7 +233,6 @@ function getCoverageBars(sectorId: string, data: SectorPageData | null) {
     agri: 'Irrigation Coverage',
     dairy: 'Funded Dairy Aspirations',
     edu: 'Funded Education Aspirations',
-    employ: 'Funded Employment Aspirations',
     women: 'Funded Women Aspirations',
     welfare: 'Funded Welfare Aspirations',
     infra: 'Funded Infrastructure Aspirations',
@@ -439,9 +426,9 @@ Write 3 planning intelligence insights in proper Hindi (Devanagari). Mix of patt
   const statusMix = sectorData?.aspStatusMix || { funded: 0, accept: 0, review: 0 };
   const totalAsp = Math.max(sectorData?.aspTotalCount || 0, 1);
   const aspirationTimeline = [
-    { label: '2030 — Short Term', value: sectorData?.aspQty2030 || 0, color: '#e85d04', note: 'Immediate priority' },
-    { label: '2035 — Medium Term', value: sectorData?.aspQty2035 || 0, color: '#0891b2', note: 'Structural phase' },
-    { label: '2047 — Long Term (VR)', value: sectorData?.aspQty2047 || 0, color: '#7c3aed', note: 'Viksit Rajasthan goal' },
+    { label: '2030 — Short Term', value: sectorData?.aspQty2030 || 0, color: '#e85d04', note: 'Total qty units demanded by 2030' },
+    { label: '2035 — Medium Term', value: sectorData?.aspQty2035 || 0, color: '#0891b2', note: 'Total qty units demanded by 2035' },
+    { label: '2047 — Long Term (VR)', value: sectorData?.aspQty2047 || 0, color: '#7c3aed', note: 'Total qty units demanded by 2047' },
   ];
   const maxTimeline = Math.max(...aspirationTimeline.map((row) => row.value), 1);
   const baselineSummary = sectorData
@@ -483,7 +470,7 @@ Write 3 planning intelligence insights in proper Hindi (Devanagari). Mix of patt
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
         <HeroKpiCard label={getPrimaryBaselineLabel(sector.v, areaType)} value={sectorLoading ? '—' : formatHeroBaselineKpi(sector.v, sectorData?.baselineMetrics, 'primary')} sub="Baseline · All Rajasthan" accentColor="#1e3a5f" badge="BASELINE" />
         <HeroKpiCard label={getSecondaryBaselineLabel(sector.v, areaType)} value={sectorLoading ? '—' : formatHeroBaselineKpi(sector.v, sectorData?.baselineMetrics, 'secondary')} sub="Baseline · All Rajasthan" accentColor="#1e3a5f" badge="BASELINE" />
-        <HeroKpiCard label="2030 Aspiration Count" value={sectorLoading ? '—' : formatMetricNumber(sectorData?.aspQty2030 || 0)} sub={`${formatMetricNumber(sectorData?.aspTotalCount || 0)} total aspirations`} accentColor="#e85d04" badge="ASPIRATIONS" />
+        <HeroKpiCard label="Total Aspiration Records" value={sectorLoading ? '—' : formatMetricNumber(sectorData?.aspTotalCount || 0)} sub={`${formatMetricNumber(sectorData?.aspFunded || 0)} funded · ${formatMetricNumber(sectorData?.aspFastTrack || 0)} fast-track`} accentColor="#e85d04" badge="ASPIRATIONS" />
         <HeroKpiCard label="Strategic Priority Data" value={sectorLoading ? '—' : formatMetricNumber((sectorData?.aspFunded || 0) + (sectorData?.aspFastTrack || 0))} sub={`${formatMetricNumber(sectorData?.aspFunded || 0)} funded · ${formatMetricNumber(sectorData?.aspFastTrack || 0)} fast-track`} accentColor="#16a34a" badge="FUNDED + FAST-TRACK" />
       </div>
 
@@ -497,14 +484,14 @@ Write 3 planning intelligence insights in proper Hindi (Devanagari). Mix of patt
             ) : (
               <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {topAspItems.slice(0, 6).map((item, index) => {
-                  const maxQty = topAspItems[0]?.qty2030 || 1;
-                  const pct = Math.round((item.qty2030 / maxQty) * 100);
+                  const maxQty = topAspItems[0]?.count || 1;
+                  const pct = Math.round((item.count / maxQty) * 100);
                   return (
                     <div key={`${item.item}-${index}`}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 13 }}>
                         <div style={{ fontWeight: 700, color: '#1a2744', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.item}</div>
                         <div style={{ flexShrink: 0, marginLeft: 12, color: '#64748b', fontSize: 12 }}>
-                          {formatMetricNumber(item.qty2030)} · {formatMetricNumber(item.count)} माँगें
+                          {formatMetricNumber(item.count)} माँगें
                         </div>
                       </div>
                       <div style={{ height: 6, background: '#f1f5f9', borderRadius: 999, overflow: 'hidden' }}>
@@ -727,8 +714,10 @@ Write 3 planning intelligence insights in proper Hindi (Devanagari). Mix of patt
           </div>
 
           <div style={{ ...LIGHT_CARD_STYLE, padding: 20 }}>
-            <div className="ct">P-1 Priority Aspirations</div>
-            <div className="cs">High-priority demand · {sector.label}</div>
+            <div className="ct">Aspiration Priority Breakdown</div>
+            <div className="cs">
+              All aspirations in {sector.label} sector · P-1 = rows where priority = 1 (any year: 2030 / 2035 / 2047)
+            </div>
             {sectorLoading ? (
               <div style={{ color: '#94a3b8', fontStyle: 'italic', marginTop: 12 }}>Loading...</div>
             ) : (
@@ -737,7 +726,7 @@ Write 3 planning intelligence insights in proper Hindi (Devanagari). Mix of patt
                   {[
                     { label: 'Funded', value: sectorData?.aspFunded || 0, color: '#16a34a', bg: '#f0fdf4' },
                     { label: 'Fast-track', value: sectorData?.aspFastTrack || 0, color: '#e85d04', bg: '#fff7ed' },
-                    { label: 'P-1 DATA', value: sectorData?.aspP1 || 0, color: '#dc2626', bg: '#fef2f2' },
+                    { label: 'Priority-1 Rows', value: sectorData?.aspP1 || 0, color: '#dc2626', bg: '#fef2f2' },
                     { label: 'TOTAL', value: sectorData?.aspTotalCount || 0, color: '#1e3a5f', bg: '#eff6ff' },
                   ].map((item) => (
                     <div key={item.label} style={{ background: item.bg, borderRadius: 10, padding: '10px 12px' }}>
@@ -745,6 +734,23 @@ Write 3 planning intelligence insights in proper Hindi (Devanagari). Mix of patt
                       <div style={{ fontSize: 10, color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 3 }}>{item.label}</div>
                     </div>
                   ))}
+                </div>
+
+                <div style={{
+                  marginTop: 10,
+                  padding: '8px 12px',
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 8,
+                  fontSize: 11,
+                  color: '#64748b',
+                  lineHeight: 1.7,
+                }}>
+                  <span style={{ fontWeight: 700, color: '#475569' }}>How these are counted: </span>
+                  <span style={{ color: '#16a34a', fontWeight: 600 }}>Funded</span> — aspirations with financial approval in {sector.label}.&nbsp;
+                  <span style={{ color: '#e85d04', fontWeight: 600 }}>Fast-track</span> — flagged for priority execution.&nbsp;
+                  <span style={{ color: '#dc2626', fontWeight: 600 }}>Priority-1 Rows</span> — aspiration records where priority = 1, across any planning year.&nbsp;
+                  <span style={{ color: '#1e3a5f', fontWeight: 600 }}>Total</span> — all valid aspiration rows for this sector.
                 </div>
 
                 {(() => {
@@ -757,9 +763,9 @@ Write 3 planning intelligence insights in proper Hindi (Devanagari). Mix of patt
                   const ftPct = Math.round((fastTrack / total) * 100);
 
                   return [
-                    { label: 'Priority 1 (High)', pct: p1Pct, color: '#dc2626' },
-                    { label: 'Funded pipeline', pct: fundedPct2, color: '#16a34a' },
-                    { label: 'Fast-track', pct: ftPct, color: '#e85d04' },
+                    { label: 'Priority-1 rows (% of total)', pct: p1Pct, color: '#dc2626' },
+                    { label: 'Funded (% of total)', pct: fundedPct2, color: '#16a34a' },
+                    { label: 'Fast-track (% of total)', pct: ftPct, color: '#e85d04' },
                   ].map((bar) => (
                     <div key={bar.label} style={{ marginBottom: 10 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 11 }}>

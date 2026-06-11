@@ -97,17 +97,6 @@ export const SECTORS = [
     metrics: []
   },
   {
-    v: 'employ',
-    label: 'Employment & Skills',
-    icon: '❋',
-    key: 'sc_employ',
-    description: 'SHG, Lakhpati Didi, DDU-GKY training',
-    metrics: [
-      { label: 'SHG Members', key: 'shg_w', metric: 'Women in SHG' },
-      { label: 'Lakhpati Didi', key: 'lakh', metric: 'Women earning 1L+/year' }
-    ]
-  },
-  {
     v: 'women',
     label: 'Social Empowerment',
     icon: '⚪',
