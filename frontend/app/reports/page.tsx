@@ -1156,9 +1156,9 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
         : scopeLevel === 'block'
           ? kpiPill('ग्राम पंचायतें', `${fmt(d.meta?.gpCount || 0)} ग्राम पंचायतें`, 'चयनित विकास खंड कवरेज')
           : scopeLevel === 'gp'
-            ? kpiPill('ग्राम पंचायत', '1 ग्राम पंचायत', 'चयनित ग्राम पंचायत कवरेज')
+            ? kpiPill('BPL परिवार', fmt(d.population?.bplFamilies || 0), `कुल ${fmt(d.population?.totalFamilies || 0)} परिवारों में`)
             : scopeLevel === 'ward'
-              ? kpiPill('वार्ड', '1 वार्ड', 'चयनित वार्ड कवरेज')
+              ? kpiPill('शहरी जनसंख्या', fmtLakh(d.population?.urbanPop || 0), `${fmt(d.meta?.ulbCount || 0)} ULB में`)
               : kpiPill('नगर निकाय', `${fmt(d.meta?.wardCount || 0)} वार्ड`, 'शहरी प्रशासनिक कवरेज')}
         ${kpiPill('क्षेत्रीय स्थिति', isRural ? `कृषि · डेयरी · ग्राम शासन` : `शहरी सेवा · उद्योग · अवसंरचना`, isRural ? 'ग्रामीण केंद्रित' : 'शहरी केंद्रित')}
         ${kpiPill('पहचान', `${selectedScopeType}`, selectedScopePath)}
@@ -1207,7 +1207,6 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
       <div class="section-copy">${escapeHtml(district)} जिले में ${showRuralProfile ? `${fmt(d.meta?.gpCount || 0)} ग्राम पंचायतें और ${fmt(d.meta?.blockCount || 0)} प्रशासनिक खंड` : ''}${showRuralProfile && showUrbanProfile ? ' तथा ' : ''}${showUrbanProfile ? `${fmt(d.meta?.wardCount || 0)} वार्ड और ${fmt(d.meta?.ulbCount || 0)} नगर निकाय` : ''} शामिल हैं। यह अनुभाग बस्ती संरचना, जनसंख्या वितरण और कल्याण कवरेज का आधारभूत दृश्य प्रस्तुत करता है।</div>
 
       <div class="kpi-grid-5">
-        ${kpiPill('कुल नागरिक', fmtLakh(totalPopulation), '2026 baseline')}
         ${kpiPill('लिंग अनुपात', sexRatio === '—' ? '—' : `${sexRatio}`, 'प्रति 1000 पुरुष')}
         ${kpiPill('बच्चे (0-6)', fmt(d.population?.children06 || 0), 'प्रारंभिक आयु समूह')}
         ${kpiPill('BPL परिवार', fmt(d.population?.bplFamilies || 0), 'वंचित परिवार')}
@@ -1223,9 +1222,6 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
           ${infoRow('ग्राम पंचायतें', fmt(d.meta?.gpCount || 0))}
           ${scopeLevel === 'block' ? '' : infoRow('प्रशासनिक blocks', fmt(d.meta?.blockCount || 0))}
           ${infoRow('पक्के आवास कवरेज', `${puccaPct}%`)}
-          ${infoRow('वरिष्ठ नागरिक (60+)', fmtLakh(d.population?.seniors || 0))}
-          ${infoRow('BPL परिवार', fmt(d.population?.bplFamilies || 0))}
-          ${infoRow('PwD जनसंख्या', fmt(d.population?.pwd || 0))}
         </div>
         ` : ''}
         ${showUrbanProfile ? `
@@ -1269,7 +1265,6 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
         </div>
         <div class="info-panel">
           <div class="panel-title">जनसांख्यिकी प्रोफाइल</div>
-          ${infoRow('कुल नागरिक', fmtLakh(totalPopulation))}
           ${infoRow('पुरुष', fmt(malePopulation))}
           ${infoRow('महिला', fmt(femalePopulation))}
           ${infoRow('लिंग अनुपात (प्रति 1000)', sexRatio)}
@@ -1278,15 +1273,9 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
           ${infoRow('वरिष्ठ नागरिक (60+)', fmt(d.population?.seniors || 0))}
           ${infoRow('BPL परिवार', fmt(d.population?.bplFamilies || 0))}
           ${infoRow('PwD जनसंख्या', fmt(d.population?.pwd || 0))}
-          ${showRuralProfile ? infoRow('पक्का आवास कवरेज', `${puccaPct}%`) : ''}
         </div>
       </div>
 
-      <div class="bottom-note-box">${escapeHtml(showRuralProfile && !showUrbanProfile
-      ? `${district} जिले की ग्रामीण बस्ती संरचना में ${fmt(d.meta?.gpCount || 0)} ग्राम पंचायतें और ${fmt(d.meta?.blockCount || 0)} प्रशासनिक खंड हैं। कृषि, पशुधन एवं सेवा पहुंच के बीच स्पष्ट संबंध दृष्टिगत होता है।`
-      : !showRuralProfile && showUrbanProfile
-        ? `${district} जिले की शहरी बस्ती संरचना में ${fmt(d.meta?.wardCount || 0)} वार्ड और ${fmt(d.meta?.ulbCount || 0)} नगर निकाय हैं। घनत्व, सेवा पहुंच और अवसंरचना संतृप्ति के क्षेत्र में नियोजन मांग स्पष्ट है।`
-        : `${district} जिले की मिश्रित बस्ती संरचना में ग्रामीण एवं शहरी दोनों इकाइयां सम्मिलित हैं; इसलिए नियोजन में सेवाओं की पहुंच और अवसंरचना संतुलन दोनों पर समान ध्यान आवश्यक है।`)}</div>
     `);
 
     const SECTOR_KEYWORDS = {
@@ -1319,10 +1308,11 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
       return filtered.slice(0, maxRows);
     };
 
-    const renderAspirationRows = (aspirations: any[]) => {
+    const renderAspirationRows = (aspirations: any[], hideGpCol = false) => {
       console.log('[renderAspirationRows] count:', aspirations?.length);
       if (!aspirations || aspirations.length === 0) {
-        return `<tr><td colspan="7" style="text-align:center; color:#94a3b8; padding:16px; font-style:italic; font-family:'Noto Sans Devanagari',sans-serif;">इस क्षेत्र के लिए कोई स्वीकृत आकांक्षा उपलब्ध नहीं है</td></tr>`;
+        const colCount = hideGpCol ? 5 : 6;
+        return `<tr><td colspan="${colCount}" style="text-align:center; color:#94a3b8; padding:16px; font-style:italic; font-family:'Noto Sans Devanagari',sans-serif;">इस क्षेत्र के लिए कोई स्वीकृत आकांक्षा उपलब्ध नहीं है</td></tr>`;
       }
 
       return aspirations.map((aspiration) => `
@@ -1334,32 +1324,16 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
           <td style="text-align:center;">
             <span class="priority-badge ${Number(aspiration.priority) <= 2 ? 'p1' : 'p2'}">P-${escapeHtml(aspiration.priority || '—')}</span>
           </td>
-          <td style="text-align:center; font-family:sans-serif; font-weight:700; font-size:11px; max-width:80px; word-break:break-word;">
+          ${hideGpCol ? '' : `<td style="text-align:center; font-family:sans-serif; font-weight:700; font-size:11px; max-width:80px; word-break:break-word;">
             ${escapeHtml(
         (aspiration.area_type === 'Urban' || aspiration.area_type === 'urban' || aspiration.ward)
           ? (aspiration.ward || aspiration.ward_name || aspiration.city || aspiration.ulb || String(aspiration.ward_id || '') || '—')
           : (aspiration.gram_panchayat || aspiration.gp_name || '—')
       )}
-          </td>
+          </td>`}
           <td style="font-family:sans-serif;">${escapeHtml(aspiration.qty_2030 ?? '—')}</td>
           <td style="font-family:sans-serif;">${escapeHtml(aspiration.qty_2035 ?? '—')}</td>
           <td style="font-family:sans-serif;">${escapeHtml(aspiration.qty_2047 ?? '—')}</td>
-          <td>
-            <span class="status-badge ${aspiration.status === 'FUNDED' ? 'active' : aspiration.status === 'ACCEPT' ? 'ready' : 'proposal'}">${escapeHtml(aspiration.status || '—')}</span>
-            <div style="color:#1a1a2e; font-size:11px; line-height:1.5; font-family:'Noto Sans Devanagari',sans-serif; margin-top:4px;">
-              ${escapeHtml([
-        (aspiration.area_type === 'Urban' || aspiration.area_type === 'urban' || aspiration.ward)
-          ? (aspiration.ward ? `${aspiration.ward} वार्ड में` : aspiration.ward_name ? `${aspiration.ward_name} वार्ड में` : aspiration.ulb ? `${aspiration.ulb} में` : aspiration.city ? `${aspiration.city} में` : '')
-          : (aspiration.gram_panchayat ? `${aspiration.gram_panchayat} में` : aspiration.village ? `${aspiration.village} में` : ''),
-        aspiration.scheme ? `योजना: ${aspiration.scheme}` : '',
-        aspiration.fast_track ? 'Fast-track' : ''
-      ].filter(Boolean).join(' · '))}
-            </div>
-            ${aspiration.scheme ? `<div style="margin-top:4px;"><span class="scheme-tag">${escapeHtml(aspiration.scheme)}</span></div>` : ''}
-            ${aspiration.fast_track ? `<div style="margin-top:2px;"><span class="scheme-tag" style="background:#92400e; color:#fff;">⚡ Fast-track</span></div>` : ''}
-            ${aspiration.status === 'FUNDED' ? `<div style="margin-top:2px;"><span class="scheme-tag" style="background:#14532d; color:#fff;">✓ Funded</span></div>` : ''}
-            ${aspiration.total_budget ? `<div style="font-size:10px; color:#64748b; margin-top:2px; font-family:sans-serif;">₹${(Number(aspiration.total_budget) / 10000000).toFixed(1)} Cr</div>` : ''}
-          </td>
         </tr>
       `).join('');
     };
@@ -1380,10 +1354,13 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
           { value: fmt(d.health?.samChildren || 0), label: 'SAM बच्चे', sub: 'POSHAN 2.0 cohort' },
           { value: fmt(d.health?.ashaWorkers || 0), label: 'ASHA कार्यकर्ता', sub: 'अंतिम-छोर स्वास्थ्य दल' },
           { value: fmt(Number(d.social?.widowPensioners || 0) + Number(d.social?.urbanWidow || 0)), label: 'विधवा पेंशन', sub: 'सामाजिक सुरक्षा' },
+          { value: fmt(d.population?.seniors || 0), label: 'वरिष्ठ नागरिक (60+)', sub: 'Senior citizens' },
+          { value: fmt(d.population?.pwd || 0), label: 'PwD जनसंख्या', sub: 'Persons with disability' },
+          { value: fmt(d.education?.enrolledStudents || 0), label: 'नामांकित छात्र', sub: 'School enrollment' },
+          { value: fmt(d.health?.tbPatients || 0), label: 'TB रोगी', sub: 'NHM tracking' },
         ],
         narrative: [n.sectorNarratives?.health, n.sectorNarratives?.education, n.sectorNarratives?.socialWelfare].filter(Boolean).join(' '),
         aspirationKeywords: [...SECTOR_KEYWORDS.health, ...SECTOR_KEYWORDS.education, ...SECTOR_KEYWORDS.social] as readonly string[],
-        summaryText: `समूह 1 का दायरा — जन एवं समाज। ${fmt(d.education?.totalSchools || 0)} विद्यालय, ${fmt(d.health?.awcCenters || 0)} AWC केंद्र, ${fmt(Number(d.health?.allopathicCenters || 0) + Number(d.health?.ayushCenters || 0))} स्वास्थ्य केंद्र और ${fmt(d.economy?.activeShgs || 0)} सक्रिय SHG — ${d.meta?.district || ''} जिले की मानव विकास नींव को दर्शाते हैं। NHM, POSHAN, Samagra Shiksha और SRLM के अभिसरण से 2030 तक व्यापक सुधार संभव है।`,
       },
       {
         pageNo: '04', groupNo: '02', totalGroups: '04',
@@ -1400,10 +1377,13 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
           { value: fmtLakh(d.agriculture?.kccHolders || 0), label: 'KCC धारक', sub: 'ऋण-संबद्ध किसान' },
           { value: fmtLakh(d.agriculture?.pmKisan || 0), label: 'PM-KISAN नामांकन', sub: `किसानों का ${d.agriculture?.totalFarmers > 0 ? ((Number(d.agriculture?.pmKisan || 0) / Number(d.agriculture?.totalFarmers)) * 100).toFixed(1) : '—'}%` },
           { value: fmt(d.economy?.artisans || 0), label: 'स्थानीय कारीगर', sub: 'ग्रामीण + शहरी' },
+          { value: fmt(d.agriculture?.cropInsurance || 0), label: 'फसल बीमा किसान', sub: 'PMFBY coverage' },
+          { value: fmt(d.agriculture?.soilCards || 0), label: 'मृदा स्वास्थ्य कार्ड', sub: 'Valid soil cards' },
+          { value: fmt(d.dairy?.milchAnimals || 0), label: 'दुधारू पशु', sub: 'Milch animals' },
+          { value: fmt(d.economy?.mudraLoan || 0), label: 'Mudra ऋण लाभार्थी', sub: 'PMMY beneficiaries' },
         ],
         narrative: [n.sectorNarratives?.agriculture, n.sectorNarratives?.dairy, n.sectorNarratives?.economy, n.sectorNarratives?.tourism].filter(Boolean).join(' '),
         aspirationKeywords: [...SECTOR_KEYWORDS.agriculture, ...SECTOR_KEYWORDS.dairy, ...SECTOR_KEYWORDS.economy, ...SECTOR_KEYWORDS.tourism] as readonly string[],
-        summaryText: `समूह 2 का दायरा — आजीविका एवं अर्थव्यवस्था। ${fmtLakh(d.agriculture?.totalFarmers || 0)} किसान, ${fmtPct(d.agriculture?.irrigationPct)} सिंचाई दर, ${fmtLakh(d.dairy?.dailyMilkLpd || 0)} LPD दुग्ध उत्पादन और ${fmtLakh(d.agriculture?.kccHolders || 0)} KCC धारक — जिले की कृषि-अर्थव्यवस्था की नींव हैं। PMKSY, KCC, RCDF और SRLM के माध्यम से 2030 तक उत्पादकता में उल्लेखनीय वृद्धि संभव है।`,
       },
       {
         pageNo: '05', groupNo: '03', totalGroups: '04',
@@ -1420,10 +1400,13 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
           { value: fmt(d.infrastructure?.electricityHouses || 0), label: 'विद्युतीकृत परिवार', sub: `${d.population?.puccaHouses > 0 ? ((Number(d.infrastructure?.electricityHouses || 0) / (Number(d.population?.puccaHouses || 1) + Number(d.population?.kutchaHouses || 1))) * 100).toFixed(1) : '—'}% ग्रामीण HH` },
           { value: fmt(d.infrastructure?.publicToilets || 0), label: 'सार्वजनिक शौचालय', sub: 'community + public' },
           { value: `${fmt(d.infrastructure?.govtBanks || 0)} · ${fmt(d.infrastructure?.postOffices || 0)}`, label: 'बैंक · डाकघर', sub: 'अंतिम-छोर वित्त + डाक' },
+          { value: fmt(d.infrastructure?.streetLights || 0), label: 'स्ट्रीट लाइट', sub: 'Total street lights' },
+          { value: fmt(d.infrastructure?.solarHomes || 0), label: 'सौर गृह', sub: 'Solar installed houses' },
+          { value: fmt(d.water?.roFacilities || 0), label: 'RO सुविधाएं', sub: 'Drinking water RO' },
+          { value: fmt(d.infrastructure?.postOffices || 0), label: 'डाकघर', sub: 'Post office network' },
         ],
         narrative: [n.sectorNarratives?.water, n.sectorNarratives?.infrastructure].filter(Boolean).join(' '),
         aspirationKeywords: [...SECTOR_KEYWORDS.water, ...SECTOR_KEYWORDS.infrastructure] as readonly string[],
-        summaryText: `समूह 3 का दायरा — मूलभूत संरचना। ${fmtPct(d.water?.ruralFhtcAvg)} ग्रामीण FHTC, ${fmt(d.infrastructure?.electricityHouses || 0)} विद्युतीकृत परिवार, ${fmtKm(d.infrastructure?.roadKm || 0)} सड़क नेटवर्क और ${fmt(d.water?.overheadTanks || 0)} ओवरहेड टैंक — जिले की आधारभूत संरचना को परिभाषित करते हैं। JJM Phase 2, PMGSY और 15th FC के समन्वय से 2030 तक सार्वभौमिक कवरेज सुनिश्चित किया जा सकता है।`,
       },
       {
         pageNo: '06', groupNo: '04', totalGroups: '04',
@@ -1440,10 +1423,13 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
           { value: fmt(d.governance?.distEmitraKm ? `${Number(d.governance.distEmitraKm).toFixed(1)} km` : '—'), label: 'ई-मित्र दूरी (औसत)', sub: `${fmt(d.meta?.gpCount || 0)} GPs का औसत` },
           { value: fmt(d.environment?.govtCompostPits || 0), label: 'सरकारी नर्सरी/कॉम्पोस्ट', sub: 'waste processing' },
           { value: fmt(d.environment?.suryaGharHomes || 0), label: 'PM Surya Ghar', sub: 'solar homes' },
+          { value: fmt(d.environment?.wasteKgDay || 0), label: 'दैनिक अपशिष्ट (kg)', sub: 'Daily waste generated' },
+          { value: fmt(d.tourism?.dailyFootfall || 0), label: 'सांस्कृतिक आगंतुक/दिन', sub: 'Cultural site footfall' },
+          { value: fmtKm(d.governance?.distPoliceKm || 0), label: 'थाना दूरी (औसत)', sub: 'Avg police station dist.' },
+          { value: fmtKm(d.governance?.distLpgKm || 0), label: 'LPG वितरक दूरी', sub: 'Avg LPG distributor dist.' },
         ],
         narrative: [n.sectorNarratives?.environment, n.sectorNarratives?.governance, n.sectorNarratives?.tourism].filter(Boolean).join(' '),
         aspirationKeywords: [...SECTOR_KEYWORDS.environment, ...SECTOR_KEYWORDS.governance, ...SECTOR_KEYWORDS.tourism] as readonly string[],
-        summaryText: `समूह 4 का दायरा — पर्यावरण एवं विरासत। ${fmtLakh(d.environment?.forestHa || 0)} हेक्टेयर वन, ${fmt(d.tourism?.heritageSites || 0)} सांस्कृतिक स्थल, ${fmt(d.tourism?.annualFairs || 0)} वार्षिक मेले और ई-मित्र नेटवर्क — जिले की पारिस्थितिक तथा सांस्कृतिक पहचान बनाते हैं। Green Rajasthan, CAMPA और Swadesh Darshan 2.0 के माध्यम से दीर्घकालिक स्थिरता सुनिश्चित होगी।`,
       },
     ] : [
       {
@@ -1461,10 +1447,13 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
           { value: fmt(d.health?.samChildren || 0), label: 'SAM बच्चे', sub: 'POSHAN 2.0' },
           { value: fmt(d.health?.ashaWorkers || 0), label: 'ASHA कार्यकर्ता', sub: 'अंतिम-छोर दल' },
           { value: fmt(d.education?.enrolledStudents || 0), label: 'नामांकित छात्र', sub: 'विद्यालय नामांकन' },
+          { value: fmt(d.population?.seniors || 0), label: 'वरिष्ठ नागरिक (60+)', sub: 'Senior citizens' },
+          { value: fmt(d.population?.pwd || 0), label: 'PwD जनसंख्या', sub: 'Persons with disability' },
+          { value: fmt(d.health?.tbPatients || 0), label: 'TB रोगी', sub: 'NHM tracking' },
+          { value: fmt(d.health?.snpRecipients || 0), label: 'SNP लाभार्थी (6-72 माह)', sub: 'ICDS nutrition program' },
         ],
         narrative: [n.sectorNarratives?.health, n.sectorNarratives?.education, n.sectorNarratives?.socialWelfare].filter(Boolean).join(' '),
         aspirationKeywords: [...SECTOR_KEYWORDS.health, ...SECTOR_KEYWORDS.education, ...SECTOR_KEYWORDS.social] as readonly string[],
-        summaryText: `समूह 1 का दायरा — जन एवं समाज। ${fmt(d.education?.totalSchools || 0)} विद्यालय, ${fmt(d.health?.awcCenters || 0)} AWC केंद्र और ${fmt(d.economy?.activeShgs || 0)} SHG — शहरी मानव विकास की आधारशिला हैं। NHM, POSHAN और Samagra Shiksha के समन्वय से 2030 तक सार्वभौमिक सेवा कवरेज संभव है।`,
       },
       {
         pageNo: '04', groupNo: '02', totalGroups: '04',
@@ -1481,10 +1470,13 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
           { value: fmt(d.tourism?.trainedGuides || 0), label: 'प्रशिक्षित गाइड', sub: 'पर्यटन कार्यबल' },
           { value: fmt(d.tourism?.fairEmployment || 0), label: 'SHG संचालित स्टॉल', sub: 'पर्यटन रोज़गार' },
           { value: fmt(d.social?.ujjwalaBen || 0), label: 'Ujjwala लाभार्थी', sub: 'स्वच्छ ईंधन' },
+          { value: fmt(d.economy?.shgWomen || 0), label: 'SHG में महिलाएं', sub: 'Women in self-help groups' },
+          { value: fmt(d.social?.ujjwalaBen || 0), label: 'Ujjwala लाभार्थी', sub: 'Clean fuel coverage' },
+          { value: fmt(d.social?.oldAgePensioners || 0), label: 'वृद्धावस्था पेंशन', sub: 'Social security' },
+          { value: fmt(d.social?.urbanWidow || 0), label: 'विधवा पेंशन', sub: 'Urban widow support' },
         ],
         narrative: [n.sectorNarratives?.economy, n.sectorNarratives?.tourism].filter(Boolean).join(' '),
         aspirationKeywords: [...SECTOR_KEYWORDS.economy, ...SECTOR_KEYWORDS.tourism] as readonly string[],
-        summaryText: `समूह 2 का दायरा — शहरी आजीविका एवं अर्थव्यवस्था। ${fmt(d.economy?.activeShgs || 0)} SHG, ${fmt(d.economy?.artisans || 0)} कारीगर और ${fmt(Number(d.economy?.largeIndustrialUnits || 0) + Number(d.economy?.smallScaleIndustries || 0))} औद्योगिक इकाइयां — शहरी आर्थिक इंजन को परिभाषित करती हैं। SRLM, MSME और पर्यटन के माध्यम से उद्यम विकास का मार्ग प्रशस्त हो सकता है।`,
       },
       {
         pageNo: '05', groupNo: '03', totalGroups: '04',
@@ -1501,10 +1493,13 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
           { value: fmt(d.infrastructure?.privateBanks || 0), label: 'निजी बैंक', sub: 'वित्तीय पहुंच' },
           { value: fmtKm(d.infrastructure?.roadKm || 0), label: 'सड़क नेटवर्क', sub: 'किमी' },
           { value: fmt(d.infrastructure?.solarHomes || 0), label: 'सौर ऊर्जा घर', sub: 'नवीकरणीय ऊर्जा' },
+          { value: fmt(d.infrastructure?.privateBanks || 0), label: 'निजी बैंक', sub: 'Private banking access' },
+          { value: fmtKm(d.infrastructure?.distRailwayStationKm || 0), label: 'रेलवे स्टेशन दूरी', sub: 'Avg distance' },
+          { value: fmtKm(d.infrastructure?.distBusStandKm || 0), label: 'बस स्टैंड दूरी', sub: 'Avg distance' },
+          { value: fmt(d.water?.roFacilities || 0), label: 'RO सुविधाएं', sub: 'Drinking water quality' },
         ],
         narrative: [n.sectorNarratives?.water, n.sectorNarratives?.infrastructure].filter(Boolean).join(' '),
         aspirationKeywords: [...SECTOR_KEYWORDS.water, ...SECTOR_KEYWORDS.infrastructure] as readonly string[],
-        summaryText: `समूह 3 का दायरा — शहरी मूलभूत संरचना। ${fmtPct(d.water?.urbanFhtcAvg)} FHTC, ${fmt(d.infrastructure?.electricityHouses || 0)} विद्युत कनेक्शन और ${fmt(d.infrastructure?.publicToilets || 0)} कार्यशील शौचालय — शहरी जीवन गुणवत्ता की नींव हैं। AMRUT 2.0, PMGSY और SBM Phase 2 के समन्वय से 2030 तक सार्वभौमिक पहुंच संभव है।`,
       },
       {
         pageNo: '06', groupNo: '04', totalGroups: '04',
@@ -1521,10 +1516,13 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
           { value: fmt(d.tourism?.avgFairFootfallDaily || d.tourism?.dailyFootfall || 0), label: 'मेले में आगंतुक/दिन', sub: 'पर्यटन प्रवाह' },
           { value: fmtKm(d.governance?.distEmitraKm || d.governance?.urbanEmitraKm || 0), label: 'ई-मित्र दूरी', sub: 'डिजिटल पहुंच' },
           { value: fmtKm(d.governance?.distPoliceKm || d.governance?.urbanPoliceKm || 0), label: 'थाना दूरी', sub: 'सुरक्षा पहुंच' },
+          { value: fmt(d.environment?.suryaGharHomes || 0), label: 'PM Surya Ghar', sub: 'Solar homes' },
+          { value: fmt(d.tourism?.trainedGuides || 0), label: 'प्रशिक्षित गाइड', sub: 'Tourism workforce' },
+          { value: fmtKm(d.governance?.distPoliceKm || d.governance?.urbanPoliceKm || 0), label: 'थाना दूरी', sub: 'Avg police dist.' },
+          { value: fmtKm(d.governance?.distEmitraKm || d.governance?.urbanEmitraKm || 0), label: 'e-Mitra दूरी', sub: 'Digital access' },
         ],
         narrative: [n.sectorNarratives?.environment, n.sectorNarratives?.governance, n.sectorNarratives?.tourism].filter(Boolean).join(' '),
         aspirationKeywords: [...SECTOR_KEYWORDS.environment, ...SECTOR_KEYWORDS.governance, ...SECTOR_KEYWORDS.tourism] as readonly string[],
-        summaryText: `समूह 4 का दायरा — शहरी पर्यावरण एवं विरासत। ${fmt(d.environment?.govtNurseries || 0)} सरकारी नर्सरी, ${fmt(d.tourism?.heritageSites || 0)} सांस्कृतिक स्थल और ई-मित्र नेटवर्क — शहरी पारिस्थितिकी एवं डिजिटल शासन की पहचान हैं। SBM, Swadesh Darshan 2.0 और DoIT&C के माध्यम से दीर्घकालिक स्थिरता बनेगी।`,
       },
     ];
 
@@ -1534,7 +1532,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
       const dynamicPageNo = `${page.pageNo} / ${String(totalPages).padStart(2, '0')}`;
       const aspirations = getAspirationsForSector(d.aspirations || [], page.aspirationKeywords, 8);
       const cardsHtml = page.cards.map((card) => metricCard(card.value, card.label, card.sub)).join('');
-      const rowsHtml = renderAspirationRows(aspirations);
+      const rowsHtml = renderAspirationRows(aspirations, scopeLevel === 'gp' || scopeLevel === 'ward');
 
       return pageShell(`
         ${pageHeader(`${page.pageNo} / ${totalPages}`, page.titleHi, page.titleEn, `PAGE ${dynamicPageNo} · ${page.titleHi}`)}
@@ -1547,10 +1545,6 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
           <div class="group-band-body">
             <div class="group-band-title">${escapeHtml(page.titleHi)}</div>
             <div class="group-band-subtitle">${escapeHtml(page.titleEn)}</div>
-            <div class="group-band-asp">${aspirations.length > 0 ? `${aspirations.length} आकांक्षाएं · 2030 तक हस्तक्षेप` : page.aspirationLabel}</div>
-            <div class="group-sector-strip">
-              ${page.aspirationLabel.split(' · ').map((s) => `<span class="group-sector-chip">${escapeHtml(s)}</span>`).join('')}
-            </div>
           </div>
         </div>
 
@@ -1560,10 +1554,6 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
         </div>
 
         <div class="kpi-grid-4x2">${cardsHtml}</div>
-
-        <div class="section-copy" style="margin-top:16px; font-family:'Noto Sans Devanagari',sans-serif;">
-          ${escapeHtml(page.narrative || '')}
-        </div>
 
         <div class="asp-head">
           <div class="section-kicker">सामुदायिक आकांक्षाएँ · COMMUNITY ASPIRATIONS</div>
@@ -1575,22 +1565,15 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
             <tr>
               <th>आकांक्षा</th>
               <th>प्राथमिकता</th>
-              <th>ग्रा.प./वार्ड</th>
+              ${scopeLevel !== 'gp' && scopeLevel !== 'ward' ? '<th>ग्रा.प./वार्ड</th>' : ''}
               <th>2030 तक</th>
               <th>2030-35</th>
               <th>2035-47</th>
-              <th>माँग संदर्भ</th>
             </tr>
           </thead>
           <tbody>${rowsHtml}</tbody>
         </table>
 
-        <div class="summary-box">
-          <div class="summary-box-arrow">›</div>
-          <div class="summary-box-text" style="font-family:'Noto Sans Devanagari',sans-serif;">
-            ${page.summaryText}
-          </div>
-        </div>
       `, 'thematic-page');
     }).join('');
 
@@ -1628,7 +1611,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
 
       return {
         indicator: sector,
-        current: `${sectorAsps.length} आकांक्षाएं · ${funded.length} Funded`,
+        current: `${sectorAsps.length} आकांक्षाएं`,
         phase1: qty2030 > 0 ? `${fmt(qty2030)} units by 2030` : `${accepted.length} accepted aspirations`,
         phase2,
         phase2047: qty2047 > 0 ? `${fmt(qty2047)} units · ${topItem}` : `Complete coverage`,
@@ -1658,8 +1641,8 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
         const sectorAsps = (d.aspirations || []).filter((a: any) => a.sector === sector);
         const funded = sectorAsps.filter((a: any) => a.status === 'FUNDED').length;
         const fastTrack = sectorAsps.filter((a: any) => a.fast_track).length;
-        const statusLabel = funded > 0 ? 'सक्रिय' : fastTrack > 0 ? 'योजना-तैयार' : 'अवधारणा स्तर';
-        const opportunity = `${sectorAsps.length} aspirations · ${funded} funded`;
+        const statusLabel = 'नियोजन चरण';
+        const opportunity = `${sectorAsps.length} aspirations`;
         return [sector, schemes || '—', opportunity, statusLabel];
       });
 
@@ -1667,17 +1650,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
       schemeRows.push(['डेटा उपलब्ध नहीं', '—', '—', 'अवधारणा स्तर']);
     }
 
-    const scopeMasterFullLabel = `${escapeHtml(coverMainName)} · ${scopeMasterLabel}`;
-
-    const scopeMasterSummaryText = scopeLevel === 'gp'
-      ? `<b>${escapeHtml(coverMainName)}</b> ग्राम पंचायत का मास्टर प्लान आधारभूत डेटा, विषयगत आकांक्षाओं और योजना अभिसरण को एकीकृत नियोजन प्रणाली में जोड़ता है। <b>${fmtLakh(totalPopulation)}</b> नागरिकों और जीपी-स्तरीय अवसंरचना अंतराल के आधार पर यह ढांचा FY 2026-27 से FY 2047 तक चरणबद्ध, मापनीय और सर्वे-सत्यापित विकास पथ प्रस्तुत करता है।`
-      : scopeLevel === 'ward'
-      ? `<b>${escapeHtml(coverMainName)}</b> वार्ड का मास्टर प्लान आधारभूत डेटा, शहरी आकांक्षाओं और योजना अभिसरण को एकीकृत नियोजन प्रणाली में जोड़ता है। <b>${fmtLakh(totalPopulation)}</b> नागरिकों और वार्ड-स्तरीय अवसंरचना अंतराल के आधार पर यह ढांचा FY 2026-27 से FY 2047 तक चरणबद्ध विकास पथ प्रस्तुत करता है।`
-      : scopeLevel === 'block'
-      ? `<b>${escapeHtml(coverMainName)}</b> विकास खंड का मास्टर प्लान आधारभूत डेटा, विषयगत आकांक्षाओं और योजना अभिसरण को एकीकृत नियोजन प्रणाली में जोड़ता है। <b>${fmtLakh(totalPopulation)}</b> नागरिकों, <b>${fmt(d.meta?.gpCount || 0)}</b> ग्राम पंचायतों और खंड-स्तरीय अवसंरचना अंतराल के आधार पर यह ढांचा FY 2026-27 से FY 2047 तक चरणबद्ध, मापनीय और सर्वे-सत्यापित विकास पथ प्रस्तुत करता है।`
-      : scopeLevel === 'ulb'
-      ? `<b>${escapeHtml(coverMainName)}</b> नगर निकाय का मास्टर प्लान आधारभूत डेटा, शहरी आकांक्षाओं और योजना अभिसरण को एकीकृत नियोजन प्रणाली में जोड़ता है। <b>${fmtLakh(totalPopulation)}</b> नागरिकों, <b>${fmt(d.meta?.wardCount || 0)}</b> वार्ड और नगर-स्तरीय अवसंरचना अंतराल के आधार पर यह ढांचा FY 2026-27 से FY 2047 तक चरणबद्ध विकास पथ प्रस्तुत करता है।`
-      : `<b>${escapeHtml(district)}</b> जिले का मास्टर प्लान आधारभूत डेटा, विषयगत आकांक्षाओं और योजना अभिसरण को एकीकृत नियोजन प्रणाली में जोड़ता है। <b>${fmtLakh(totalPopulation)}</b> नागरिकों, <b>${fmt(d.meta?.gpCount || 0)}</b> ग्राम पंचायतों / <b>${fmt(d.meta?.wardCount || 0)}</b> वार्ड और जिला-स्तरीय अवसंरचना अंतराल के आधार पर यह ढांचा FY 2026-27 से FY 2047 तक चरणबद्ध, मापनीय और सर्वे-सत्यापित विकास पथ प्रस्तुत करता है।`;
+    
 
     const strategicPageNo = `${totalPages} / ${totalPages}`;
     const strategicPage = pageShell(`
@@ -1733,11 +1706,6 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
           `).join('')}
         </tbody>
       </table>
-
-      <div class="master-summary">
-        <div class="master-summary-head">${scopeMasterFullLabel}</div>
-        <div class="master-summary-body">${scopeMasterSummaryText}</div>
-      </div>
 
       <div class="footer-line">विकसित राजस्थान @ 2047 · RITI - Government of Rajasthan | Manthaan OS द्वारा संचालित · सर्वे-सत्यापित · ${escapeHtml(reportMonth)}</div>
     `, 'strategic-page');

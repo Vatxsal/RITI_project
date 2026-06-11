@@ -25,6 +25,16 @@ export default function Sidebar() {
         Command Center
       </Link>
 
+      <div className="sbl" style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--t3)', padding: '11px 16px 4px', opacity: 0.55 }}>Intelligence</div>
+      <Link href="/reports" className="si" style={{ display: 'flex', alignItems: 'center', gap: '9px', padding: '7px 16px', cursor: 'pointer', color: 'var(--t3)', fontSize: '12px', borderLeft: '2px solid transparent', transition: 'all .15s', userSelect: 'none' }}>
+        <span className="ic" style={{ width: '16px', textAlign: 'center', flexShrink: 0, fontSize: '13px', opacity: 0.6 }}>▬</span>
+        Report Library
+      </Link>
+      <Link href="/ai-chat" className="si" style={{ display: 'flex', alignItems: 'center', gap: '9px', padding: '7px 16px', cursor: 'pointer', color: 'var(--t3)', fontSize: '12px', borderLeft: '2px solid transparent', transition: 'all .15s', userSelect: 'none' }}>
+        <span className="ic" style={{ width: '16px', textAlign: 'center', flexShrink: 0, fontSize: '13px', opacity: 0.6 }}>◌</span>
+        Talk to Data
+      </Link>
+
       <div className="sbl" style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--t3)', padding: '11px 16px 4px', opacity: 0.55 }}>11 Sector Dashboards</div>
       {[
         { view: 'water', label: 'Water & Sanitation', icon: '◯' },
@@ -44,22 +54,6 @@ export default function Sidebar() {
           {item.label}
         </Link>
       ))}
-
-      <div className="sbl" style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--t3)', padding: '11px 16px 4px', opacity: 0.55 }}>Explore</div>
-      <Link href="/gis-map-new" className="si" style={{ display: 'flex', alignItems: 'center', gap: '9px', padding: '7px 16px', cursor: 'pointer', color: 'var(--t3)', fontSize: '12px', borderLeft: '2px solid transparent', transition: 'all .15s', userSelect: 'none' }}>
-        <span className="ic" style={{ width: '16px', textAlign: 'center', flexShrink: 0, fontSize: '13px', opacity: 0.6 }}>●</span>
-        GIS Map
-      </Link>
-
-      <div className="sbl" style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--t3)', padding: '11px 16px 4px', opacity: 0.55 }}>Intelligence</div>
-      <Link href="/reports" className="si" style={{ display: 'flex', alignItems: 'center', gap: '9px', padding: '7px 16px', cursor: 'pointer', color: 'var(--t3)', fontSize: '12px', borderLeft: '2px solid transparent', transition: 'all .15s', userSelect: 'none' }}>
-        <span className="ic" style={{ width: '16px', textAlign: 'center', flexShrink: 0, fontSize: '13px', opacity: 0.6 }}>▬</span>
-        Report Library
-      </Link>
-      <Link href="/ai-chat" className="si" style={{ display: 'flex', alignItems: 'center', gap: '9px', padding: '7px 16px', cursor: 'pointer', color: 'var(--t3)', fontSize: '12px', borderLeft: '2px solid transparent', transition: 'all .15s', userSelect: 'none' }}>
-        <span className="ic" style={{ width: '16px', textAlign: 'center', flexShrink: 0, fontSize: '13px', opacity: 0.6 }}>◌</span>
-        Talk to Data
-      </Link>
     </div>
   )
 }

@@ -91,63 +91,6 @@ export default function Sidebar({ isMobileOpen, onMobileClose }: { isMobileOpen?
             <span>Command Center</span>
           </Link>
 
-          <div className="sbl" style={{ color: 'rgba(255,255,255,0.35)', fontSize: '9px', fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', padding: '16px 20px 6px', opacity: 1 }}>11 Sector Dashboards</div>
-          {SECTORS.map(sector => {
-            const sectorRoute = sector.v === 'women' ? 'social' : sector.v;
-
-            return (
-              <Link 
-                key={sector.v}
-                href={`/sector/${sectorRoute}`}
-                className={`si ${pathname === `/sector/${sectorRoute}` ? 'on' : ''}`}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  padding: '9px 20px',
-                  cursor: 'pointer',
-                  color: pathname === `/sector/${sectorRoute}` ? '#ffffff' : 'rgba(255,255,255,0.65)',
-                  fontSize: '13px',
-                  fontWeight: pathname === `/sector/${sectorRoute}` ? 700 : 500,
-                  borderRadius: 0,
-                  transition: 'all 0.15s',
-                  borderLeft: pathname === `/sector/${sectorRoute}` ? '3px solid #e85d04' : '3px solid transparent',
-                  background: pathname === `/sector/${sectorRoute}` ? 'rgba(255,255,255,0.1)' : 'transparent',
-                  userSelect: 'none'
-                }}
-                onClick={handleLinkClick}
-              >
-                <span className="ic" style={{ width: '18px', flexShrink: 0, fontSize: '14px', color: pathname === `/sector/${sectorRoute}` ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.4)' }}>{sector.icon}</span>
-                <span>{sector.label}</span>
-              </Link>
-            );
-          })}
-
-          <div className="sbl" style={{ color: 'rgba(255,255,255,0.35)', fontSize: '9px', fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', padding: '16px 20px 6px', opacity: 1 }}>Explore</div>
-          <Link 
-            href="/gis-map"
-            className={`si ${isActive('/gis-map') ? 'on' : ''}`}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              padding: '9px 20px',
-              cursor: 'pointer',
-              color: isActive('/gis-map') ? '#ffffff' : 'rgba(255,255,255,0.65)',
-              fontSize: '13px',
-              fontWeight: isActive('/gis-map') ? 700 : 500,
-              borderRadius: 0,
-              transition: 'all 0.15s',
-              borderLeft: isActive('/gis-map') ? '3px solid #e85d04' : '3px solid transparent',
-              background: isActive('/gis-map') ? 'rgba(255,255,255,0.1)' : 'transparent',
-              userSelect: 'none'
-            }}
-            onClick={handleLinkClick}
-          >
-            <span className="ic" style={{ width: '18px', flexShrink: 0, fontSize: '14px', color: isActive('/gis-map') ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.4)' }}>◯</span>
-            <span>GIS Map</span>
-          </Link>
-
           <div className="sbl" style={{ color: 'rgba(255,255,255,0.35)', fontSize: '9px', fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', padding: '16px 20px 6px', opacity: 1 }}>Intelligence</div>
           <Link 
             href="/reports"
@@ -195,6 +138,38 @@ export default function Sidebar({ isMobileOpen, onMobileClose }: { isMobileOpen?
             <span className="ic" style={{ width: '18px', flexShrink: 0, fontSize: '14px', color: isActive('/ai-chat') ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.4)' }}>◯</span>
             <span>Talk to Data</span>
           </Link>
+
+          <div className="sbl" style={{ color: 'rgba(255,255,255,0.35)', fontSize: '9px', fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', padding: '16px 20px 6px', opacity: 1 }}>11 Sector Dashboards</div>
+          {SECTORS.map(sector => {
+            const sectorRoute = sector.v === 'women' ? 'social' : sector.v;
+
+            return (
+              <Link 
+                key={sector.v}
+                href={`/sector/${sectorRoute}`}
+                className={`si ${pathname === `/sector/${sectorRoute}` ? 'on' : ''}`}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '9px 20px',
+                  cursor: 'pointer',
+                  color: pathname === `/sector/${sectorRoute}` ? '#ffffff' : 'rgba(255,255,255,0.65)',
+                  fontSize: '13px',
+                  fontWeight: pathname === `/sector/${sectorRoute}` ? 700 : 500,
+                  borderRadius: 0,
+                  transition: 'all 0.15s',
+                  borderLeft: pathname === `/sector/${sectorRoute}` ? '3px solid #e85d04' : '3px solid transparent',
+                  background: pathname === `/sector/${sectorRoute}` ? 'rgba(255,255,255,0.1)' : 'transparent',
+                  userSelect: 'none'
+                }}
+                onClick={handleLinkClick}
+              >
+                <span className="ic" style={{ width: '18px', flexShrink: 0, fontSize: '14px', color: pathname === `/sector/${sectorRoute}` ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.4)' }}>{sector.icon}</span>
+                <span>{sector.label}</span>
+              </Link>
+            );
+          })}
         </>
       ) : (
         <div style={{ padding: '16px 20px', fontSize: '12px', color: 'rgba(255,255,255,0.6)' }}>Sign in as admin to view the dashboard</div>
