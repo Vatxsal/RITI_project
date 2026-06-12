@@ -14,6 +14,7 @@ const DISTRICTS_EN = [
   'Sikar', 'Sirohi', 'Sri Ganganagar', 'Tonk', 'Udaipur'
 ] as const;
 
+
 if (DISTRICTS_EN.length !== 41) {
   throw new Error(`DISTRICTS_EN must contain exactly 41 entries, found ${DISTRICTS_EN.length}`);
 }
@@ -314,6 +315,19 @@ export default function ReportsPage() {
 
       const { data, error } = await query;
       if (error || !data || data.length === 0) throw new Error('No rural data found.');
+      // Find the best profile text: prefer the selected GP's row, fall back to first non-empty
+      const gpProfileText: string = (() => {
+        if (scope.gpName) {
+          // GP-level: find the row matching the selected GP name
+          const gpRow = data.find((r: any) =>
+            String(r.gram_panchayat || '').trim().toLowerCase() === String(scope.gpName || '').trim().toLowerCase()
+          );
+          if (gpRow?.gp_profile) return String(gpRow.gp_profile);
+        }
+        // Block or district level: find first row that has a non-empty gp_profile
+        const firstWithProfile = data.find((r: any) => r.gp_profile && String(r.gp_profile).trim().length > 10);
+        return firstWithProfile ? String(firstWithProfile.gp_profile) : '';
+      })();
 
       // ── RURAL ASPIRATIONS ─────────────────────────────────────────────────
       // aspirations_rural stores all names in Hindi:
@@ -486,6 +500,7 @@ export default function ReportsPage() {
           distLpgKm: A(data, 'dist_lpg_distributor_km'),
           urbanPoliceKm: 0, urbanEmitraKm: 0,
         },
+        profileText: gpProfileText,
         aspirations: ruralAspData,
       };
 
@@ -497,6 +512,19 @@ export default function ReportsPage() {
 
       const { data, error } = await query;
       if (error || !data || data.length === 0) throw new Error('No urban data found.');
+      // Find the best profile text: prefer selected ward's row, fall back to first non-empty
+      const wardProfileText: string = (() => {
+        if (scope.wardName) {
+          // Ward-level: find the row matching the selected ward name
+          const wardRow = data.find((r: any) =>
+            String(r.ward || '').trim().toLowerCase() === String(scope.wardName || '').trim().toLowerCase()
+          );
+          if (wardRow?.ward_profile) return String(wardRow.ward_profile);
+        }
+        // ULB or district level: find first row with non-empty ward_profile
+        const firstWithProfile = data.find((r: any) => r.ward_profile && String(r.ward_profile).trim().length > 10);
+        return firstWithProfile ? String(firstWithProfile.ward_profile) : '';
+      })();
 
       // ── URBAN ASPIRATIONS ──────────────────────────────────────────────────────
       // aspirations_urban stores all names in Hindi:
@@ -671,6 +699,7 @@ export default function ReportsPage() {
           heritageSites: 0, annualFairs: 0,
         },
         governance: { urbanPoliceKm: 0, urbanEmitraKm: 0, distPoliceKm: 0, distEmitraKm: 0, distLpgKm: 0 },
+        profileText: wardProfileText,
         aspirations: urbanAspData,
       };
     }
@@ -942,6 +971,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
     console.log('✅ Alwar PDF redesign v3 active', scope);
 
     const d = data;
+    const profileText: string = String(d.profileText || '');
     const n = narrative || {};
     const scopeType = d.scopeType || scope.type;
     const isRural = scopeType === 'rural';
@@ -1167,10 +1197,77 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
       <div class="featured-box">
         <div class="featured-title">मास्टर प्लान · एक नज़र में · THE PLANNING PROGRAMME AT A GLANCE</div>
         <div class="featured-body">
-          <p><b>${escapeHtml(selectedScopeName)}</b> (${escapeHtml(selectedScopeType)}) के लिए आधारभूत डेटा के आधार पर यह नियोजन संक्षिप्तिका तैयार की गई है। मूल जिला <b>${escapeHtml(district)}</b> के अंतर्गत इस चयनित क्षेत्र की जनसंख्या, आवास, आजीविका, अवसंरचना और शासन की वर्तमान स्थिति को संरचित रूप में प्रस्तुत किया गया है।</p>
-          <p>${escapeHtml(n.executiveSummary || 'जिले का आधारभूत सारांश वर्तमान नियोजन डेटासेट से उपलब्ध है।')}</p>
+    ${profileText
+      ? `<div style="font-size:13px; color:#e2e8f0; line-height:1.9; font-family:'Noto Sans Devanagari',sans-serif; white-space:pre-wrap;">${escapeHtml(profileText)}</div>`
+      : (isRural ? `
+    <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
+      <div>
+        <div style="font-size:10px; color:#94a3b8; text-transform:uppercase; letter-spacing:0.08em; font-weight:700; margin-bottom:6px;">जनसंख्या एवं परिवार</div>
+        <div style="font-size:12px; color:#e2e8f0; line-height:2; font-family:'Noto Sans Devanagari',sans-serif;">
+          <div>कुल जनसंख्या: <b>${fmtLakh(d.population?.total || 0)}</b></div>
+          <div>कुल परिवार: <b>${fmt(d.population?.totalFamilies || 0)}</b></div>
+          <div>BPL परिवार: <b>${fmt(d.population?.bplFamilies || 0)}</b></div>
+          <div>पक्के आवास: <b>${fmtPct(ruralFamilies > 0 ? ((Number(d.population?.puccaHouses || 0) / ruralFamilies) * 100).toFixed(1) : '—')}</b></div>
+          <div>PwD जनसंख्या: <b>${fmt(d.population?.pwd || 0)}</b></div>
         </div>
-        <div class="featured-caption">जिला आधारभूत डेटा, GP/वार्ड लुकअप और AI-generated विश्लेषण से सत्यापित</div>
+      </div>
+      <div>
+        <div style="font-size:10px; color:#94a3b8; text-transform:uppercase; letter-spacing:0.08em; font-weight:700; margin-bottom:6px;">कृषि एवं जल</div>
+        <div style="font-size:12px; color:#e2e8f0; line-height:2; font-family:'Noto Sans Devanagari',sans-serif;">
+          <div>कुल किसान: <b>${fmtLakh(d.agriculture?.totalFarmers || 0)}</b></div>
+          <div>सिंचाई दर: <b>${fmtPct(d.agriculture?.irrigationPct || 0)}</b></div>
+          <div>KCC धारक: <b>${fmtLakh(d.agriculture?.kccHolders || 0)}</b></div>
+          <div>FHTC कवरेज: <b>${fmtPct(d.water?.ruralFhtcAvg || 0)}</b></div>
+          <div>भूजल गहराई: <b>${fmtKm(d.water?.groundwaterDepth || 0)}</b></div>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:10px; color:#94a3b8; text-transform:uppercase; letter-spacing:0.08em; font-weight:700; margin-bottom:6px;">स्वास्थ्य एवं अवसंरचना</div>
+        <div style="font-size:12px; color:#e2e8f0; line-height:2; font-family:'Noto Sans Devanagari',sans-serif;">
+          <div>AWC केंद्र: <b>${fmt(d.health?.awcCenters || 0)}</b></div>
+          <div>ASHA कार्यकर्ता: <b>${fmt(d.health?.ashaWorkers || 0)}</b></div>
+          <div>स्वास्थ्य केंद्र: <b>${fmt((Number(d.health?.allopathicCenters || 0) + Number(d.health?.ayushCenters || 0)))}</b></div>
+          <div>विद्युतीकृत परिवार: <b>${fmt(d.infrastructure?.electricityHouses || 0)}</b></div>
+          <div>सड़क नेटवर्क: <b>${fmtKm(d.infrastructure?.roadKm || 0)}</b></div>
+        </div>
+      </div>
+    </div>
+    ` : `
+    <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
+      <div>
+        <div style="font-size:10px; color:#94a3b8; text-transform:uppercase; letter-spacing:0.08em; font-weight:700; margin-bottom:6px;">जनसंख्या एवं आवास</div>
+        <div style="font-size:12px; color:#e2e8f0; line-height:2; font-family:'Noto Sans Devanagari',sans-serif;">
+          <div>शहरी जनसंख्या: <b>${fmtLakh(d.population?.urbanPop || 0)}</b></div>
+          <div>पक्के आवास: <b>${fmt(d.population?.puccaHouses || 0)}</b></div>
+          <div>कच्चे आवास: <b>${fmt(d.population?.kutchaHouses || 0)}</b></div>
+          <div>PwD जनसंख्या: <b>${fmt(d.population?.pwd || 0)}</b></div>
+          <div>वरिष्ठ नागरिक: <b>${fmt(d.population?.seniors || 0)}</b></div>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:10px; color:#94a3b8; text-transform:uppercase; letter-spacing:0.08em; font-weight:700; margin-bottom:6px;">जल एवं अवसंरचना</div>
+        <div style="font-size:12px; color:#e2e8f0; line-height:2; font-family:'Noto Sans Devanagari',sans-serif;">
+          <div>FHTC कवरेज: <b>${fmtPct(d.water?.urbanFhtcAvg || 0)}</b></div>
+          <div>Overhead Tanks: <b>${fmt(d.water?.overheadTanks || 0)}</b></div>
+          <div>भूजल गहराई: <b>${fmtKm(d.water?.groundwaterDepth || 0)}</b></div>
+          <div>विद्युत कनेक्शन: <b>${fmt(d.infrastructure?.electricityHouses || 0)}</b></div>
+          <div>सड़क नेटवर्क: <b>${fmtKm(d.infrastructure?.roadKm || 0)}</b></div>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:10px; color:#94a3b8; text-transform:uppercase; letter-spacing:0.08em; font-weight:700; margin-bottom:6px;">स्वास्थ्य एवं अर्थव्यवस्था</div>
+        <div style="font-size:12px; color:#e2e8f0; line-height:2; font-family:'Noto Sans Devanagari',sans-serif;">
+          <div>स्वास्थ्य केंद्र: <b>${fmt((Number(d.health?.allopathicCenters || 0) + Number(d.health?.ayushCenters || 0) + Number(d.health?.privateHealthCenters || 0)))}</b></div>
+          <div>AWC केंद्र: <b>${fmt(d.health?.awcCenters || 0)}</b></div>
+          <div>Ayushman लाभार्थी: <b>${fmtLakh(d.health?.urbanAyushman || d.health?.ayushmanBen || 0)}</b></div>
+          <div>सक्रिय SHG: <b>${fmt(d.economy?.activeShgs || 0)}</b></div>
+          <div>औद्योगिक इकाइयां: <b>${fmt((Number(d.economy?.largeIndustrialUnits || 0) + Number(d.economy?.smallScaleIndustries || 0)))}</b></div>
+        </div>
+      </div>
+    </div>
+    `)}
+  </div>
+        <div class="featured-caption">${profileText ? 'GP/वार्ड प्रोफाइल — सर्वे-सत्यापित बेसलाइन डेटा से सीधे' : 'जिला आधारभूत डेटा, GP/वार्ड लुकअप से सत्यापित'}</div>
       </div>
 
       <div class="cover-grid">
