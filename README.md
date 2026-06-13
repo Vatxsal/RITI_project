@@ -160,7 +160,7 @@ User Interface (17 routes)
 ### ✅ Reports & Export
 | Feature | Description |
 |---------|-------------|
-| **Report Library** (`/reports`, 3118 lines) | Comprehensive reports with rural/urban tabs, district/block/GP drill-down, generated report history, Supabase-backed report generation |
+| **Report Library** (`/reports`, ~3220 lines) | Full-featured PDF-style HTML report generation with Hindi (Devanagari) UI: rural/urban tabs, district/block/GP/ward drill-down, generated report history, Supabase-backed storage. **Key features:** AI-synthesized profile text aggregation for block/district scope (Gemini combines up to 8 GP/ward profiles × 300 chars each, capped at 60-80 words), 14-18 age group ("किशोर 14-18 वर्ष") demographic data with `pop_14_18_2026` baseline fields, absolute logo URL (`window.location.origin`) for iframe/standalone HTML, GP/Ward profiles truncated to 400 chars, simplified header branding ("Govt. of Rajasthan"), removed deprecated badges |
 | **Budget Report Download** | Offline HTML report from budget engine |
 
 ---
@@ -181,7 +181,7 @@ User Interface (17 routes)
 | `/gis-map` | `app/gis-map/page.tsx` (400) | **GIS Map** — Leaflet with predicate builder, layer toggles, district markers |
 | `/gis-map-new` | `app/gis-map-new/page.tsx` (103) | **Alternate GIS View** — Simplified map with area-type filter |
 | `/ai-chat` | `app/ai-chat/page.tsx` (177) | **AI Planning Assistant** — Gemini-powered chat with Markdown rendering |
-| `/reports` | `app/reports/page.tsx` (3118) | **Report Library** — Full-featured report engine with drill-down, generated reports |
+| `/reports` | `app/reports/page.tsx` (~3220) | **Report Library** — Full-featured report engine with drill-down, Gemini profile aggregation, generated reports |
 | `/upload` | `app/upload/page.tsx` (16) | **CSV Upload Portal** — Drag-and-drop with data preview |
 | `/backend` | `app/backend/page.tsx` (55) | **Backend Portal Gate** — Super-admin only, links to static HTML portal |
 | `/dashboard/backend` | `app/dashboard/backend/page.tsx` (5) | Redirect to `/backend` |
@@ -334,6 +334,9 @@ User Query → /api/chat → aiContext.ts → Gemini API → Markdown Response
 2. `gemini-3-pro-preview`
 3. `gemini-3-flash-thinking`
 4. `gemini-3-pro-thinking`
+
+### AI Profile Aggregation (Report Generation)
+For block/district-level reports, individual GP/ward profile texts are collected from all rows in scope and sent to Gemini (`gemini-2.5-flash`) to synthesize a unified Hindi paragraph (60-80 words, 350 max tokens). This provides a coherent narrative for broader scopes instead of a random single profile.
 
 ---
 

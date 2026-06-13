@@ -315,18 +315,22 @@ export default function ReportsPage() {
 
       const { data, error } = await query;
       if (error || !data || data.length === 0) throw new Error('No rural data found.');
-      // Find the best profile text: prefer the selected GP's row, fall back to first non-empty
+      // Collect all non-empty profile texts from data
+      const allGpProfiles: string[] = data
+        .map((r: any) => String(r.gp_profile || '').trim())
+        .filter((text: string) => text.length > 10);
+
       const gpProfileText: string = (() => {
         if (scope.gpName) {
-          // GP-level: find the row matching the selected GP name
           const gpRow = data.find((r: any) =>
             String(r.gram_panchayat || '').trim().toLowerCase() === String(scope.gpName || '').trim().toLowerCase()
           );
-          if (gpRow?.gp_profile) return String(gpRow.gp_profile);
+          const raw = gpRow?.gp_profile || allGpProfiles[0] || '';
+          // Truncate to ~3-4 lines to fit the report box
+          return String(raw).slice(0, 400);
         }
-        // Block or district level: find first row that has a non-empty gp_profile
-        const firstWithProfile = data.find((r: any) => r.gp_profile && String(r.gp_profile).trim().length > 10);
-        return firstWithProfile ? String(firstWithProfile.gp_profile) : '';
+        // Block or district level: aggregate via Gemini later (return raw list for now)
+        return '';
       })();
 
       // ── RURAL ASPIRATIONS ─────────────────────────────────────────────────
@@ -418,6 +422,7 @@ export default function ReportsPage() {
         population: {
           total: S(data, 'pop_2026_est'), male: S(data, 'male_pop_2026'), female: S(data, 'female_pop_2026'),
           children06: S(data, 'children_0_6_2026'), children614: S(data, 'children_6_14_2026'),
+          pop14_18: S(data, 'pop_14_18_2026'),
           seniors: S(data, 'senior_citizens_2026'), pwd: S(data, 'pwd_pop_2026'),
           totalFamilies: S(data, 'total_families_2026'), bplFamilies: S(data, 'bpl_families_2026'),
           puccaHouses: S(data, 'pucca_houses_2026'), kutchaHouses: S(data, 'kutcha_houses_2026'), urbanPop: 0,
@@ -501,6 +506,7 @@ export default function ReportsPage() {
           urbanPoliceKm: 0, urbanEmitraKm: 0,
         },
         profileText: gpProfileText,
+        allProfileTexts: scope.gpName ? [] : allGpProfiles,
         aspirations: ruralAspData,
       };
 
@@ -512,18 +518,21 @@ export default function ReportsPage() {
 
       const { data, error } = await query;
       if (error || !data || data.length === 0) throw new Error('No urban data found.');
-      // Find the best profile text: prefer selected ward's row, fall back to first non-empty
+      // Collect all non-empty profile texts from data
+      const allWardProfiles: string[] = data
+        .map((r: any) => String(r.ward_profile || '').trim())
+        .filter((text: string) => text.length > 10);
+
       const wardProfileText: string = (() => {
         if (scope.wardName) {
-          // Ward-level: find the row matching the selected ward name
           const wardRow = data.find((r: any) =>
             String(r.ward || '').trim().toLowerCase() === String(scope.wardName || '').trim().toLowerCase()
           );
-          if (wardRow?.ward_profile) return String(wardRow.ward_profile);
+          const raw = wardRow?.ward_profile || allWardProfiles[0] || '';
+          return String(raw).slice(0, 400);
         }
-        // ULB or district level: find first row with non-empty ward_profile
-        const firstWithProfile = data.find((r: any) => r.ward_profile && String(r.ward_profile).trim().length > 10);
-        return firstWithProfile ? String(firstWithProfile.ward_profile) : '';
+        // ULB or district level: aggregate via Gemini later (return raw list for now)
+        return '';
       })();
 
       // ── URBAN ASPIRATIONS ──────────────────────────────────────────────────────
@@ -625,6 +634,7 @@ export default function ReportsPage() {
         population: {
           male: S(data, 'male_pop_2026'), female: S(data, 'female_pop_2026'),
           children06: S(data, 'children_0_6_2026'), children614: S(data, 'children_6_14_2026'),
+          urbanPop14_18: S(data, 'pop_14_18_2026'),
           seniors: S(data, 'senior_citizens_2026'), pwd: S(data, 'pwd_pop_2026'),
           puccaHouses: S(data, 'pucca_houses_2026'), kutchaHouses: S(data, 'kutcha_houses_2026'),
           urbanPop: S(data, 'pop_2026_est'), total: 0, totalFamilies: 0, bplFamilies: 0,
@@ -700,6 +710,7 @@ export default function ReportsPage() {
         },
         governance: { urbanPoliceKm: 0, urbanEmitraKm: 0, distPoliceKm: 0, distEmitraKm: 0, distLpgKm: 0 },
         profileText: wardProfileText,
+        allProfileTexts: scope.wardName ? [] : allWardProfiles,
         aspirations: urbanAspData,
       };
     }
@@ -707,6 +718,7 @@ export default function ReportsPage() {
 
   // STEP 3 — Gemini narrative generation
   async function generateNarrative(data: any, scope: any) {
+    const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
     const d = {
       scopeType: data.scopeType || '',
       scopeLabel: data.scopeLabel || '',
@@ -784,6 +796,46 @@ export default function ReportsPage() {
         ...(data.governance || {})
       }
     };
+
+    // ── Profile aggregation for block/district level ────────────────
+    let aggregatedProfileText = '';
+    const profileTextsToAggregate: string[] = data.allProfileTexts || [];
+
+    if (profileTextsToAggregate.length > 0) {
+      const scopeLevelLabel = scope.block ? `${scope.block} ब्लॉक` : scope.ulb ? `${scope.ulb} नगर निकाय` : `${d.meta.district} जिला`;
+      // Limit to max 8 profiles and truncate each to 300 chars to avoid token overflow
+      const combinedInput = profileTextsToAggregate
+        .slice(0, 8)
+        .map((text: string) => text.slice(0, 300))
+        .join('\n\n---\n\n');
+
+      const aggPrompt = `Below are individual profile descriptions for different Gram Panchayats / Wards within ${scopeLevelLabel}. Synthesize these into ONE combined profile paragraph of exactly 3-4 lines (60-80 words maximum, proper Hindi/Devanagari, same descriptive style) that represents the overall ${scopeLevelLabel} as a whole — highlighting common themes, key strengths, and notable gaps across these areas. Do not list each GP/Ward separately; produce a unified narrative.
+
+INDIVIDUAL PROFILES:
+${combinedInput}
+
+Return ONLY the combined Hindi paragraph text, no JSON, no markdown, no preamble.`;
+
+      try {
+        const aggResponse = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: aggPrompt }] }],
+              generationConfig: { temperature: 0.3, maxOutputTokens: 350 }
+            })
+          }
+        );
+        const aggResult = await aggResponse.json();
+        aggregatedProfileText = aggResult.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+      } catch (e) {
+        console.warn('[Profile Aggregation] failed:', e);
+        aggregatedProfileText = '';
+      }
+    }
+
     const scopeName = scope.gpName || scope.wardName || scope.ulb || scope.block || scope.district || d.meta.district;
     const scopeTypeLabel = scope.type === 'urban' ? 'urban ward' : scope.gpName || scope.block ? 'rural local geography' : 'district';
     const prompt = `LANGUAGE INSTRUCTION (MOST IMPORTANT — follow strictly):
@@ -906,7 +958,6 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
   "closingQuote": "one powerful, district-specific planning insight sentence"
 }`;
 
-    const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
     if (!apiKey) {
       throw new Error('Gemini API key is missing. Please check your .env.local file and restart the dev server.');
     }
@@ -955,7 +1006,9 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
 
           const text = result.candidates[0].content.parts[0].text;
           const clean = text.replace(/```json|```/g, '').trim();
-          return JSON.parse(clean);
+          const parsed = JSON.parse(clean);
+          if (aggregatedProfileText) parsed.aggregatedProfileText = aggregatedProfileText;
+          return parsed;
         } catch (err: any) {
           console.warn(`${model} connection error:`, err.message);
           lastError = err.message;
@@ -971,7 +1024,9 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
     console.log('✅ Alwar PDF redesign v3 active', scope);
 
     const d = data;
-    const profileText: string = String(d.profileText || '');
+    const siteOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+    const logoUrl = `${siteOrigin}/images/logo.png`;
+    const profileText: string = String(d.profileText || narrative?.aggregatedProfileText || '');
     const n = narrative || {};
     const scopeType = d.scopeType || scope.type;
     const isRural = scopeType === 'rural';
@@ -1068,13 +1123,14 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
     const pageHeader = (pageNo: string, title: string, subtitle: string, rightText: string) => `
       <div class="page-header">
         <div class="page-header-left">
-          <div class="vr-logo">VR</div>
-          <div>
-            <div>VIKSIT RAJASTHAN 2047 | RITI · Government of Rajasthan · ${escapeHtml(scopeMasterLabel)}</div>
-            <div style="color:#94a3b8; font-weight:500; margin-top:2px;">${escapeHtml(title)}</div>
+          <img src="${logoUrl}" alt="Govt of Rajasthan" style="height:32px; width:auto; object-fit:contain;" onerror="this.style.display='none'" />
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-weight:800; color:#1a2744; font-size:11px;">Govt. of Rajasthan</span>
+            <span style="color:#94a3b8;">·</span>
+            <span style="color:#94a3b8; font-weight:500;">${escapeHtml(title)}</span>
           </div>
         </div>
-        <div class="page-header-right">VR-2047 / DIST / ${escapeHtml(districtCode)} / 2026-01 | PAGE ${pageNo} · ${escapeHtml(rightText)}</div>
+        <div class="page-header-right">${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })} | PAGE ${pageNo}</div>
       </div>
     `;
 
@@ -1089,7 +1145,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
     const coverTypeLabel = {
       gp: 'ग्राम पंचायत',
       ward: 'शहरी वार्ड',
-      block: 'विकास खंड',
+      block: 'खंड',
       ulb: 'नगर निकाय',
       district: 'जिला',
     }[scopeLevel];
@@ -1167,14 +1223,14 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
     const scopeMasterLabel = {
       gp:       `ग्राम पंचायत मास्टर प्लान`,
       ward:     `वार्ड मास्टर प्लान`,
-      block:    `विकास खंड मास्टर प्लान`,
+      block:    `खंड मास्टर प्लान`,
       ulb:      `नगर निकाय मास्टर प्लान`,
       district: `जिला मास्टर प्लान`,
     }[scopeLevel] || 'मास्टर प्लान';
 
     const coverPage = pageShell(`
       ${pageHeader('01 / 07', 'आवरण एवं परिचय', 'Cover · Introduction', 'PAGE 01 / 07 · आवरण एवं परिचय')}
-      <div class="cover-kicker">विकसित राजस्थान @ 2047 · ${escapeHtml(scopeMasterLabel)} · SURVEY-VALIDATED</div>
+      <div class="cover-kicker">विकसित राजस्थान @ 2047 · ${escapeHtml(scopeMasterLabel)}</div>
       <h1 class="cover-district">${escapeHtml(coverMainName)}<span>${escapeHtml(coverTypeLabel)}</span></h1>
       <div class="cover-subtitle">${escapeHtml(coverParentLine)} · Rajasthan</div>
       <div class="pill-row">
@@ -1184,7 +1240,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
           ? kpiPill('वार्ड · नगर निकाय', `${fmt(d.meta?.wardCount || 0)} वार्ड · ${fmt(d.meta?.ulbCount || 0)} नगर निकाय`, 'शहरी प्रशासनिक ढांचा')
           : kpiPill('ग्राम पंचायतें · Blocks', `${fmt(d.meta?.gpCount || 0)} ग्राम पंचायतें · ${fmt(d.meta?.blockCount || 0)} Blocks`, 'ग्रामीण प्रशासनिक ढांचा'))
         : scopeLevel === 'block'
-          ? kpiPill('ग्राम पंचायतें', `${fmt(d.meta?.gpCount || 0)} ग्राम पंचायतें`, 'चयनित विकास खंड कवरेज')
+          ? kpiPill('ग्राम पंचायतें', `${fmt(d.meta?.gpCount || 0)} ग्राम पंचायतें`, 'चयनित खंड कवरेज')
           : scopeLevel === 'gp'
             ? kpiPill('BPL परिवार', fmt(d.population?.bplFamilies || 0), `कुल ${fmt(d.population?.totalFamilies || 0)} परिवारों में`)
             : scopeLevel === 'ward'
@@ -1267,7 +1323,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
     </div>
     `)}
   </div>
-        <div class="featured-caption">${profileText ? 'GP/वार्ड प्रोफाइल — सर्वे-सत्यापित बेसलाइन डेटा से सीधे' : 'जिला आधारभूत डेटा, GP/वार्ड लुकअप से सत्यापित'}</div>
+        <div class="featured-caption">${profileText ? 'GP/वार्ड प्रोफाइल — बेसलाइन डेटा से सीधे' : 'जिला आधारभूत डेटा, GP/वार्ड लुकअप से सत्यापित'}</div>
       </div>
 
       <div class="cover-grid">
@@ -1338,7 +1394,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
           <div class="panel-title">प्रशासनिक प्रोफाइल</div>
           ${showRuralProfile && !showUrbanProfile ? `
             ${infoRow('जिला', district)}
-            ${infoRow('चयनित स्तर', scopeLevel === 'gp' ? 'ग्राम पंचायत' : scopeLevel === 'block' ? 'विकास खंड' : 'जिला')}
+            ${infoRow('चयनित स्तर', scopeLevel === 'gp' ? 'ग्राम पंचायत' : scopeLevel === 'block' ? 'खंड' : 'जिला')}
             ${infoRow('चयनित इकाई', selectedScopeName)}
             ${scopeLevel === 'block' ? '' : infoRow('प्रशासनिक खंड', fmt(d.meta?.blockCount || 0))}
             ${infoRow('ग्राम पंचायतें', fmt(d.meta?.gpCount || 0))}
@@ -1366,7 +1422,8 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
           ${infoRow('महिला', fmt(femalePopulation))}
           ${infoRow('लिंग अनुपात (प्रति 1000)', sexRatio)}
           ${infoRow('बच्चे 0-6 वर्ष', fmt(d.population?.children06 || 0))}
-          ${infoRow('स्कूली आयु 6-14', fmt(d.population?.children614 || 0))}
+          ${infoRow('बच्चे (स्कूली आयु 6-14)', fmt(d.population?.children614 || 0))}
+          ${infoRow('किशोर (14-18 वर्ष)', fmt(isRural ? (d.population?.pop14_18 || 0) : (d.population?.urbanPop14_18 || 0)))}
           ${infoRow('वरिष्ठ नागरिक (60+)', fmt(d.population?.seniors || 0))}
           ${infoRow('BPL परिवार', fmt(d.population?.bplFamilies || 0))}
           ${infoRow('PwD जनसंख्या', fmt(d.population?.pwd || 0))}
@@ -1804,7 +1861,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
         </tbody>
       </table>
 
-      <div class="footer-line">विकसित राजस्थान @ 2047 · RITI - Government of Rajasthan | Manthaan OS द्वारा संचालित · सर्वे-सत्यापित · ${escapeHtml(reportMonth)}</div>
+      <div class="footer-line">विकसित राजस्थान @ 2047 · RITI - Government of Rajasthan | Manthaan OS द्वारा संचालित · ${escapeHtml(reportMonth)}</div>
     `, 'strategic-page');
 
     console.log('[Report Pages] cover:', !!coverPage, 'demographic:', !!demographicPage, 'thematic:', thematicPages.length, 'strategic:', !!strategicPage);
