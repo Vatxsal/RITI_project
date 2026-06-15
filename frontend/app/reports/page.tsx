@@ -327,7 +327,7 @@ export default function ReportsPage() {
           );
           const raw = gpRow?.gp_profile || gpRow?.gp_profiles || allGpProfiles[0] || '';
           // Truncate to ~3-4 lines to fit the report box
-          return String(raw).slice(0, 400);
+          return String(raw).slice(0, 1200);
         }
         // Block or district level: aggregate via Gemini later (return raw list for now)
         return '';
@@ -563,7 +563,7 @@ export default function ReportsPage() {
           // Just take the first row's profile text
           const raw = data.length > 0 ? getProfileText(data[0]) : (allWardProfiles[0] || '');
           console.log('[Ward Profile] raw text found:', raw.slice(0, 100));
-          return String(raw).slice(0, 500);
+          return String(raw).slice(0, 1200);
         }
         return '';
       })();
@@ -1244,7 +1244,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
 
     const coverPage = pageShell(`
       ${pageHeader('01 / 07', 'आवरण एवं परिचय', 'Cover · Introduction', 'PAGE 01 / 07 · आवरण एवं परिचय')}
-      <div class="cover-kicker">विकसित राजस्थान @ 2047 · ${escapeHtml(scopeMasterLabel)}</div>
+      <div class="cover-kicker">${escapeHtml(scopeMasterLabel)}</div>
       <h1 class="cover-district">${escapeHtml(coverMainName)}<span>${escapeHtml(coverTypeLabel)}</span></h1>
       <div class="cover-subtitle">${escapeHtml(coverParentLine)} · Rajasthan</div>
       <div class="pill-row">
@@ -1288,7 +1288,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
         <div class="featured-title">मास्टर प्लान · एक नज़र में · THE PLANNING PROGRAMME AT A GLANCE</div>
         <div class="featured-body">
     ${profileText
-      ? `<div style="font-size:13px; color:#e2e8f0; line-height:1.9; font-family:'Noto Sans Devanagari',sans-serif; white-space:pre-wrap;">${escapeHtml(profileText)}</div>`
+      ? `<div style="font-size:12px; color:#e2e8f0; line-height:1.75; font-family:'Noto Sans Devanagari',sans-serif; white-space:pre-wrap; word-break:break-word; overflow-wrap:break-word;">${escapeHtml(profileText)}</div>`
       : (isRural ? `
     <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
       <div>
@@ -1380,7 +1380,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
               `}
       </div>
 
-      <div class="footer-line">तैयार किया — RITI · राजस्थान इंस्टिट्यूट फॉर ट्रांसफॉर्मेशन एंड इनोवेशन | दिनांक: ${escapeHtml(reportDateLabel)} · योजना चक्रः FY 2026-27</div>
+      <div class="footer-line">Govt of Rajasthan · ${escapeHtml(reportDateLabel)}</div>
     `, 'cover-page');
 
     const malePopulation = Number(d.population?.male || 0);
@@ -1861,8 +1861,8 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
     const strategicPage = pageShell(`
       ${pageHeader(strategicPageNo, `रणनीतिक विकास ढाँचा · ${scopeMasterLabel}`, 'Strategic Development Framework - Viksit Rajasthan 2047', `PAGE ${strategicPageNo} · रणनीतिक विकास ढाँचा`)}
       <div class="section-kicker">खंड 07</div>
-      <h2 class="section-title">रणनीतिक विकास ढाँचा · विकसित राजस्थान 2047</h2>
-      <div class="section-subtitle">Strategic Development Framework - Viksit Rajasthan 2047</div>
+      <h2 class="section-title">रणनीतिक विकास ढाँचा</h2>
+      <div class="section-subtitle">Strategic Development Framework</div>
 
       <table class="strategic-table">
         <thead>
@@ -1912,7 +1912,11 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
         </tbody>
       </table>
 
-      <div class="footer-line">विकसित राजस्थान @ 2047 · RITI - Government of Rajasthan | Manthaan OS द्वारा संचालित · ${escapeHtml(reportMonth)}</div>
+      <div class="bottom-note-box">
+        These data points are entered by the Gram Panchayat/Shahari Ward level functionaries and the analysis report is based on the entered data. The aspirations captured in this are reported at the GP/Shahari Ward levels are to serve as pointers for stakeholders at the Block/ULB/District level to plan things accordingly.
+      </div>
+
+      <div class="footer-line">Govt of Rajasthan · ${escapeHtml(reportDateLabel)}</div>
     `, 'strategic-page');
 
     console.log('[Report Pages] cover:', !!coverPage, 'demographic:', !!demographicPage, 'thematic:', thematicPages.length, 'strategic:', !!strategicPage);
@@ -2005,7 +2009,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
   .kpi-pill-label { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--report-muted); font-weight: 700; }
   .kpi-pill-value { margin-top: 4px; font-size: 20px; font-weight: 800; color: var(--report-navy); line-height: 1.1; }
   .kpi-pill-sub { margin-top: 2px; font-size: 10px; color: #94a3b8; font-family: sans-serif; }
-  .featured-box { background: var(--report-navy); color: white; border-radius: 16px; padding: 22px 24px 18px; margin: 14px 0 22px; }
+  .featured-box { background: var(--report-navy); color: white; border-radius: 16px; padding: 20px 22px 16px; margin: 12px 0 18px; overflow: visible; }
   .featured-title { color: var(--report-orange); font-size: 12px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 14px; }
   .featured-body { font-family: 'Noto Sans Devanagari', sans-serif; font-size: 14px; line-height: 1.85; color: #e2e8f0; }
   .featured-body p { margin: 0 0 12px; }
