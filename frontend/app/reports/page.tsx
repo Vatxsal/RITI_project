@@ -317,7 +317,7 @@ export default function ReportsPage() {
       if (error || !data || data.length === 0) throw new Error('No rural data found.');
       // Collect all non-empty profile texts from data
       const allGpProfiles: string[] = data
-        .map((r: any) => String(r.gp_profile || '').trim())
+        .map((r: any) => String(r.gp_profile || r.gp_profiles || '').trim())
         .filter((text: string) => text.length > 10);
 
       const gpProfileText: string = (() => {
@@ -325,7 +325,7 @@ export default function ReportsPage() {
           const gpRow = data.find((r: any) =>
             String(r.gram_panchayat || '').trim().toLowerCase() === String(scope.gpName || '').trim().toLowerCase()
           );
-          const raw = gpRow?.gp_profile || allGpProfiles[0] || '';
+          const raw = gpRow?.gp_profile || gpRow?.gp_profiles || allGpProfiles[0] || '';
           // Truncate to ~3-4 lines to fit the report box
           return String(raw).slice(0, 400);
         }
@@ -418,6 +418,8 @@ export default function ReportsPage() {
           gpCount: [...new Set(data.map((r: any) => r.gram_panchayat))].length,
           blockCount: [...new Set(data.map((r: any) => r.block))].length,
           blocks: [...new Set(data.map((r: any) => r.block))],
+          isSingleGp: !!scope.gpName,
+          isSingleWard: false,
         },
         population: {
           total: S(data, 'pop_2026_est'), male: S(data, 'male_pop_2026'), female: S(data, 'female_pop_2026'),
@@ -518,20 +520,51 @@ export default function ReportsPage() {
 
       const { data, error } = await query;
       if (error || !data || data.length === 0) throw new Error('No urban data found.');
-      // Collect all non-empty profile texts from data
+      // Debug: log what profile columns exist in the first row
+      if (data.length > 0) {
+        const firstRow = data[0];
+        const profileCols = Object.keys(firstRow).filter(k =>
+          k.toLowerCase().includes('profile') || k.toLowerCase().includes('urban_profile')
+        );
+        console.log('[Ward Profile] Available profile columns:', profileCols);
+        console.log('[Ward Profile] scope.wardName:', scope.wardName);
+        console.log('[Ward Profile] data rows:', data.length);
+        if (data.length > 0) {
+          console.log('[Ward Profile] First row sample:', {
+            ward: data[0].ward,
+            ward_profile: data[0].ward_profile,
+            ward_profiles: data[0].ward_profiles,
+            urban_profile: data[0].urban_profile,
+            profile: data[0].profile,
+          });
+        }
+      }
+
+      // Try ALL possible column name variants
+      const getProfileText = (row: any): string => {
+        return String(
+          row?.ward_profile ||
+          row?.ward_profiles ||
+          row?.urban_profile ||
+          row?.profile ||
+          row?.ward_description ||
+          row?.description ||
+          ''
+        ).trim();
+      };
+
       const allWardProfiles: string[] = data
-        .map((r: any) => String(r.ward_profile || '').trim())
+        .map((r: any) => getProfileText(r))
         .filter((text: string) => text.length > 10);
 
       const wardProfileText: string = (() => {
         if (scope.wardName) {
-          const wardRow = data.find((r: any) =>
-            String(r.ward || '').trim().toLowerCase() === String(scope.wardName || '').trim().toLowerCase()
-          );
-          const raw = wardRow?.ward_profile || allWardProfiles[0] || '';
-          return String(raw).slice(0, 400);
+          // data is already filtered to this ward by the query above
+          // Just take the first row's profile text
+          const raw = data.length > 0 ? getProfileText(data[0]) : (allWardProfiles[0] || '');
+          console.log('[Ward Profile] raw text found:', raw.slice(0, 100));
+          return String(raw).slice(0, 500);
         }
-        // ULB or district level: aggregate via Gemini later (return raw list for now)
         return '';
       })();
 
@@ -630,6 +663,8 @@ export default function ReportsPage() {
           wardCount: data.length,
           ulbCount: [...new Set(data.map((r: any) => r.ulb))].length,
           ulbs: [...new Set(data.map((r: any) => r.ulb))],
+          isSingleWard: !!scope.wardName,
+          isSingleGp: false,
         },
         population: {
           male: S(data, 'male_pop_2026'), female: S(data, 'female_pop_2026'),
@@ -797,44 +832,20 @@ export default function ReportsPage() {
       }
     };
 
-    // ── Profile aggregation for block/district level ────────────────
-    let aggregatedProfileText = '';
-    const profileTextsToAggregate: string[] = data.allProfileTexts || [];
+    // ── Profile text preparation for Gemini prompt ────────────────
+    // Collect raw profile texts from GPs/wards so Gemini can summarise them
+    const profileTextsForPrompt: string[] = data.allProfileTexts || [];
+    const MAX_PROFILES_FOR_SUMMARY = 8;
+    const MAX_CHARS_PER_PROFILE = 350;
+    const sampledProfiles = profileTextsForPrompt
+      .slice(0, MAX_PROFILES_FOR_SUMMARY)
+      .map((t: string) => t.length > MAX_CHARS_PER_PROFILE ? t.slice(0, MAX_CHARS_PER_PROFILE) + '...' : t);
 
-    if (profileTextsToAggregate.length > 0) {
-      const scopeLevelLabel = scope.block ? `${scope.block} ब्लॉक` : scope.ulb ? `${scope.ulb} नगर निकाय` : `${d.meta.district} जिला`;
-      // Limit to max 8 profiles and truncate each to 300 chars to avoid token overflow
-      const combinedInput = profileTextsToAggregate
-        .slice(0, 8)
-        .map((text: string) => text.slice(0, 300))
-        .join('\n\n---\n\n');
+    const profileSourceBlock = sampledProfiles.length > 0
+      ? `\nLOCAL PROFILE EXCERPTS (from ${profileTextsForPrompt.length} GP/Ward records, showing ${sampledProfiles.length}):\n${sampledProfiles.map((t: string, i: number) => `[प्रोफाइल ${i + 1}] ${t}`).join('\n\n')}`
+      : '';
 
-      const aggPrompt = `Below are individual profile descriptions for different Gram Panchayats / Wards within ${scopeLevelLabel}. Synthesize these into ONE combined profile paragraph of exactly 3-4 lines (60-80 words maximum, proper Hindi/Devanagari, same descriptive style) that represents the overall ${scopeLevelLabel} as a whole — highlighting common themes, key strengths, and notable gaps across these areas. Do not list each GP/Ward separately; produce a unified narrative.
-
-INDIVIDUAL PROFILES:
-${combinedInput}
-
-Return ONLY the combined Hindi paragraph text, no JSON, no markdown, no preamble.`;
-
-      try {
-        const aggResponse = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: aggPrompt }] }],
-              generationConfig: { temperature: 0.3, maxOutputTokens: 350 }
-            })
-          }
-        );
-        const aggResult = await aggResponse.json();
-        aggregatedProfileText = aggResult.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
-      } catch (e) {
-        console.warn('[Profile Aggregation] failed:', e);
-        aggregatedProfileText = '';
-      }
-    }
+    console.log('[Profile Summary] Sending', sampledProfiles.length, 'of', profileTextsForPrompt.length, 'profile excerpts to Gemini');
 
     const scopeName = scope.gpName || scope.wardName || scope.ulb || scope.block || scope.district || d.meta.district;
     const scopeTypeLabel = scope.type === 'urban' ? 'urban ward' : scope.gpName || scope.block ? 'rural local geography' : 'district';
@@ -864,6 +875,7 @@ Generate a ${scopeTypeLabel} planning intelligence brief for ${scopeName}, withi
 DISTRICT PROFILE:
 GPs: ${d.meta.gpCount || 0} | Blocks: ${d.meta.blockCount || 0} (${(d.meta.blocks || []).slice(0, 5).join(', ')}${(d.meta.blocks || []).length > 5 ? '...' : ''})
 Urban Wards: ${d.meta.wardCount || 0} | ULBs: ${d.meta.ulbCount || 0} (${(d.meta.ulbs || []).slice(0, 4).join(', ')}${(d.meta.ulbs || []).length > 4 ? '...' : ''})
+${profileSourceBlock}
 
 POPULATION:
 Rural: ${d.population.total.toLocaleString()} | Urban: ${d.population.urbanPop.toLocaleString()} | Total: ${(d.population.total + d.population.urbanPop).toLocaleString()}
@@ -929,6 +941,9 @@ Fair-related employment: ${d.tourism.fairEmployment.toLocaleString()}
 Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
 {
   "executiveSummary": "3-4 sentences on district's development position, key strengths, and biggest gaps based strictly on numbers above",
+  "profileSummary": "${sampledProfiles.length > 0 
+    ? 'Synthesize the LOCAL PROFILE EXCERPTS above into ONE cohesive Hindi paragraph (proper Devanagari, formal tone, 3-4 sentences, roughly 400-550 characters) describing the area\'s general geography, history, economy, and notable features. Write a flowing narrative summary — do NOT just list or concatenate the excerpts. Numbers in English digits, scheme names in English.' 
+    : 'Leave this as an empty string "" since no GP/ward profile excerpts were provided for this scope.'}",
   "findings": [
     { "number": "01", "finding": "one sentence finding grounded in specific data", "currentPosition": "exact metric with number", "opportunity": "specific actionable opportunity citing a real scheme" },
     { "number": "02", "finding": "...", "currentPosition": "...", "opportunity": "..." },
@@ -1007,7 +1022,6 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
           const text = result.candidates[0].content.parts[0].text;
           const clean = text.replace(/```json|```/g, '').trim();
           const parsed = JSON.parse(clean);
-          if (aggregatedProfileText) parsed.aggregatedProfileText = aggregatedProfileText;
           return parsed;
         } catch (err: any) {
           console.warn(`${model} connection error:`, err.message);
@@ -1026,7 +1040,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
     const d = data;
     const siteOrigin = typeof window !== 'undefined' ? window.location.origin : '';
     const logoUrl = `${siteOrigin}/images/logo.png`;
-    const profileText: string = String(d.profileText || narrative?.aggregatedProfileText || '');
+    const profileText: string = String(d.profileText || narrative?.profileSummary || '');
     const n = narrative || {};
     const scopeType = d.scopeType || scope.type;
     const isRural = scopeType === 'rural';
@@ -1234,20 +1248,40 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
       <h1 class="cover-district">${escapeHtml(coverMainName)}<span>${escapeHtml(coverTypeLabel)}</span></h1>
       <div class="cover-subtitle">${escapeHtml(coverParentLine)} · Rajasthan</div>
       <div class="pill-row">
-        ${kpiPill('नागरिक', `${fmtLakh(totalPopulation)}`, isRural ? `${fmt(d.meta?.gpCount || 0)} ग्राम पंचायतें` : `${fmt(d.meta?.wardCount || 0)} वार्ड`)}
-        ${scopeLevel === 'district'
-        ? (isUrban
-          ? kpiPill('वार्ड · नगर निकाय', `${fmt(d.meta?.wardCount || 0)} वार्ड · ${fmt(d.meta?.ulbCount || 0)} नगर निकाय`, 'शहरी प्रशासनिक ढांचा')
-          : kpiPill('ग्राम पंचायतें · Blocks', `${fmt(d.meta?.gpCount || 0)} ग्राम पंचायतें · ${fmt(d.meta?.blockCount || 0)} Blocks`, 'ग्रामीण प्रशासनिक ढांचा'))
-        : scopeLevel === 'block'
-          ? kpiPill('ग्राम पंचायतें', `${fmt(d.meta?.gpCount || 0)} ग्राम पंचायतें`, 'चयनित खंड कवरेज')
-          : scopeLevel === 'gp'
-            ? kpiPill('BPL परिवार', fmt(d.population?.bplFamilies || 0), `कुल ${fmt(d.population?.totalFamilies || 0)} परिवारों में`)
+        ${kpiPill('नागरिक', `${fmtLakh(totalPopulation)}`,
+          scopeLevel === 'gp'
+            ? `${scope.block ? scope.block + ' खंड' : district}`
             : scopeLevel === 'ward'
-              ? kpiPill('शहरी जनसंख्या', fmtLakh(d.population?.urbanPop || 0), `${fmt(d.meta?.ulbCount || 0)} ULB में`)
-              : kpiPill('नगर निकाय', `${fmt(d.meta?.wardCount || 0)} वार्ड`, 'शहरी प्रशासनिक कवरेज')}
+              ? `${scope.ulb ? scope.ulb : district}`
+              : isRural
+                ? `${fmt(d.meta?.gpCount || 0)} ग्राम पंचायतें`
+                : `${fmt(d.meta?.wardCount || 0)} वार्ड`
+        )}
+        ${scopeLevel === 'district'
+  ? (isUrban
+    ? kpiPill('वार्ड · नगर निकाय', `${fmt(d.meta?.wardCount || 0)} · ${fmt(d.meta?.ulbCount || 0)}`, 'शहरी प्रशासनिक ढांचा')
+    : kpiPill('ग्राम पंचायतें · Blocks', `${fmt(d.meta?.gpCount || 0)} · ${fmt(d.meta?.blockCount || 0)}`, 'ग्रामीण प्रशासनिक ढांचा'))
+  : scopeLevel === 'block'
+    ? kpiPill('ग्राम पंचायतें', `${fmt(d.meta?.gpCount || 0)} ग्राम पंचायतें`, 'चयनित खंड कवरेज')
+    : scopeLevel === 'gp'
+      ? kpiPill('BPL परिवार', fmt(d.population?.bplFamilies || 0), `कुल ${fmt(d.population?.totalFamilies || 0)} परिवारों में`)
+      : scopeLevel === 'ward'
+        ? kpiPill('नगर निकाय', fmt(d.meta?.ulbCount || 0), `${scope.ulb || '—'} में`)
+        : scopeLevel === 'ulb'
+          ? kpiPill('नगर निकाय', fmt(d.meta?.ulbCount || 0), `${fmt(d.meta?.wardCount || 0)} वार्ड सहित`)
+          : kpiPill('नगर निकाय', `${fmt(d.meta?.wardCount || 0)} वार्ड`, 'शहरी प्रशासनिक कवरेज')
+}
         ${kpiPill('क्षेत्रीय स्थिति', isRural ? `कृषि · डेयरी · ग्राम शासन` : `शहरी सेवा · उद्योग · अवसंरचना`, isRural ? 'ग्रामीण केंद्रित' : 'शहरी केंद्रित')}
-        ${kpiPill('पहचान', `${selectedScopeType}`, selectedScopePath)}
+        ${scopeLevel === 'gp'
+  ? kpiPill('BPL अनुपात', `${d.population?.totalFamilies > 0 ? ((Number(d.population?.bplFamilies || 0) / Number(d.population?.totalFamilies)) * 100).toFixed(1) : '—'}%`, 'BPL परिवार प्रतिशत')
+  : scopeLevel === 'ward'
+    ? kpiPill('पक्के आवास', fmt(d.population?.puccaHouses || 0), 'शहरी आवास स्थिति')
+    : scopeLevel === 'block'
+      ? kpiPill('सिंचाई दर', fmtPct(d.agriculture?.irrigationPct), `${fmtLakh(d.agriculture?.totalFarmers || 0)} किसान`)
+      : scopeLevel === 'ulb'
+        ? kpiPill('शहरी वार्ड', fmt(d.meta?.wardCount || 0), `${scope.ulb || district} में`)
+        : kpiPill('FHTC कवरेज', fmtPct(d.water?.urbanFhtcAvg), 'जल आपूर्ति स्थिति')
+}
       </div>
 
       <div class="featured-box">
@@ -1328,15 +1362,21 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
 
       <div class="cover-grid">
               ${isRural ? `
-                ${statCard('रणनीतिक स्थिति', `${fmtPct(d.water?.ruralFhtcAvg)}`, '#1e3a5f', `Rural FHTC · ${fmt(d.water?.gpsBelow30Fhtc || 0)} GPs below 30%`)}
+                ${statCard('रणनीतिक स्थिति', `${fmtPct(d.water?.ruralFhtcAvg)}`, '#1e3a5f', scopeLevel === 'gp' ? `Rural FHTC · ग्राम पंचायत स्तर पर नल कनेक्शन` : `Rural FHTC · ${fmt(d.water?.gpsBelow30Fhtc || 0)} GPs below 30%`)}
                 ${statCard('कृषि स्थिति', `${fmtPct(d.agriculture?.irrigationPct)}`, '#16a34a', `${fmtLakh(d.agriculture?.totalFarmers || 0)} farmers · ${fmtLakh(d.agriculture?.kccHolders || 0)} KCC`)}
                 ${statCard('पशुधन एवं डेयरी', `${fmtLakh(totalLivestock)}`, '#e85d04', `${fmt(d.dairy?.milkCenters || 0)} milk collection centres · ${fmtLakh(dailyMilkLpd, true)} LPD`)}
-                ${statCard('ग्राम पंचायतें', fmt(d.meta?.gpCount || 0), '#1a2744', 'Selected rural units')}
+                ${scopeLevel === 'gp'
+                  ? statCard('सामाजिक सुरक्षा', `${fmt(Number(d.social?.oldAgePensioners || 0) + Number(d.social?.widowPensioners || 0))}`, '#1a2744', `वृद्धा + विधवा पेंशन`)
+                  : statCard('ग्राम पंचायतें', fmt(d.meta?.gpCount || 0), '#1a2744', 'Selected rural units')
+                }
               ` : `
                 ${statCard('जल आपूर्ति स्थिति', `${fmtPct(d.water?.urbanFhtcAvg)}`, '#1e3a5f', `Groundwater: ${fmtKm(d.water?.groundwaterDepth || 0, 1)} depth · ${fmt(d.water?.overheadTanks || 0)} overhead tanks`)}
                 ${statCard('स्वास्थ्य सेवाएं', `${fmt(Number(d.health?.allopathicCenters || 0) + Number(d.health?.ayushCenters || 0) + Number(d.health?.privateHealthCenters || 0))}`, '#16a34a', `${fmtLakh(d.health?.urbanAyushman || d.health?.ayushmanBen || 0)} Ayushman · ${fmt(d.health?.healthBeds || 0)} beds`)}
                 ${statCard('शहरी अर्थव्यवस्था', `${fmt(Number(d.economy?.largeIndustrialUnits || 0) + Number(d.economy?.smallScaleIndustries || 0))}`, '#e85d04', `${fmt(d.economy?.activeShgs || 0)} SHG · ${fmt(d.economy?.artisans || 0)} कारीगर`)}
-                ${statCard('वार्ड / नगर निकाय', `${fmt(d.meta?.wardCount || 0)} · ${fmt(d.meta?.ulbCount || 0)}`, '#1a2744', 'Selected urban units')}
+                ${scopeLevel === 'ward'
+                  ? statCard('सामाजिक सुरक्षा', `${fmt(Number(d.social?.oldAgePensioners || 0) + Number(d.social?.urbanWidow || 0))}`, '#1a2744', 'वृद्धा + विधवा पेंशन')
+                  : statCard('वार्ड / नगर निकाय', `${fmt(d.meta?.wardCount || 0)} · ${fmt(d.meta?.ulbCount || 0)}`, '#1a2744', 'Selected urban units')
+                }
               `}
       </div>
 
@@ -1346,25 +1386,18 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
     const malePopulation = Number(d.population?.male || 0);
     const femalePopulation = Number(d.population?.female || 0);
     const sexRatio = malePopulation > 0 ? ((femalePopulation / malePopulation) * 1000).toFixed(0) : '—';
-    const adminCoverage = showRuralProfile
-      ? (scopeLevel === 'block'
-        ? `${fmt(d.meta?.gpCount || 0)} ग्राम पंचायतें`
-        : `${fmt(d.meta?.gpCount || 0)} ग्राम पंचायतें · ${fmt(d.meta?.blockCount || 0)} खंड`)
-      : `${fmt(d.meta?.wardCount || 0)} वार्ड · ${fmt(d.meta?.ulbCount || 0)} नगर निकाय`;
-
     const demographicPage = pageShell(`
       ${pageHeader('02 / 07', 'जनसांख्यिकी एवं बस्ती संरचना', 'District Profile, Settlement & Demography', 'PAGE 02 / 07 · जनसांख्यिकी एवं बस्ती संरचना')}
       <div class="section-kicker">खंड 01</div>
       <h2 class="section-title">जनसांख्यिकी एवं बस्ती संरचना</h2>
       <div class="section-subtitle">District Profile, Settlement & Demography</div>
-      <div class="section-copy">${escapeHtml(district)} जिले में ${showRuralProfile ? `${fmt(d.meta?.gpCount || 0)} ग्राम पंचायतें और ${fmt(d.meta?.blockCount || 0)} प्रशासनिक खंड` : ''}${showRuralProfile && showUrbanProfile ? ' तथा ' : ''}${showUrbanProfile ? `${fmt(d.meta?.wardCount || 0)} वार्ड और ${fmt(d.meta?.ulbCount || 0)} नगर निकाय` : ''} शामिल हैं। यह अनुभाग बस्ती संरचना, जनसंख्या वितरण और कल्याण कवरेज का आधारभूत दृश्य प्रस्तुत करता है।</div>
-
-      <div class="kpi-grid-5">
-        ${kpiPill('लिंग अनुपात', sexRatio === '—' ? '—' : `${sexRatio}`, 'प्रति 1000 पुरुष')}
-        ${kpiPill('बच्चे (0-6)', fmt(d.population?.children06 || 0), 'प्रारंभिक आयु समूह')}
-        ${kpiPill('BPL परिवार', fmt(d.population?.bplFamilies || 0), 'वंचित परिवार')}
-        ${kpiPill('प्रशासनिक कवरेज', adminCoverage, showRuralProfile ? 'ग्रामीण प्रशासन' : 'शहरी प्रशासन')}
-      </div>
+      <div class="section-copy">${
+  scopeLevel === 'gp'
+    ? `${escapeHtml(coverMainName)} ग्राम पंचायत की बस्ती संरचना, जनसंख्या वितरण और कल्याण कवरेज का आधारभूत दृश्य इस अनुभाग में प्रस्तुत किया गया है।`
+    : scopeLevel === 'ward'
+      ? `${escapeHtml(coverMainName)} वार्ड की बस्ती संरचना, जनसंख्या वितरण और कल्याण कवरेज का आधारभूत दृश्य इस अनुभाग में प्रस्तुत किया गया है।`
+      : `${escapeHtml(district)} जिले में ${showRuralProfile ? `${fmt(d.meta?.gpCount || 0)} ग्राम पंचायतें और ${fmt(d.meta?.blockCount || 0)} प्रशासनिक खंड` : ''}${showRuralProfile && showUrbanProfile ? ' तथा ' : ''}${showUrbanProfile ? `${fmt(d.meta?.wardCount || 0)} वार्ड और ${fmt(d.meta?.ulbCount || 0)} नगर निकाय` : ''} शामिल हैं। यह अनुभाग बस्ती संरचना, जनसंख्या वितरण और कल्याण कवरेज का आधारभूत दृश्य प्रस्तुत करता है।`
+}</div>
 
       <div class="${showRuralProfile && showUrbanProfile ? 'two-col' : 'one-col'}">
         ${showRuralProfile ? `
@@ -1372,8 +1405,8 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
           <div class="panel-title">ग्रामीण बस्ती प्रोफाइल</div>
           ${infoRow('ग्रामीण जनसंख्या (2026)', fmtLakh(d.population?.total || 0))}
           ${infoRow('ग्रामीण परिवार', fmt(ruralFamilies))}
-          ${infoRow('ग्राम पंचायतें', fmt(d.meta?.gpCount || 0))}
-          ${scopeLevel === 'block' ? '' : infoRow('प्रशासनिक blocks', fmt(d.meta?.blockCount || 0))}
+          ${scopeLevel !== 'gp' ? infoRow('ग्राम पंचायतें', fmt(d.meta?.gpCount || 0)) : infoRow('ग्राम पंचायत', scope.gpName || coverMainName)}
+          ${scopeLevel === 'gp' ? infoRow('विकास खंड', scope.block || '—') : scopeLevel === 'block' ? '' : infoRow('प्रशासनिक blocks', fmt(d.meta?.blockCount || 0))}
           ${infoRow('पक्के आवास कवरेज', `${puccaPct}%`)}
         </div>
         ` : ''}
@@ -1381,8 +1414,9 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
         <div class="info-panel">
           <div class="panel-title">शहरी बस्ती प्रोफाइल</div>
           ${infoRow('शहरी जनसंख्या (2026)', fmtLakh(d.population?.urbanPop || 0))}
-          ${infoRow('नगर निकाय', fmt(d.meta?.ulbCount || 0))}
-          ${infoRow('शहरी वार्ड', fmt(d.meta?.wardCount || 0))}
+          ${scopeLevel === 'ward'
+  ? infoRow('वार्ड', scope.wardName || coverMainName) + '\n          ' + infoRow('नगर निकाय', scope.ulb || '—')
+  : infoRow('नगर निकाय', fmt(d.meta?.ulbCount || 0)) + '\n          ' + infoRow('शहरी वार्ड', fmt(d.meta?.wardCount || 0))}
           ${infoRow('सबसे बड़ा ULB', escapeHtml(largestUlb))}
           ${infoRow('औसत वार्ड जनसंख्या', avgWardPopulation ? `~${fmt(avgWardPopulation)}` : '—')}
         </div>
@@ -1392,23 +1426,41 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
       <div class="two-col metrics-row">
         <div class="info-panel">
           <div class="panel-title">प्रशासनिक प्रोफाइल</div>
-          ${showRuralProfile && !showUrbanProfile ? `
-            ${infoRow('जिला', district)}
-            ${infoRow('चयनित स्तर', scopeLevel === 'gp' ? 'ग्राम पंचायत' : scopeLevel === 'block' ? 'खंड' : 'जिला')}
-            ${infoRow('चयनित इकाई', selectedScopeName)}
-            ${scopeLevel === 'block' ? '' : infoRow('प्रशासनिक खंड', fmt(d.meta?.blockCount || 0))}
-            ${infoRow('ग्राम पंचायतें', fmt(d.meta?.gpCount || 0))}
-            ${infoRow('औसत GP क्षेत्र', avgGpArea ? `~${fmt(avgGpArea)} हे.` : '—')}
-            ${infoRow('कुल भौगोलिक क्षेत्र', d.population?.totalAreaHectare ? `${fmt(d.population.totalAreaHectare)} हे.` : '—')}
-          ` : !showRuralProfile && showUrbanProfile ? `
-            ${infoRow('जिला', district)}
-            ${infoRow('चयनित स्तर', scopeLevel === 'ward' ? 'शहरी वार्ड' : scopeLevel === 'ulb' ? 'नगर निकाय' : 'जिला')}
-            ${infoRow('चयनित इकाई', selectedScopeName)}
-            ${infoRow('नगर निकाय', fmt(d.meta?.ulbCount || 0))}
-            ${infoRow('शहरी वार्ड', fmt(d.meta?.wardCount || 0))}
-            ${infoRow('सबसे बड़ा ULB', largestUlb)}
-            ${infoRow('औसत वार्ड जनसंख्या', avgWardPopulation ? `~${fmt(avgWardPopulation)}` : '—')}
-          ` : `
+          ${showRuralProfile && !showUrbanProfile ? (
+            scopeLevel === 'gp' ? `
+              ${infoRow('जिला', district)}
+              ${infoRow('चयनित स्तर', 'ग्राम पंचायत')}
+              ${infoRow('कुल किसान', fmt(d.agriculture?.totalFarmers || 0))}
+              ${infoRow('सक्रिय SHG', fmt(d.economy?.activeShgs || 0))}
+              ${infoRow('स्वास्थ्य केंद्र', fmt(Number(d.health?.allopathicCenters || 0) + Number(d.health?.ayushCenters || 0)))}
+              ${infoRow('आंगनवाड़ी केंद्र', fmt(d.health?.awcCenters || 0))}
+            ` : `
+              ${infoRow('जिला', district)}
+              ${infoRow('चयनित स्तर', scopeLevel === 'block' ? 'खंड' : 'जिला')}
+              ${infoRow('चयनित इकाई', selectedScopeName)}
+              ${scopeLevel === 'block' ? '' : infoRow('प्रशासनिक खंड', fmt(d.meta?.blockCount || 0))}
+              ${infoRow('ग्राम पंचायतें', fmt(d.meta?.gpCount || 0))}
+              ${infoRow('औसत GP क्षेत्र', avgGpArea ? `~${fmt(avgGpArea)} हे.` : '—')}
+              ${infoRow('कुल भौगोलिक क्षेत्र', d.population?.totalAreaHectare ? `${fmt(d.population.totalAreaHectare)} हे.` : '—')}
+            `
+          ) : !showRuralProfile && showUrbanProfile ? (
+            scopeLevel === 'ward' ? `
+              ${infoRow('जिला', district)}
+              ${infoRow('चयनित स्तर', 'शहरी वार्ड')}
+              ${infoRow('सक्रिय SHG', fmt(d.economy?.activeShgs || 0))}
+              ${infoRow('स्वास्थ्य केंद्र', fmt(Number(d.health?.allopathicCenters || 0) + Number(d.health?.ayushCenters || 0) + Number(d.health?.privateHealthCenters || 0)))}
+              ${infoRow('आंगनवाड़ी केंद्र', fmt(d.health?.awcCenters || 0))}
+              ${infoRow('विद्युत कनेक्शन', fmt(d.infrastructure?.electricityHouses || 0))}
+            ` : `
+              ${infoRow('जिला', district)}
+              ${infoRow('चयनित स्तर', scopeLevel === 'ulb' ? 'नगर निकाय' : 'जिला')}
+              ${infoRow('चयनित इकाई', selectedScopeName)}
+              ${infoRow('नगर निकाय', fmt(d.meta?.ulbCount || 0))}
+              ${infoRow('शहरी वार्ड', fmt(d.meta?.wardCount || 0))}
+              ${infoRow('सबसे बड़ा ULB', largestUlb)}
+              ${infoRow('औसत वार्ड जनसंख्या', avgWardPopulation ? `~${fmt(avgWardPopulation)}` : '—')}
+            `
+          ) : `
             ${infoRow('जिला', district)}
             ${infoRow('प्रशासनिक खंड', fmt(d.meta?.blockCount || 0))}
             ${infoRow('ग्राम पंचायतें', fmt(d.meta?.gpCount || 0))}
@@ -1423,7 +1475,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
           ${infoRow('लिंग अनुपात (प्रति 1000)', sexRatio)}
           ${infoRow('बच्चे 0-6 वर्ष', fmt(d.population?.children06 || 0))}
           ${infoRow('बच्चे (स्कूली आयु 6-14)', fmt(d.population?.children614 || 0))}
-          ${infoRow('किशोर (14-18 वर्ष)', fmt(isRural ? (d.population?.pop14_18 || 0) : (d.population?.urbanPop14_18 || 0)))}
+          ${infoRow('बच्चे (14-18 वर्ष)', fmt(isRural ? (d.population?.pop14_18 || 0) : (d.population?.urbanPop14_18 || 0)))}
           ${infoRow('वरिष्ठ नागरिक (60+)', fmt(d.population?.seniors || 0))}
           ${infoRow('BPL परिवार', fmt(d.population?.bplFamilies || 0))}
           ${infoRow('PwD जनसंख्या', fmt(d.population?.pwd || 0))}
@@ -1625,7 +1677,6 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
           { value: fmt(d.tourism?.fairEmployment || 0), label: 'SHG संचालित स्टॉल', sub: 'पर्यटन रोज़गार' },
           { value: fmt(d.social?.ujjwalaBen || 0), label: 'Ujjwala लाभार्थी', sub: 'स्वच्छ ईंधन' },
           { value: fmt(d.economy?.shgWomen || 0), label: 'SHG में महिलाएं', sub: 'Women in self-help groups' },
-          { value: fmt(d.social?.ujjwalaBen || 0), label: 'Ujjwala लाभार्थी', sub: 'Clean fuel coverage' },
           { value: fmt(d.social?.oldAgePensioners || 0), label: 'वृद्धावस्था पेंशन', sub: 'Social security' },
           { value: fmt(d.social?.urbanWidow || 0), label: 'विधवा पेंशन', sub: 'Urban widow support' },
         ],
@@ -1672,8 +1723,8 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
           { value: fmtKm(d.governance?.distPoliceKm || d.governance?.urbanPoliceKm || 0), label: 'थाना दूरी', sub: 'सुरक्षा पहुंच' },
           { value: fmt(d.environment?.suryaGharHomes || 0), label: 'PM Surya Ghar', sub: 'Solar homes' },
           { value: fmt(d.tourism?.trainedGuides || 0), label: 'प्रशिक्षित गाइड', sub: 'Tourism workforce' },
-          { value: fmtKm(d.governance?.distPoliceKm || d.governance?.urbanPoliceKm || 0), label: 'थाना दूरी', sub: 'Avg police dist.' },
-          { value: fmtKm(d.governance?.distEmitraKm || d.governance?.urbanEmitraKm || 0), label: 'e-Mitra दूरी', sub: 'Digital access' },
+          { value: fmt(d.environment?.forestHa || 0), label: 'वन क्षेत्र (हे.)', sub: 'Forest area' },
+          { value: fmt(d.tourism?.localProductStalls || 0), label: 'स्थानीय उत्पाद स्टॉल', sub: 'Fair product stalls' },
         ],
         narrative: [n.sectorNarratives?.environment, n.sectorNarratives?.governance, n.sectorNarratives?.tourism].filter(Boolean).join(' '),
         aspirationKeywords: [...SECTOR_KEYWORDS.environment, ...SECTOR_KEYWORDS.governance, ...SECTOR_KEYWORDS.tourism] as readonly string[],
@@ -1754,7 +1805,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
       const topScheme = sectorAsps.find((a: any) => a.scheme)?.scheme || null;
 
       const phase2 = qty2035 > 0
-        ? `${qty2035} units · ${fastTrackCount > 0 ? `${fastTrackCount} fast-track` : topScheme || 'scale-up'}`
+        ? `${qty2035} आकांक्षाएं · ${fastTrackCount > 0 ? `${fastTrackCount} fast-track` : topScheme || 'scale-up'}`
         : fastTrackCount > 0
           ? `${fastTrackCount} fast-track · ${reviewCount} review pending`
           : reviewCount > 0
@@ -1766,9 +1817,9 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
       return {
         indicator: sector,
         current: `${sectorAsps.length} आकांक्षाएं`,
-        phase1: qty2030 > 0 ? `${fmt(qty2030)} units by 2030` : `${accepted.length} accepted aspirations`,
+        phase1: qty2030 > 0 ? `${fmt(qty2030)} आकांक्षाएं · 2030 तक` : `${accepted.length} स्वीकृत आकांक्षाएं`,
         phase2,
-        phase2047: qty2047 > 0 ? `${fmt(qty2047)} units · ${topItem}` : `Complete coverage`,
+        phase2047: qty2047 > 0 ? `${fmt(qty2047)} आकांक्षाएं · ${topItem}` : `पूर्ण कवरेज`,
       };
     });
 
