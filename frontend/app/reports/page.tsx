@@ -58,6 +58,7 @@ export default function ReportsPage() {
   const [loadingGps, setLoadingGps] = useState(false);
   const [loadingUlbs, setLoadingUlbs] = useState(false);
   const [loadingWards, setLoadingWards] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
 
   const ALWAR_REPORT_PATH = '/reports/alwar-lok-sabha-brief-v2.pdf';
   const scopeLabel = activeTab === 'rural'
@@ -259,7 +260,7 @@ export default function ReportsPage() {
       alert('Pehle district select karo');
       return;
     }
-
+    setReportError(null);
     setGenerating(true);
     setGeneratingLabel('Data fetch ho raha hai...');
 
@@ -288,8 +289,8 @@ export default function ReportsPage() {
       setGeneratingLabel('Report render ho rahi hai...');
       renderReport(scope, reportData, narrative);
     } catch (err: any) {
-      console.error(err);
-      alert(`Report generation failed: ${err.message}`);
+      console.error('[Manthaan AI]', err.message);
+      setReportError(err.message || 'Manthaan AI अभी उपलब्ध नहीं है। कृपया कुछ समय बाद पुनः प्रयास करें।');
     } finally {
       setGenerating(false);
       setGeneratingLabel('');
@@ -974,7 +975,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
 }`;
 
     if (!apiKey) {
-      throw new Error('Gemini API key is missing. Please check your .env.local file and restart the dev server.');
+      throw new Error('Manthaan AI कॉन्फ़िगरेशन अपूर्ण है। कृपया RITI तकनीकी दल से संपर्क करें।');
     }
 
     // Try multiple models to handle quota/demand issues
@@ -991,7 +992,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
       // Retry up to 2 times for 503/429 errors
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
-          console.log(`Attempting report generation with ${model} (Attempt ${attempt + 1})...`);
+          console.log(`[Manthaan AI] Generating report... (attempt ${attempt + 1})`);
           const response = await fetch(
             `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
             {
@@ -1008,14 +1009,14 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
 
           // Handle High Demand or Rate Limits with a retry
           if (response.status === 503 || response.status === 429) {
-            console.warn(`${model} busy, retrying in 2s...`);
+            console.warn(`[Manthaan AI] Busy, retrying...`);
             await new Promise(r => setTimeout(r, 2000));
             continue;
           }
 
           if (!result.candidates || result.candidates.length === 0) {
-            console.warn(`${model} failed:`, result.error?.message || 'No candidates');
-            lastError = result.error?.message || `No candidates returned from ${model}`;
+            console.warn(`[Manthaan AI] Response error`);
+            lastError = result.error?.message || 'No response';
             break; // Try next model in the list
           }
 
@@ -1024,14 +1025,14 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
           const parsed = JSON.parse(clean);
           return parsed;
         } catch (err: any) {
-          console.warn(`${model} connection error:`, err.message);
+          console.warn(`[Manthaan AI] Connection error`);
           lastError = err.message;
           break; // Try next model
         }
       }
     }
 
-    throw new Error(`AI narrative generation failed across all models. Last error: ${lastError}`);
+    throw new Error(`Manthaan AI अभी उपलब्ध नहीं है। कृपया कुछ समय बाद पुनः प्रयास करें।`);
   }
 
   function buildAlwarPdfReportHtml(scope: any, data: any, narrative: any) {
@@ -3174,6 +3175,26 @@ ${closingHtml}
                 >
                   {generating ? generatingLabel : 'Generate Planning Report'}
                 </button>
+              )}
+              {reportError && (
+                <div style={{
+                  marginTop: 14,
+                  padding: '14px 16px',
+                  background: '#fff7ed',
+                  border: '1px solid #fed7aa',
+                  borderLeft: '4px solid #e85d04',
+                  borderRadius: 10,
+                }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: '#e85d04', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
+                    Manthaan AI · सेवा अनुपलब्ध
+                  </div>
+                  <div style={{ fontSize: 13, color: '#92400e', lineHeight: 1.7, fontFamily: "'Noto Sans Devanagari', sans-serif" }}>
+                    {reportError}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#b45309', marginTop: 8 }}>
+                    यदि समस्या बनी रहती है तो RITI तकनीकी दल से संपर्क करें।
+                  </div>
+                </div>
               )}
             </div>
           </div>
