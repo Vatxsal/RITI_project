@@ -107,7 +107,7 @@ export default function OverviewPage() {
           </div>
           <div>
             <div className="text-xs text-zinc-500 font-normal uppercase tracking-wider">GP BASELINE</div>
-            <div className="text-2xl font-semibold tabular-nums text-zinc-950">{dashboard.dataCoverage[0][1]}</div>
+            <div className="text-2xl font-semibold tabular-nums text-zinc-950">{dashboard.dataCoverage[0]?.[1] ?? '—'}</div>
             <div className="text-xs text-zinc-400">Post 2026</div>
           </div>
           <div>
