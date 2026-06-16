@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/components/AuthProvider';
 import { fetchDashboardKpis } from '@/lib/dashboard-kpis';
 
 const DISTRICTS_EN = [
@@ -33,7 +32,6 @@ export default function TopBar({
   onPanelOpen,
   onMobileMenuClick
 }: TopBarProps) {
-  const { user, logout, sessionExpiresAt } = useAuth();
   const router = useRouter();
   const [districtNames, setDistrictNames] = useState<string[]>([]);
   const [districtCount, setDistrictCount] = useState<string>('-');
@@ -58,15 +56,6 @@ export default function TopBar({
       alive = false;
     };
   }, []);
-
-  const handleLogout = async () => {
-    await logout();
-    router.replace('/login');
-  };
-
-  const sessionLabel = sessionExpiresAt
-    ? `Session ends ${new Date(sessionExpiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-    : 'Session active';
 
   return (
     <div
@@ -181,14 +170,6 @@ export default function TopBar({
       </div>
 
       <div className="fbr header-right">
-        <span className="chip header-desktop-only" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#1a2744', color: '#ffffff', border: '1px solid #1a2744', borderRadius: '999px', fontSize: '11px', fontWeight: 700, padding: '4px 12px', letterSpacing: '0.02em' }}>
-          <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#6ee7b7', display: 'inline-block' }} />
-          {user?.username || 'admin'}
-        </span>
-        <span className="chip header-desktop-only" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#f8fafc', color: '#64748b', border: '1px solid #e2e8f0', borderRadius: '999px', fontSize: '11px', fontWeight: 600, padding: '4px 12px', letterSpacing: '0.01em' }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#94a3b8', display: 'inline-block' }} />
-          {sessionLabel}
-        </span>
         <span className="chip hi" style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', borderRadius: '999px', fontSize: '10px', fontWeight: 700, padding: '3px 10px' }}>{districtCount}</span>
         <span className="chip header-desktop-only" style={{ background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0', borderRadius: '999px', fontSize: '11px', fontWeight: 700, padding: '3px 10px' }}>{populationLabel}</span>
         <button className="btn btn-ai btn-ask-ai" style={{ background: '#1a2744', color: '#ffffff', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: 700, padding: '8px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 2px 8px rgba(26,39,68,0.15)' }} onClick={() => router.push('/ai-chat')}>
@@ -212,9 +193,6 @@ export default function TopBar({
           id="refresh-btn"
         >
           ↻ Refresh Data
-        </button>
-        <button className="btn btn-ghost header-desktop-only" style={{ color: '#94a3b8', fontSize: '12px', fontWeight: 600, background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }} onClick={handleLogout}>
-          Sign out
         </button>
       </div>
 

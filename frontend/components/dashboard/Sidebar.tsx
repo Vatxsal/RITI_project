@@ -3,15 +3,11 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { SECTORS } from '@/lib/data';
-import { useAuth } from '@/components/AuthProvider';
 
 export default function Sidebar({ isMobileOpen, onMobileClose }: { isMobileOpen?: boolean; onMobileClose?: () => void }) {
   const pathname = usePathname();
-  const { user } = useAuth();
 
   const isActive = (path: string) => pathname === path;
-
-  const isAdmin = !!user && user.user_type === 'admin';
   
   // Close sidebar on mobile when navigating
   const handleLinkClick = () => {
@@ -64,120 +60,114 @@ export default function Sidebar({ isMobileOpen, onMobileClose }: { isMobileOpen?
         </div>
       </div>
 
-      {isAdmin ? (
-        <>
-          <div className="sbl" style={{ color: 'rgba(255,255,255,0.35)', fontSize: '9px', fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', padding: '16px 20px 6px', opacity: 1 }}>Overview</div>
+      <div className="sbl" style={{ color: 'rgba(255,255,255,0.35)', fontSize: '9px', fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', padding: '16px 20px 6px', opacity: 1 }}>Overview</div>
+      <Link 
+        href="/"
+        className={`si ${isActive('/') ? 'on' : ''}`}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          padding: '9px 20px',
+          cursor: 'pointer',
+          color: isActive('/') ? '#ffffff' : 'rgba(255,255,255,0.65)',
+          fontSize: '13px',
+          fontWeight: isActive('/') ? 700 : 500,
+          borderRadius: 0,
+          transition: 'all 0.15s',
+          borderLeft: isActive('/') ? '3px solid #e85d04' : '3px solid transparent',
+          background: isActive('/') ? 'rgba(255,255,255,0.1)' : 'transparent',
+          userSelect: 'none'
+        }}
+        onClick={handleLinkClick}
+      >
+        <span className="ic" style={{ width: '18px', flexShrink: 0, fontSize: '14px', color: isActive('/') ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.4)' }}>◻</span>
+        <span>Command Center</span>
+      </Link>
+
+      <div className="sbl" style={{ color: 'rgba(255,255,255,0.35)', fontSize: '9px', fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', padding: '16px 20px 6px', opacity: 1 }}>Intelligence</div>
+      <Link 
+        href="/reports"
+        className={`si ${isActive('/reports') ? 'on' : ''}`}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          padding: '9px 20px',
+          cursor: 'pointer',
+          color: isActive('/reports') ? '#ffffff' : 'rgba(255,255,255,0.65)',
+          fontSize: '13px',
+          fontWeight: isActive('/reports') ? 700 : 500,
+          borderRadius: 0,
+          transition: 'all 0.15s',
+          borderLeft: isActive('/reports') ? '3px solid #e85d04' : '3px solid transparent',
+          background: isActive('/reports') ? 'rgba(255,255,255,0.1)' : 'transparent',
+          userSelect: 'none'
+        }}
+        onClick={handleLinkClick}
+      >
+        <span className="ic" style={{ width: '18px', flexShrink: 0, fontSize: '14px', color: isActive('/reports') ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.4)' }}>◼</span>
+        <span>Report Library</span>
+      </Link>
+      <Link 
+        href="/ai-chat"
+        className={`si ${isActive('/ai-chat') ? 'on' : ''}`}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          padding: '9px 20px',
+          cursor: 'pointer',
+          color: isActive('/ai-chat') ? '#ffffff' : 'rgba(255,255,255,0.65)',
+          fontSize: '13px',
+          fontWeight: isActive('/ai-chat') ? 700 : 500,
+          borderRadius: 0,
+          transition: 'all 0.15s',
+          borderLeft: isActive('/ai-chat') ? '3px solid #e85d04' : '3px solid transparent',
+          background: isActive('/ai-chat') ? 'rgba(255,255,255,0.1)' : 'transparent',
+          userSelect: 'none'
+        }}
+        onClick={handleLinkClick}
+      >
+        <span className="ic" style={{ width: '18px', flexShrink: 0, fontSize: '14px', color: isActive('/ai-chat') ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.4)' }}>◯</span>
+        <span>Talk to Data</span>
+      </Link>
+
+      <div className="sbl" style={{ color: 'rgba(255,255,255,0.35)', fontSize: '9px', fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', padding: '16px 20px 6px', opacity: 1 }}>11 Sector Dashboards</div>
+      {SECTORS.map(sector => {
+        const sectorRoute = sector.v === 'women' ? 'social' : sector.v;
+
+        return (
           <Link 
-            href="/"
-            className={`si ${isActive('/') ? 'on' : ''}`}
+            key={sector.v}
+            href={`/sector/${sectorRoute}`}
+            className={`si ${pathname === `/sector/${sectorRoute}` ? 'on' : ''}`}
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: '10px',
               padding: '9px 20px',
               cursor: 'pointer',
-              color: isActive('/') ? '#ffffff' : 'rgba(255,255,255,0.65)',
+              color: pathname === `/sector/${sectorRoute}` ? '#ffffff' : 'rgba(255,255,255,0.65)',
               fontSize: '13px',
-              fontWeight: isActive('/') ? 700 : 500,
+              fontWeight: pathname === `/sector/${sectorRoute}` ? 700 : 500,
               borderRadius: 0,
               transition: 'all 0.15s',
-              borderLeft: isActive('/') ? '3px solid #e85d04' : '3px solid transparent',
-              background: isActive('/') ? 'rgba(255,255,255,0.1)' : 'transparent',
+              borderLeft: pathname === `/sector/${sectorRoute}` ? '3px solid #e85d04' : '3px solid transparent',
+              background: pathname === `/sector/${sectorRoute}` ? 'rgba(255,255,255,0.1)' : 'transparent',
               userSelect: 'none'
             }}
             onClick={handleLinkClick}
           >
-            <span className="ic" style={{ width: '18px', flexShrink: 0, fontSize: '14px', color: isActive('/') ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.4)' }}>◻</span>
-            <span>Command Center</span>
+            <span className="ic" style={{ width: '18px', flexShrink: 0, fontSize: '14px', color: pathname === `/sector/${sectorRoute}` ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.4)' }}>{sector.icon}</span>
+            <span>{sector.label}</span>
           </Link>
-
-          <div className="sbl" style={{ color: 'rgba(255,255,255,0.35)', fontSize: '9px', fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', padding: '16px 20px 6px', opacity: 1 }}>Intelligence</div>
-          <Link 
-            href="/reports"
-            className={`si ${isActive('/reports') ? 'on' : ''}`}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              padding: '9px 20px',
-              cursor: 'pointer',
-              color: isActive('/reports') ? '#ffffff' : 'rgba(255,255,255,0.65)',
-              fontSize: '13px',
-              fontWeight: isActive('/reports') ? 700 : 500,
-              borderRadius: 0,
-              transition: 'all 0.15s',
-              borderLeft: isActive('/reports') ? '3px solid #e85d04' : '3px solid transparent',
-              background: isActive('/reports') ? 'rgba(255,255,255,0.1)' : 'transparent',
-              userSelect: 'none'
-            }}
-            onClick={handleLinkClick}
-          >
-            <span className="ic" style={{ width: '18px', flexShrink: 0, fontSize: '14px', color: isActive('/reports') ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.4)' }}>◼</span>
-            <span>Report Library</span>
-          </Link>
-          <Link 
-            href="/ai-chat"
-            className={`si ${isActive('/ai-chat') ? 'on' : ''}`}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              padding: '9px 20px',
-              cursor: 'pointer',
-              color: isActive('/ai-chat') ? '#ffffff' : 'rgba(255,255,255,0.65)',
-              fontSize: '13px',
-              fontWeight: isActive('/ai-chat') ? 700 : 500,
-              borderRadius: 0,
-              transition: 'all 0.15s',
-              borderLeft: isActive('/ai-chat') ? '3px solid #e85d04' : '3px solid transparent',
-              background: isActive('/ai-chat') ? 'rgba(255,255,255,0.1)' : 'transparent',
-              userSelect: 'none'
-            }}
-            onClick={handleLinkClick}
-          >
-            <span className="ic" style={{ width: '18px', flexShrink: 0, fontSize: '14px', color: isActive('/ai-chat') ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.4)' }}>◯</span>
-            <span>Talk to Data</span>
-          </Link>
-
-          <div className="sbl" style={{ color: 'rgba(255,255,255,0.35)', fontSize: '9px', fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', padding: '16px 20px 6px', opacity: 1 }}>11 Sector Dashboards</div>
-          {SECTORS.map(sector => {
-            const sectorRoute = sector.v === 'women' ? 'social' : sector.v;
-
-            return (
-              <Link 
-                key={sector.v}
-                href={`/sector/${sectorRoute}`}
-                className={`si ${pathname === `/sector/${sectorRoute}` ? 'on' : ''}`}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  padding: '9px 20px',
-                  cursor: 'pointer',
-                  color: pathname === `/sector/${sectorRoute}` ? '#ffffff' : 'rgba(255,255,255,0.65)',
-                  fontSize: '13px',
-                  fontWeight: pathname === `/sector/${sectorRoute}` ? 700 : 500,
-                  borderRadius: 0,
-                  transition: 'all 0.15s',
-                  borderLeft: pathname === `/sector/${sectorRoute}` ? '3px solid #e85d04' : '3px solid transparent',
-                  background: pathname === `/sector/${sectorRoute}` ? 'rgba(255,255,255,0.1)' : 'transparent',
-                  userSelect: 'none'
-                }}
-                onClick={handleLinkClick}
-              >
-                <span className="ic" style={{ width: '18px', flexShrink: 0, fontSize: '14px', color: pathname === `/sector/${sectorRoute}` ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.4)' }}>{sector.icon}</span>
-                <span>{sector.label}</span>
-              </Link>
-            );
-          })}
-        </>
-      ) : (
-        <div style={{ padding: '16px 20px', fontSize: '12px', color: 'rgba(255,255,255,0.6)' }}>Sign in as admin to view the dashboard</div>
-      )}
+        );
+      })}
       <div style={{ marginTop: 'auto', padding: '12px 20px', borderTop: '1px solid rgba(255,255,255,0.08)', background: 'rgba(0,0,0,0.15)', color: 'rgba(255,255,255,0.6)', fontSize: '12px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
-          <span>Secure workspace</span>
-          <span>Admin</span>
+          <span>RITI · Planning Intelligence</span>
+          <span>Rajasthan</span>
         </div>
       </div>
       </div>
