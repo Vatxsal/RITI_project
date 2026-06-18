@@ -1155,6 +1155,16 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
           : scope.ulb ? 'ulb'
             : 'district';
 
+    const demographicSubtitleEn = scopeLevel === 'gp'
+      ? 'Gram Panchayat Profile, Settlement & Demography'
+      : scopeLevel === 'ward'
+        ? 'Ward Profile, Settlement & Demography'
+        : scopeLevel === 'block'
+          ? 'Block Profile, Settlement & Demography'
+          : scopeLevel === 'ulb'
+            ? 'ULB Profile, Settlement & Demography'
+            : 'District Profile, Settlement & Demography';
+
     const coverMainName = (scope.gpName || scope.gpNameEn) || scope.wardName || scope.block || scope.ulb || district;
 
     const coverTypeLabel = {
@@ -1388,10 +1398,10 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
     const femalePopulation = Number(d.population?.female || 0);
     const sexRatio = malePopulation > 0 ? ((femalePopulation / malePopulation) * 1000).toFixed(0) : '—';
     const demographicPage = pageShell(`
-      ${pageHeader('02 / 07', 'जनसांख्यिकी एवं बस्ती संरचना', 'District Profile, Settlement & Demography', 'PAGE 02 / 07 · जनसांख्यिकी एवं बस्ती संरचना')}
+      ${pageHeader('02 / 07', 'जनसांख्यिकी संरचना', demographicSubtitleEn, `PAGE 02 / 07 · जनसांख्यिकी संरचना`)}
       <div class="section-kicker">खंड 01</div>
-      <h2 class="section-title">जनसांख्यिकी एवं बस्ती संरचना</h2>
-      <div class="section-subtitle">District Profile, Settlement & Demography</div>
+      <h2 class="section-title">जनसांख्यिकी संरचना</h2>
+      <div class="section-subtitle">${demographicSubtitleEn}</div>
       <div class="section-copy">${
   scopeLevel === 'gp'
     ? `${escapeHtml(coverMainName)} ग्राम पंचायत की बस्ती संरचना, जनसंख्या वितरण और कल्याण कवरेज का आधारभूत दृश्य इस अनुभाग में प्रस्तुत किया गया है।`
@@ -1403,7 +1413,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
       <div class="${showRuralProfile && showUrbanProfile ? 'two-col' : 'one-col'}">
         ${showRuralProfile ? `
         <div class="info-panel">
-          <div class="panel-title">ग्रामीण बस्ती प्रोफाइल</div>
+          <div class="panel-title">ग्रामीण प्रोफाइल</div>
           ${infoRow('ग्रामीण जनसंख्या (2026)', fmtLakh(d.population?.total || 0))}
           ${infoRow('ग्रामीण परिवार', fmt(ruralFamilies))}
           ${scopeLevel !== 'gp' ? infoRow('ग्राम पंचायतें', fmt(d.meta?.gpCount || 0)) : infoRow('ग्राम पंचायत', scope.gpName || coverMainName)}
@@ -1413,7 +1423,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
         ` : ''}
         ${showUrbanProfile ? `
         <div class="info-panel">
-          <div class="panel-title">शहरी बस्ती प्रोफाइल</div>
+          <div class="panel-title">शहरी प्रोफाइल</div>
           ${infoRow('शहरी जनसंख्या (2026)', fmtLakh(d.population?.urbanPop || 0))}
           ${scopeLevel === 'ward'
   ? infoRow('वार्ड', scope.wardName || coverMainName) + '\n          ' + infoRow('नगर निकाय', scope.ulb || '—')
@@ -1763,7 +1773,6 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
 
         <div class="asp-head">
           <div class="section-kicker">सामुदायिक आकांक्षाएँ · COMMUNITY ASPIRATIONS</div>
-          <div class="section-note">norm-validated · माँग मात्रा अनुसार</div>
         </div>
 
         <table class="aspirations-table">
@@ -1806,14 +1815,12 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
       const topScheme = sectorAsps.find((a: any) => a.scheme)?.scheme || null;
 
       const phase2 = qty2035 > 0
-        ? `${qty2035} आकांक्षाएं · ${fastTrackCount > 0 ? `${fastTrackCount} fast-track` : topScheme || 'scale-up'}`
-        : fastTrackCount > 0
-          ? `${fastTrackCount} fast-track · ${reviewCount} review pending`
-          : reviewCount > 0
-            ? `${reviewCount} under review`
-            : topScheme
-              ? `${topScheme} scale-up`
-              : `${accepted.length} accepted · scale-up phase`;
+        ? `${qty2035} आकांक्षाएं · ${topScheme || 'विस्तार चरण'}`
+        : reviewCount > 0
+          ? `${reviewCount} under review`
+          : topScheme
+            ? `${topScheme}`
+            : `${accepted.length} accepted`;
 
       return {
         indicator: sector,
