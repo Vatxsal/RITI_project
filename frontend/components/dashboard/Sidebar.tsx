@@ -50,13 +50,11 @@ export default function Sidebar({ isMobileOpen, onMobileClose }: { isMobileOpen?
       {/* Brand */}
       <div className="sb-brand" style={{ padding: '20px 20px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
         <div className="sb-logo" style={{ fontSize: '16px', fontWeight: 900, color: '#ffffff', letterSpacing: '0.04em', lineHeight: 1.1 }}>
-          VIKSIT RAJASTHAN
-          <span style={{ display: 'block', marginTop: '4px', color: '#93c5fd', fontSize: '11px', fontWeight: 600, letterSpacing: '0.04em' }}>@ 2047</span>
+          GOVT OF RAJASTHAN
         </div>
-        <div className="sb-tagline" style={{ color: 'rgba(255,255,255,0.45)', fontSize: '9px', letterSpacing: '0.1em', marginTop: '4px', textTransform: 'uppercase' }}>RITI · Planning Intelligence</div>
         <div className="ai-status" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', marginTop: '10px', padding: '3px 10px', borderRadius: '999px', background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)' }}>
           <div className="ai-dot"></div>
-          <div className="ai-lbl" style={{ color: '#6ee7b7', fontSize: '10px', fontWeight: 700, letterSpacing: '0.08em' }}>VR 2047 · AI Active</div>
+          <div className="ai-lbl" style={{ color: '#6ee7b7', fontSize: '10px', fontWeight: 700, letterSpacing: '0.08em' }}>Manthaan OS · Active</div>
         </div>
       </div>
 
