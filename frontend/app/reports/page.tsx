@@ -1445,6 +1445,8 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
               ${infoRow('सक्रिय SHG', fmt(d.economy?.activeShgs || 0))}
               ${infoRow('स्वास्थ्य केंद्र', fmt(Number(d.health?.allopathicCenters || 0) + Number(d.health?.ayushCenters || 0)))}
               ${infoRow('आंगनवाड़ी केंद्र', fmt(d.health?.awcCenters || 0))}
+              ${infoRow('BPL परिवार', fmt(d.population?.bplFamilies || 0))}
+              ${infoRow('PwD (Specially Abled) जनसंख्या', fmt(d.population?.pwd || 0))}
             ` : `
               ${infoRow('जिला', district)}
               ${infoRow('चयनित स्तर', scopeLevel === 'block' ? 'खंड' : 'जिला')}
@@ -1453,6 +1455,8 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
               ${infoRow('ग्राम पंचायतें', fmt(d.meta?.gpCount || 0))}
               ${infoRow('औसत GP क्षेत्र', avgGpArea ? `~${fmt(avgGpArea)} हे.` : '—')}
               ${infoRow('कुल भौगोलिक क्षेत्र', d.population?.totalAreaHectare ? `${fmt(d.population.totalAreaHectare)} हे.` : '—')}
+              ${infoRow('BPL परिवार', fmt(d.population?.bplFamilies || 0))}
+              ${infoRow('PwD (Specially Abled) जनसंख्या', fmt(d.population?.pwd || 0))}
             `
           ) : !showRuralProfile && showUrbanProfile ? (
             scopeLevel === 'ward' ? `
@@ -1462,6 +1466,8 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
               ${infoRow('स्वास्थ्य केंद्र', fmt(Number(d.health?.allopathicCenters || 0) + Number(d.health?.ayushCenters || 0) + Number(d.health?.privateHealthCenters || 0)))}
               ${infoRow('आंगनवाड़ी केंद्र', fmt(d.health?.awcCenters || 0))}
               ${infoRow('विद्युत कनेक्शन', fmt(d.infrastructure?.electricityHouses || 0))}
+              ${infoRow('BPL परिवार', fmt(d.population?.bplFamilies || 0))}
+              ${infoRow('PwD (Specially Abled) जनसंख्या', fmt(d.population?.pwd || 0))}
             ` : `
               ${infoRow('जिला', district)}
               ${infoRow('चयनित स्तर', scopeLevel === 'ulb' ? 'नगर निकाय' : 'जिला')}
@@ -1470,6 +1476,8 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
               ${infoRow('शहरी वार्ड', fmt(d.meta?.wardCount || 0))}
               ${infoRow('सबसे बड़ा ULB', largestUlb)}
               ${infoRow('औसत वार्ड जनसंख्या', avgWardPopulation ? `~${fmt(avgWardPopulation)}` : '—')}
+              ${infoRow('BPL परिवार', fmt(d.population?.bplFamilies || 0))}
+              ${infoRow('PwD (Specially Abled) जनसंख्या', fmt(d.population?.pwd || 0))}
             `
           ) : `
             ${infoRow('जिला', district)}
@@ -1477,6 +1485,8 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
             ${infoRow('ग्राम पंचायतें', fmt(d.meta?.gpCount || 0))}
             ${infoRow('नगर निकाय', fmt(d.meta?.ulbCount || 0))}
             ${infoRow('शहरी वार्ड', fmt(d.meta?.wardCount || 0))}
+            ${infoRow('BPL परिवार', fmt(d.population?.bplFamilies || 0))}
+            ${infoRow('PwD (Specially Abled) जनसंख्या', fmt(d.population?.pwd || 0))}
           `}
         </div>
         <div class="info-panel">
@@ -1488,8 +1498,6 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
           ${infoRow('बच्चे (स्कूली आयु 6-14)', fmt(d.population?.children614 || 0))}
           ${infoRow('बच्चे (14-18 वर्ष)', fmt(isRural ? (d.population?.pop14_18 || 0) : (d.population?.urbanPop14_18 || 0)))}
           ${infoRow('वरिष्ठ नागरिक (60+)', fmt(d.population?.seniors || 0))}
-          ${infoRow('BPL परिवार', fmt(d.population?.bplFamilies || 0))}
-          ${infoRow('PwD (Specially Abled) जनसंख्या', fmt(d.population?.pwd || 0))}
         </div>
       </div>
 
@@ -1509,8 +1517,16 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
       tourism: ['tourism', 'paryatan', 'पर्यटन', 'heritage', 'fair', 'mela', 'cultural', 'temple', 'monument', 'museum', 'dharohar', 'धरोहर', 'homestay', 'swadesh darshan', 'prashad', 'tourist'],
     } as const;
 
+    // NOTE: 'छात्रावास भवन की मरम्मत' appears in the source data under two sections —
+    // one TAD-restricted (excluded) and one general (not excluded) — with identical item text.
+    // Since aspiration rows here don't carry that section distinction, this name is excluded
+    // everywhere it appears. Flag to product owner if the general-section version needs to
+    // stay visible; this would require backend data to carry a section/category identifier.
     const EXCLUDED_ASPIRATION_ITEMS = new Set([
       'अत्याधुनिक कृषि अनुसंधान केंद्रों की स्थापना',
+      'नवीन मां-बाड़ी केन्द्र',
+      'छात्रावास का निर्माण',
+      'छात्रावास भवन की मरम्मत',
       'नवीन पशु चिकित्सा उप केंद्र की स्थापना',
       'पशु चिकित्सा उप केंद्र का पशु चिकित्सालय में क्रमोन्नयन',
       'नवीन पशु चिकित्सालय',
@@ -1545,20 +1561,76 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
       'नवीन पुलिस चौकी का सृजन',
     ]);
 
-    const getAspirationsForSector = (aspirations: any[], includeKeywords: readonly string[], maxRows = 8) => {
+    const PAGE_DEPT_NAMES: Record<string, string[]> = {
+      'people_society': [
+        'स्वास्थ्य एवं कल्याण',
+        'शिक्षा संबंधी जानकारी',
+        'सामाजिक सशक्तिकरण और समावेशन',
+      ],
+      'livelihood_economy': [
+        'कृषि एवं आजीविका',
+        'पर्यटन एवं सांस्कृतिक विकास',
+      ],
+      'core_infra': [
+        'जल सुरक्षा और समुदाय आधारित क्षमता',
+        'मुख्य (इंफ्रास्ट्रक्चर) आवागमन संबंधित',
+      ],
+      'env_heritage': [
+        'पर्यावरणीय स्थिरता और जलवायु अनुकूलता',
+        'पर्यटन एवं सांस्कृतिक विकास',
+      ],
+    };
+
+    const getAspirationsForSector = (aspirations: any[], includeKeywords: readonly string[], maxRows = 8, pageKey?: string) => {
       if (!aspirations || aspirations.length === 0) return [];
-      const includeKw = includeKeywords.map((keyword) => keyword.toLowerCase());
 
-      // Step 1: keyword filter
-      const filtered = aspirations.filter((a) => {
-        const sectorText = [a.sector || '', a.dept || '', a.item || '', a.sector_hi || '', a.indicator_hi || ''].join(' ').toLowerCase();
-        return includeKw.some((keyword) => sectorText.includes(keyword));
+      // Step 1: dept-first filtering
+      // If this page has known dept names, use them as the primary filter.
+      // Only fall back to keyword matching for items with no recognized dept.
+      const knownDepts = pageKey ? (PAGE_DEPT_NAMES[pageKey] || []) : [];
+
+      let filtered: any[];
+
+      if (knownDepts.length > 0) {
+        // Primary: items whose sector/dept column matches this page's known depts
+        const deptMatched = aspirations.filter((a: any) => {
+          const dept = String(a.sector || a.dept || '').trim();
+          return knownDepts.some(d => dept.includes(d) || d.includes(dept));
+        });
+
+        // Secondary: items with no recognized dept at all (untagged / catch-all)
+        // — only include these via keyword match on item text, and only if they
+        // don't already belong to a different page's depts
+        const allKnownDepts = Object.values(PAGE_DEPT_NAMES).flat();
+        const includeKw = (includeKeywords as string[]).map(kw => kw.toLowerCase());
+        const keywordFallback = aspirations.filter((a: any) => {
+          const dept = String(a.sector || a.dept || '').trim();
+          // Skip if this item has a recognized dept (belongs to another page)
+          if (allKnownDepts.some(d => dept.includes(d) || d.includes(dept))) return false;
+          // Accept if item text matches this page's keywords
+          const itemText = String(a.item || '').toLowerCase();
+          return includeKw.some(kw => itemText.includes(kw));
+        });
+
+        // Combine: dept-matched items first, then untagged keyword matches
+        const seen = new Set(deptMatched);
+        filtered = [...deptMatched, ...keywordFallback.filter(a => !seen.has(a))];
+      } else {
+        // No known dept mapping for this page — fall back to keyword matching as before
+        const includeKw = (includeKeywords as string[]).map(kw => kw.toLowerCase());
+        filtered = aspirations.filter((a: any) => {
+          const sectorText = [a.sector || '', a.dept || '', a.item || '', a.sector_hi || '', a.indicator_hi || ''].join(' ').toLowerCase();
+          return includeKw.some((keyword) => sectorText.includes(keyword));
+        });
+      }
+
+      // Step 2: exclude govt-excluded items (exact match only — no partial/substring matching,
+      // since only items explicitly marked "Excluded from Master Plan" in the source sheet
+      // should be filtered; substring matching risks excluding unrelated items).
+      const eligible = filtered.filter((a: any) => {
+        const item = String(a.item || '').trim();
+        return !EXCLUDED_ASPIRATION_ITEMS.has(item);
       });
-
-      // Step 2: exclude govt-excluded items
-      const eligible = filtered.filter(
-        (a: any) => !EXCLUDED_ASPIRATION_ITEMS.has(String(a.item || '').trim())
-      );
 
       // Step 3: sort by status priority then numeric priority
       eligible.sort((a: any, b: any) => {
@@ -1568,21 +1640,22 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
         return (Number(a.priority) || 99) - (Number(b.priority) || 99);
       });
 
-      // Step 4: cap at 2 per unique sector to ensure diversity
-      const MAX_PER_SECTOR = 2;
-      const sectorCount: Record<string, number> = {};
+      // Step 4: cap at 2 per unique item name to ensure diversity across aspiration types
+      const MAX_PER_ITEM = 2;
+      const itemCount: Record<string, number> = {};
       const result: any[] = [];
       for (const asp of eligible) {
-        const sectorKey = String(asp.sector || asp.dept || 'other').trim();
-        sectorCount[sectorKey] = (sectorCount[sectorKey] || 0);
-        if (sectorCount[sectorKey] < MAX_PER_SECTOR) {
+        // Normalize item name: strip trailing numbers/locations to group variants
+        const itemKey = String(asp.item || 'other').trim();
+        itemCount[itemKey] = (itemCount[itemKey] || 0);
+        if (itemCount[itemKey] < MAX_PER_ITEM) {
           result.push(asp);
-          sectorCount[sectorKey]++;
+          itemCount[itemKey]++;
         }
         if (result.length >= maxRows) break;
       }
 
-      // Step 5: if result is still < maxRows, fill with remaining (any sector, up to maxRows)
+      // Step 5: fill up to maxRows if needed
       if (result.length < maxRows) {
         const resultSet = new Set(result);
         for (const asp of eligible) {
@@ -1636,6 +1709,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
         titleEn: 'People & Society — स्वास्थ्य, शिक्षा, आंगनवाड़ी, सामाजिक सशक्तिकरण',
         band: 'group-blue',
         aspirationLabel: 'स्वास्थ्य · शिक्षा · पोषण · सामाजिक सशक्तिकरण',
+        pageKey: 'people_society',
         cards: [
           { value: fmt(d.education?.totalSchools || 0) !== '0' ? fmt(d.education?.totalSchools || 0) : fmt(Number(d.education?.govtSchools || 0) + Number(d.education?.pvtSchools || 0)), label: 'विद्यालय (कुल)', sub: `${fmt(d.education?.govtSchools || 0)} राजकीय + ${fmt(d.education?.pvtSchools || 0)} निजी` },
           { value: fmt(d.health?.awcCenters || 0), label: 'आंगनवाड़ी केंद्र', sub: `${fmt(d.meta?.blockCount || 0)} blocks में` },
@@ -1659,6 +1733,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
         titleEn: 'Livelihood & Economy — कृषि, पशुपालन, उद्योग, पर्यटन',
         band: 'group-rust',
         aspirationLabel: 'कृषि · पशुपालन · उद्योग · पर्यटन',
+        pageKey: 'livelihood_economy',
         cards: [
           { value: fmtLakh(d.agriculture?.totalFarmers || 0), label: 'कुल किसान', sub: `ग्रामीण जनसंख्या का ${d.population?.total > 0 ? ((Number(d.agriculture?.totalFarmers || 0) / Number(d.population?.total)) * 100).toFixed(1) : '—'}%` },
           { value: fmtLakh(d.agriculture?.cultivableHa || 0), label: 'कृषि भूमि', sub: 'हेक्टेयर · कृषि-योग्य' },
@@ -1682,6 +1757,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
         titleEn: 'Core Infrastructure — जल, सड़क, विद्युत, संचार एवं स्वच्छता',
         band: 'group-teal',
         aspirationLabel: 'जल · सड़क · विद्युत · स्वच्छता',
+        pageKey: 'core_infra',
         cards: [
           { value: fmtKm(d.infrastructure?.roadKm || 0), label: 'ग्रामीण सड़क नेटवर्क', sub: 'सभी श्रेणियां' },
           { value: fmtPct(d.water?.ruralFhtcAvg), label: 'FHTC (ग्रामीण)', sub: 'JJM Phase 2 inflow' },
@@ -1705,6 +1781,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
         titleEn: 'Environment & Heritage — वन, सांस्कृतिक धरोहर, शासन एवं ई-गवर्नेंस',
         band: 'group-brown',
         aspirationLabel: 'वन · विरासत · शासन · निगरानी',
+        pageKey: 'env_heritage',
         cards: [
           { value: fmtLakh(d.environment?.forestHa || 0), label: 'संरक्षित वन', sub: 'हेक्टेयर · अभयारण्य सहित' },
           { value: fmtLakh(d.environment?.pastureHa || 0), label: 'चरागाह भूमि', sub: 'सामुदायिक commons' },
@@ -1729,6 +1806,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
         titleEn: 'People & Society — स्वास्थ्य, शिक्षा, आंगनवाड़ी, सामाजिक सशक्तिकरण',
         band: 'group-blue',
         aspirationLabel: 'स्वास्थ्य · शिक्षा · पोषण · सामाजिक सशक्तिकरण',
+        pageKey: 'people_society',
         cards: [
           { value: fmt(Number(d.education?.govtSchools || 0) + Number(d.education?.pvtSchools || 0)) || fmt(d.education?.totalSchools || 0), label: 'विद्यालय (कुल)', sub: `${fmt(d.education?.govtSchools || 0)} राजकीय + ${fmt(d.education?.pvtSchools || 0)} निजी` },
           { value: fmt(d.health?.awcCenters || 0), label: 'आंगनवाड़ी केंद्र', sub: 'ICDS नेटवर्क' },
@@ -1752,6 +1830,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
         titleEn: 'Urban Livelihood & Economy — उद्योग, कारीगर, SHG, पर्यटन',
         band: 'group-rust',
         aspirationLabel: 'उद्योग · SHG · कारीगर · पर्यटन',
+        pageKey: 'livelihood_economy',
         cards: [
           { value: fmt(d.economy?.activeShgs || 0), label: 'सक्रिय SHG', sub: 'महिला स्वयं सहायता समूह' },
           { value: fmt(d.economy?.artisans || 0), label: 'स्थानीय कारीगर', sub: 'शिल्प आधार' },
@@ -1774,6 +1853,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
         titleEn: 'Core Infrastructure — जल, सड़क, विद्युत, स्वच्छता',
         band: 'group-teal',
         aspirationLabel: 'जल · सड़क · विद्युत · स्वच्छता',
+        pageKey: 'core_infra',
         cards: [
           { value: fmtPct(d.water?.urbanFhtcAvg), label: 'FHTC (शहरी)', sub: 'AMRUT linkages' },
           { value: fmt(d.water?.overheadTanks || 0), label: 'OVERHEAD TANKS', sub: 'जल भंडारण' },
@@ -1797,6 +1877,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
         titleEn: 'Environment & Heritage — पर्यावरण, शासन, ई-गवर्नेंस',
         band: 'group-brown',
         aspirationLabel: 'पर्यावरण · विरासत · शासन · निगरानी',
+        pageKey: 'env_heritage',
         cards: [
           { value: fmt(d.environment?.housesWithoutToilets || 0), label: 'शौचालय रहित घर', sub: 'स्वच्छता अंतराल' },
           { value: fmt(d.environment?.govtCompostPits || 0), label: 'कॉम्पोस्ट पिट', sub: 'कचरा प्रबंधन' },
@@ -1820,7 +1901,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
 
     const thematicPages = sectorPages.map((page) => {
       const dynamicPageNo = `${page.pageNo} / ${String(totalPages).padStart(2, '0')}`;
-      const aspirations = getAspirationsForSector(d.aspirations || [], page.aspirationKeywords, 8);
+      const aspirations = getAspirationsForSector(d.aspirations || [], page.aspirationKeywords, 8, page.pageKey);
       const cardsHtml = page.cards.map((card) => metricCard(card.value, card.label, card.sub)).join('');
       const rowsHtml = renderAspirationRows(aspirations, scopeLevel === 'gp' || scopeLevel === 'ward');
 
@@ -1840,7 +1921,6 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
 
         <div class="group-section-head">
           <div class="section-kicker">वर्तमान स्थिति · BASELINE</div>
-          <div class="section-note">${escapeHtml(page.titleEn.split(' — ')[1] || page.titleEn)} — प्रमुख संकेतक</div>
         </div>
 
         <div class="kpi-grid-4x2">${cardsHtml}</div>
