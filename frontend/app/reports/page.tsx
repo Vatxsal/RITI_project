@@ -1309,7 +1309,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
           <div>कुल परिवार: <b>${fmt(d.population?.totalFamilies || 0)}</b></div>
           <div>BPL परिवार: <b>${fmt(d.population?.bplFamilies || 0)}</b></div>
           <div>पक्के आवास: <b>${fmtPct(ruralFamilies > 0 ? ((Number(d.population?.puccaHouses || 0) / ruralFamilies) * 100).toFixed(1) : '—')}</b></div>
-          <div>PwD जनसंख्या: <b>${fmt(d.population?.pwd || 0)}</b></div>
+          <div>PwD (Specially Abled) जनसंख्या: <b>${fmt(d.population?.pwd || 0)}</b></div>
         </div>
       </div>
       <div>
@@ -1341,7 +1341,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
           <div>शहरी जनसंख्या: <b>${fmtLakh(d.population?.urbanPop || 0)}</b></div>
           <div>पक्के आवास: <b>${fmt(d.population?.puccaHouses || 0)}</b></div>
           <div>कच्चे आवास: <b>${fmt(d.population?.kutchaHouses || 0)}</b></div>
-          <div>PwD जनसंख्या: <b>${fmt(d.population?.pwd || 0)}</b></div>
+          <div>PwD (Specially Abled) जनसंख्या: <b>${fmt(d.population?.pwd || 0)}</b></div>
           <div>वरिष्ठ नागरिक: <b>${fmt(d.population?.seniors || 0)}</b></div>
         </div>
       </div>
@@ -1489,7 +1489,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
           ${infoRow('बच्चे (14-18 वर्ष)', fmt(isRural ? (d.population?.pop14_18 || 0) : (d.population?.urbanPop14_18 || 0)))}
           ${infoRow('वरिष्ठ नागरिक (60+)', fmt(d.population?.seniors || 0))}
           ${infoRow('BPL परिवार', fmt(d.population?.bplFamilies || 0))}
-          ${infoRow('PwD जनसंख्या', fmt(d.population?.pwd || 0))}
+          ${infoRow('PwD (Specially Abled) जनसंख्या', fmt(d.population?.pwd || 0))}
         </div>
       </div>
 
@@ -1509,24 +1509,98 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
       tourism: ['tourism', 'paryatan', 'पर्यटन', 'heritage', 'fair', 'mela', 'cultural', 'temple', 'monument', 'museum', 'dharohar', 'धरोहर', 'homestay', 'swadesh darshan', 'prashad', 'tourist'],
     } as const;
 
-    const getAspirationsForSector = (aspirations: any[], includeKeywords: readonly string[], maxRows = 4) => {
+    const EXCLUDED_ASPIRATION_ITEMS = new Set([
+      'अत्याधुनिक कृषि अनुसंधान केंद्रों की स्थापना',
+      'नवीन पशु चिकित्सा उप केंद्र की स्थापना',
+      'पशु चिकित्सा उप केंद्र का पशु चिकित्सालय में क्रमोन्नयन',
+      'नवीन पशु चिकित्सालय',
+      'पशु चिकित्सालय का प्रथम श्रेणी पशु चिकित्सालय में क्रमोन्नयन',
+      'प्रथम श्रेणी पशु चिकित्सालय का बहुउद्देश्यीय चिकित्सालय में क्रमोन्नयन',
+      'अन्य',
+      'उप स्वास्थ्य केंद्र का प्राथमिक स्वास्थ्य केंद्र में क्रमोन्नयन',
+      'नए उप स्वास्थ्य केंद्र की स्थापना',
+      'प्राथमिक स्वास्थ्य केंद्र का सामुदायिक स्वास्थ्य केंद्र में क्रमोन्नयन',
+      'नए प्राथमिक स्वास्थ्य केंद्र की स्थापना',
+      'नवीन आयुर्वेद औषधालय की स्थापना',
+      'नवीन होम्योपैथी औषधालय की स्थापना',
+      'नवीन प्राथमिक विद्यालय की स्थापना',
+      'प्राथमिक विद्यालयों का उच्च प्राथमिक विद्यालयों में क्रमोन्नयन',
+      'उच्च प्राथमिक विद्यालय में क्रमोन्नयन',
+      'उच्च माध्यमिक विद्यालय में क्रमोन्नयन',
+      'संस्कृत विद्यालय में शौचालयों का निर्माण',
+      'नवीन प्राथमिक संस्कृत विद्यालयों की स्थापना',
+      'राजकीय प्रवेशिका संस्कृत विद्यालयों का वरिष्ठ उपाध्याय विद्यालयों में क्रमोन्नयन',
+      'राजकीय संस्कृत महाविद्यालयों का आचार्य स्तर पर क्रमोन्नयन',
+      'नए राजकीय आईटीआई संस्थान की स्थापना',
+      'राजकीय पॉलिटेक्निक महाविद्यालयों की स्थापना',
+      'नगर परिषद से नगर निगम में क्रमोन्नयन',
+      'नगरपालिका से नगर परिषद में क्रमोन्नयन',
+      'नवीन नगरपालिका का गठन',
+      'औद्योगिक क्षेत्र की स्थापना',
+      'औद्योगिक भूखंड का आवंटन',
+      '132 केवी के नए ग्रिड सब स्टेशन',
+      '220 केवी के नए ग्रिड सब स्टेशन',
+      '400 केवी के नए ग्रिड सब स्टेशन',
+      'वन चौकी की स्थापना',
+      'नवीन पुलिस चौकी का सृजन',
+    ]);
+
+    const getAspirationsForSector = (aspirations: any[], includeKeywords: readonly string[], maxRows = 8) => {
       if (!aspirations || aspirations.length === 0) return [];
       const includeKw = includeKeywords.map((keyword) => keyword.toLowerCase());
+
+      // Step 1: keyword filter
       const filtered = aspirations.filter((a) => {
         const sectorText = [a.sector || '', a.dept || '', a.item || '', a.sector_hi || '', a.indicator_hi || ''].join(' ').toLowerCase();
         return includeKw.some((keyword) => sectorText.includes(keyword));
       });
-      filtered.sort((a: any, b: any) => {
+
+      // Step 2: exclude govt-excluded items
+      const eligible = filtered.filter(
+        (a: any) => !EXCLUDED_ASPIRATION_ITEMS.has(String(a.item || '').trim())
+      );
+
+      // Step 3: sort by status priority then numeric priority
+      eligible.sort((a: any, b: any) => {
         const statusOrder: Record<string, number> = { FUNDED: 0, ACCEPT: 1, REVIEW: 2 };
         const statusDiff = (statusOrder[a.status] ?? 3) - (statusOrder[b.status] ?? 3);
         if (statusDiff !== 0) return statusDiff;
         return (Number(a.priority) || 99) - (Number(b.priority) || 99);
       });
-      return filtered.slice(0, maxRows);
+
+      // Step 4: cap at 2 per unique sector to ensure diversity
+      const MAX_PER_SECTOR = 2;
+      const sectorCount: Record<string, number> = {};
+      const result: any[] = [];
+      for (const asp of eligible) {
+        const sectorKey = String(asp.sector || asp.dept || 'other').trim();
+        sectorCount[sectorKey] = (sectorCount[sectorKey] || 0);
+        if (sectorCount[sectorKey] < MAX_PER_SECTOR) {
+          result.push(asp);
+          sectorCount[sectorKey]++;
+        }
+        if (result.length >= maxRows) break;
+      }
+
+      // Step 5: if result is still < maxRows, fill with remaining (any sector, up to maxRows)
+      if (result.length < maxRows) {
+        const resultSet = new Set(result);
+        for (const asp of eligible) {
+          if (!resultSet.has(asp)) {
+            result.push(asp);
+            if (result.length >= maxRows) break;
+          }
+        }
+      }
+
+      return result;
     };
 
     const renderAspirationRows = (aspirations: any[], hideGpCol = false) => {
       console.log('[renderAspirationRows] count:', aspirations?.length);
+      aspirations = aspirations.filter(
+        (a: any) => !EXCLUDED_ASPIRATION_ITEMS.has(String(a.item || '').trim())
+      );
       if (!aspirations || aspirations.length === 0) {
         const colCount = hideGpCol ? 5 : 6;
         return `<tr><td colspan="${colCount}" style="text-align:center; color:#94a3b8; padding:16px; font-style:italic; font-family:'Noto Sans Devanagari',sans-serif;">इस क्षेत्र के लिए कोई स्वीकृत आकांक्षा उपलब्ध नहीं है</td></tr>`;
@@ -1572,7 +1646,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
           { value: fmt(d.health?.ashaWorkers || 0), label: 'ASHA कार्यकर्ता', sub: 'अंतिम-छोर स्वास्थ्य दल' },
           { value: fmt(Number(d.social?.widowPensioners || 0) + Number(d.social?.urbanWidow || 0)), label: 'विधवा पेंशन', sub: 'सामाजिक सुरक्षा' },
           { value: fmt(d.population?.seniors || 0), label: 'वरिष्ठ नागरिक (60+)', sub: 'Senior citizens' },
-          { value: fmt(d.population?.pwd || 0), label: 'PwD जनसंख्या', sub: 'Persons with disability' },
+          { value: fmt(d.population?.pwd || 0), label: 'PwD जनसंख्या', sub: 'Specially Abled Persons' },
           { value: fmt(d.education?.enrolledStudents || 0), label: 'नामांकित छात्र', sub: 'School enrollment' },
           { value: fmt(d.health?.tbPatients || 0), label: 'TB रोगी', sub: 'NHM tracking' },
         ],
@@ -1665,7 +1739,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
           { value: fmt(d.health?.ashaWorkers || 0), label: 'ASHA कार्यकर्ता', sub: 'अंतिम-छोर दल' },
           { value: fmt(d.education?.enrolledStudents || 0), label: 'नामांकित छात्र', sub: 'विद्यालय नामांकन' },
           { value: fmt(d.population?.seniors || 0), label: 'वरिष्ठ नागरिक (60+)', sub: 'Senior citizens' },
-          { value: fmt(d.population?.pwd || 0), label: 'PwD जनसंख्या', sub: 'Persons with disability' },
+          { value: fmt(d.population?.pwd || 0), label: 'PwD जनसंख्या', sub: 'Specially Abled Persons' },
           { value: fmt(d.health?.tbPatients || 0), label: 'TB रोगी', sub: 'NHM tracking' },
           { value: fmt(d.health?.snpRecipients || 0), label: 'SNP लाभार्थी (6-72 माह)', sub: 'ICDS nutrition program' },
         ],
@@ -3243,8 +3317,9 @@ ${closingHtml}
                 <div style={{ fontSize: 14, fontWeight: 600, color: '#1a2744' }}>No reports yet</div>
                 <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>Generate your first report using the form on the left</div>
               </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            ) : (<>
+              <style>{`.report-scrollbar::-webkit-scrollbar { width: 5px; } .report-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; } .report-scrollbar::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; } .report-scrollbar::-webkit-scrollbar-thumb:hover { background: #64748b; }`}</style>
+              <div className="report-scrollbar" style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: 340, overflowY: 'auto', paddingRight: 6 }}>
                 {reportHistory.map((report) => {
                   const date = new Date(report.created_at);
                   const dateStr = date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -3296,7 +3371,7 @@ ${closingHtml}
                   );
                 })}
               </div>
-            )}
+            </>)}
           </div>
 
           {generatedHtml && (
