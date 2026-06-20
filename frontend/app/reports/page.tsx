@@ -21,7 +21,7 @@ if (DISTRICTS_EN.length !== 41) {
 
 export default function ReportsPage() {
   const reportFrameRef = useRef<HTMLIFrameElement | null>(null);
-  const [activeTab, setActiveTab] = useState<'rural' | 'urban'>('rural');
+  const [activeTab, setActiveTab] = useState<'rural' | 'urban' | 'district'>('rural');
   const [reportHistory, setReportHistory] = useState<Array<{
     id: number;
     report_name: string;
@@ -69,13 +69,17 @@ export default function ReportsPage() {
         : ruralDistrict
           ? `District: ${ruralDistrict}`
           : 'Select location'
-    : urbanWardName
-      ? `Ward: ${urbanWardName}`
-      : urbanUlb
-        ? `ULB: ${urbanUlb}, ${urbanDistrict}`
-        : urbanDistrict
-          ? `District: ${urbanDistrict}`
-          : 'Select location';
+    : activeTab === 'urban'
+      ? urbanWardName
+        ? `Ward: ${urbanWardName}`
+        : urbanUlb
+          ? `ULB: ${urbanUlb}, ${urbanDistrict}`
+          : urbanDistrict
+            ? `District: ${urbanDistrict}`
+            : 'Select location'
+      : ruralDistrict
+        ? `District: ${ruralDistrict}`
+        : 'Select location';
 
   const loadReportHistory = async () => {
     try {
@@ -255,7 +259,7 @@ export default function ReportsPage() {
   }
 
   async function handleGenerateReport() {
-    const district = activeTab === 'rural' ? ruralDistrict : urbanDistrict;
+    const district = activeTab === 'rural' ? ruralDistrict : activeTab === 'urban' ? urbanDistrict : ruralDistrict;
     if (!district) {
       alert('Pehle district select karo');
       return;
@@ -275,13 +279,26 @@ export default function ReportsPage() {
           gpName: ruralGpName.hi || null,
           gpNameEn: ruralGpName.en || null,
         }
-        : {
-          type: 'urban' as const,
-          district: urbanDistrict,
-          ulb: urbanUlb || null,
-          wardId: urbanWardId || null,
-          wardName: urbanWardName || null,
-        };
+        : activeTab === 'urban'
+          ? {
+            type: 'urban' as const,
+            district: urbanDistrict,
+            ulb: urbanUlb || null,
+            wardId: urbanWardId || null,
+            wardName: urbanWardName || null,
+          }
+          : {
+            type: 'district' as const,
+            district: ruralDistrict,
+            block: null,
+            blockEn: null,
+            gpId: null,
+            gpName: null,
+            gpNameEn: null,
+            ulb: null,
+            wardId: null,
+            wardName: null,
+          };
 
       const reportData = await fetchScopedReportData(scope);
       setGeneratingLabel('Manthaan AI report likh raha hai...');
@@ -307,6 +324,230 @@ export default function ReportsPage() {
     const dbDistrict = DISTRICT_EN_TO_HI[scope.district] || scope.district;
     const RURAL_ASP_SELECT = 'district, block, gram_panchayat, gp_id, item, sector, priority, qty_2030, qty_2035, qty_2047, status, total_budget, scheme, fast_track';
     const URBAN_ASP_SELECT = 'district, ulb, ward, ward_id, item, sector, priority, qty_2030, qty_2035, qty_2047, status, total_budget, scheme, fast_track';
+
+    if (scope.type === 'district') {
+      // ── RURAL BASELINE ──────────────────────────────────────────
+      const { data: ruralData, error: ruralError } = await supabase
+        .from('baseline_rural').select('*').eq('district', dbDistrict);
+      if (ruralError || !ruralData || ruralData.length === 0) throw new Error('No rural data found for district.');
+
+      // ── URBAN BASELINE ──────────────────────────────────────────
+      const { data: urbanData, error: urbanError } = await supabase
+        .from('baseline_urban').select('*').eq('district', dbDistrict);
+      const hasUrban = !urbanError && urbanData && urbanData.length > 0;
+      const uData = hasUrban ? urbanData : [];
+
+      // ── ASPIRATIONS (both rural + urban) — PAGINATED ────────────
+      // A full district can have thousands of aspiration rows; unpaginated queries
+      // silently truncate at Supabase/PostgREST's default row cap, causing some
+      // sectors to show zero data. Page through both tables fully.
+      async function fetchAllAspirationRows(table: 'aspirations_rural' | 'aspirations_urban', selectCols: string) {
+        const PAGE_SIZE = 1000;
+        let allRows: any[] = [];
+        let from = 0;
+        let keepFetching = true;
+
+        while (keepFetching) {
+          const { data: pageData, error: pageError } = await supabase
+            .from(table)
+            .select(selectCols)
+            .in('status', ['ACCEPT', 'FUNDED', 'REVIEW'])
+            .ilike('district', dbDistrict)
+            .range(from, from + PAGE_SIZE - 1);
+
+          if (pageError) {
+            console.warn(`[District Asp] ${table} fetch error:`, pageError.message);
+            break;
+          }
+
+          if (!pageData || pageData.length === 0) {
+            keepFetching = false;
+          } else {
+            allRows = allRows.concat(pageData);
+            if (pageData.length < PAGE_SIZE) {
+              keepFetching = false;
+            } else {
+              from += PAGE_SIZE;
+            }
+          }
+        }
+
+        return allRows;
+      }
+
+      const [ruralAspRows, urbanAspRows] = await Promise.all([
+        fetchAllAspirationRows('aspirations_rural', RURAL_ASP_SELECT),
+        fetchAllAspirationRows('aspirations_urban', URBAN_ASP_SELECT),
+      ]);
+      const allAspirations = [...ruralAspRows, ...urbanAspRows];
+
+      console.log(`[District Asp] Total aspirations fetched for ${scope.district}: ${allAspirations.length} (rural: ${ruralAspRows.length}, urban: ${urbanAspRows.length})`);
+
+      // ── GP + WARD PROFILE TEXTS (for Gemini aggregation) ───────
+      const allGpProfilesDistrict: string[] = ruralData
+        .map((r: any) => String(r.gp_profile || r.gp_profiles || '').trim())
+        .filter((text: string) => text.length > 10);
+
+      const allWardProfilesDistrict: string[] = uData
+        .map((r: any) => String(r.ward_profile || r.ward_profiles || r.urban_profile || r.profile || '').trim())
+        .filter((text: string) => text.length > 10);
+
+      const allProfileTextsDistrict = [...allGpProfilesDistrict, ...allWardProfilesDistrict];
+
+      return {
+        scopeType: 'district',
+        scopeLabel: `${scope.district} District`,
+        meta: {
+          district: scope.district,
+          gpCount: [...new Set(ruralData.map((r: any) => r.gram_panchayat))].length,
+          blockCount: [...new Set(ruralData.map((r: any) => r.block))].length,
+          blocks: [...new Set(ruralData.map((r: any) => r.block))],
+          wardCount: uData.length,
+          ulbCount: [...new Set(uData.map((r: any) => r.ulb))].length,
+          ulbs: [...new Set(uData.map((r: any) => r.ulb))],
+          isSingleGp: false,
+          isSingleWard: false,
+        },
+        population: {
+          total: S(ruralData, 'pop_2026_est'),
+          male: S(ruralData, 'male_pop_2026') + S(uData, 'male_pop_2026'),
+          female: S(ruralData, 'female_pop_2026') + S(uData, 'female_pop_2026'),
+          children06: S(ruralData, 'children_0_6_2026') + S(uData, 'children_0_6_2026'),
+          children614: S(ruralData, 'children_6_14_2026') + S(uData, 'children_6_14_2026'),
+          pop14_18: S(ruralData, 'pop_14_18_2026') + S(uData, 'pop_14_18_2026'),
+          seniors: S(ruralData, 'senior_citizens_2026') + S(uData, 'senior_citizens_2026'),
+          pwd: S(ruralData, 'pwd_pop_2026') + S(uData, 'pwd_pop_2026'),
+          totalFamilies: S(ruralData, 'total_families_2026'),
+          bplFamilies: S(ruralData, 'bpl_families_2026'),
+          puccaHouses: S(ruralData, 'pucca_houses_2026') + S(uData, 'pucca_houses_2026'),
+          kutchaHouses: S(ruralData, 'kutcha_houses_2026') + S(uData, 'kutcha_houses_2026'),
+          urbanPop: S(uData, 'pop_2026_est'),
+          urbanPop14_18: S(uData, 'pop_14_18_2026'),
+        },
+        water: {
+          ruralFhtcAvg: A(ruralData, 'tap_connection_pct').toFixed(1),
+          gpsBelow30Fhtc: ruralData.filter((r: any) => r.tap_connection_pct < 30).length,
+          overheadTanks: S(ruralData, 'overhead_tanks_count') + S(uData, 'overhead_tanks_count'),
+          groundwaterDepth: A(ruralData, 'groundwater_depth_meters').toFixed(1),
+          roFacilities: S(ruralData, 'ro_facilities') + S(uData, 'ro_facilities'),
+          urbanFhtcAvg: A(uData, 'tap_connection_pct').toFixed(1),
+        },
+        agriculture: {
+          cultivableHa: S(ruralData, 'cultivable_land_hectare'),
+          irrigatedHa: S(ruralData, 'irrigated_area_hectare'),
+          irrigationPct: S(ruralData, 'cultivable_land_hectare') > 0
+            ? ((S(ruralData, 'irrigated_area_hectare') / S(ruralData, 'cultivable_land_hectare')) * 100).toFixed(1) : 0,
+          totalFarmers: S(ruralData, 'total_farmers_count'),
+          kccHolders: S(ruralData, 'kcc_holders_count'),
+          pmKisan: S(ruralData, 'pm_cm_kisan_beneficiaries'),
+          soilCards: S(ruralData, 'soil_health_cards_valid'),
+          cropInsurance: S(ruralData, 'crop_insurance_farmers_count'),
+          fpos: S(ruralData, 'fpo_count'),
+          solarPumps: S(ruralData, 'solar_pumps_count'),
+        },
+        dairy: {
+          totalLivestock: S(ruralData, 'total_livestock_count'),
+          milchAnimals: S(ruralData, 'milch_animals_count'),
+          dailyMilkLpd: S(ruralData, 'daily_milk_prod_litres'),
+          annualDairyValueCr: (S(ruralData, 'daily_milk_prod_litres') * 365 * 50 / 10000000).toFixed(0),
+          milkCenters: S(ruralData, 'milk_collection_centers'),
+          goatFarms: S(ruralData, 'goat_farms_count'),
+          poultryFarms: S(ruralData, 'poultry_farms_count'),
+        },
+        health: {
+          allopathicCenters: S(ruralData, 'allopathic_centers') + S(uData, 'allopathic_centers'),
+          ayushCenters: S(ruralData, 'ayush_centers') + S(uData, 'ayush_centers'),
+          healthBeds: S(ruralData, 'health_center_beds'),
+          healthStaff: S(ruralData, 'working_health_staff') + S(uData, 'working_health_staff'),
+          ayushmanBen: S(ruralData, 'ayushman_arogya_beneficiaries'),
+          tbPatients: S(ruralData, 'tb_patients_count') + S(uData, 'tb_patients_count'),
+          anemicPregnant: S(ruralData, 'anemic_pregnant_women_count') + S(uData, 'anemic_pregnant_women_count'),
+          samChildren: S(ruralData, 'sam_children_count') + S(uData, 'sam_children_count'),
+          ashaWorkers: S(ruralData, 'asha_workers_count') + S(uData, 'asha_workers_count'),
+          awcCenters: S(ruralData, 'anganwadi_centers_count') + S(uData, 'anganwadi_centers_count'),
+          urbanHealthBeds: S(uData, 'health_center_beds'),
+          urbanAyushman: S(uData, 'ayushman_arogya_beneficiaries'),
+          privateHealthCenters: S(uData, 'private_health_centers'),
+        },
+        education: {
+          govtSchools: S(ruralData, 'govt_schools_count') + S(uData, 'govt_schools_count'),
+          pvtSchools: S(ruralData, 'pvt_schools_count') + S(uData, 'pvt_schools_count'),
+          totalSchools: S(ruralData, 'total_schools_count') + S(uData, 'total_schools_count'),
+          workingTeachers: S(ruralData, 'working_teachers') + S(uData, 'working_teachers'),
+          sanctionedTeachers: S(ruralData, 'sanctioned_teachers') + S(uData, 'sanctioned_teachers'),
+          enrolledStudents: S(ruralData, 'total_enrolled_students') + S(uData, 'total_enrolled_students'),
+          dropouts: S(ruralData, 'dropout_children_prev_year') + S(uData, 'dropout_children_prev_year'),
+          skillCenters: S(ruralData, 'skill_training_centers_count'),
+          awcCenters: S(ruralData, 'anganwadi_centers_count') + S(uData, 'anganwadi_centers_count'),
+          ashaWorkers: S(ruralData, 'asha_workers_count') + S(uData, 'asha_workers_count'),
+          samChildren: S(ruralData, 'sam_children_count') + S(uData, 'sam_children_count'),
+          anganwadiEnrolledChildren: S(ruralData, 'anganwadi_enrolled_children') + S(uData, 'anganwadi_enrolled_children'),
+          dataAvailable: true,
+        },
+        social: {
+          oldAgePensioners: S(ruralData, 'old_age_pensioners') + S(uData, 'old_age_pensioners'),
+          widowPensioners: S(ruralData, 'widow_pensioners'),
+          pwdPensioners: S(ruralData, 'pwd_pensioners_est') + S(uData, 'pwd_pensioners_est'),
+          ujjwalaBen: S(ruralData, 'pm_ujjwala_beneficiaries') + S(uData, 'pm_ujjwala_beneficiaries'),
+          awasBen: S(ruralData, 'pm_cm_awas_beneficiaries'),
+          urbanWidow: S(uData, 'widow_pensioners'),
+          urbanAwas: S(uData, 'pm_cm_awas_beneficiaries'),
+        },
+        economy: {
+          activeShgs: S(ruralData, 'active_shg_count') + S(uData, 'active_shg_count'),
+          shgWomen: S(ruralData, 'women_in_shgs') + S(uData, 'women_in_shgs'),
+          lakhpatiDidis: S(ruralData, 'lakhpati_didis_count'),
+          millionaireDidis: S(ruralData, 'millionaire_didis_count'),
+          mudraLoan: S(ruralData, 'mudra_loan_beneficiaries'),
+          artisans: S(ruralData, 'local_artisans_count') + S(uData, 'local_artisans_count'),
+          urbanShgs: S(uData, 'active_shg_count'),
+          urbanIndustries: S(uData, 'large_industrial_units') + S(uData, 'small_scale_industries'),
+          largeIndustrialUnits: S(uData, 'large_industrial_units'),
+          smallScaleIndustries: S(uData, 'small_scale_industries'),
+        },
+        infrastructure: {
+          electricityHouses: S(ruralData, 'houses_with_electricity') + S(uData, 'houses_with_electricity'),
+          roadKm: S(ruralData, 'road_length_km') + S(uData, 'road_length_km'),
+          streetLights: S(ruralData, 'total_street_lights'),
+          govtBanks: S(ruralData, 'govt_banks_count') + S(uData, 'govt_banks_count'),
+          postOffices: S(ruralData, 'post_offices_count'),
+          publicToilets: S(ruralData, 'public_toilets') + S(uData, 'public_toilets_functional'),
+          solarHomes: S(ruralData, 'solar_installed_houses') + S(uData, 'solar_installed_houses'),
+          privateBanks: S(uData, 'private_banks_count'),
+        },
+        environment: {
+          forestHa: S(ruralData, 'forest_area_hectare') + S(uData, 'forest_area_hectare'),
+          pastureHa: S(ruralData, 'pasture_land_hectare'),
+          biogasPlants: S(ruralData, 'biogas_plants_count'),
+          govtCompostPits: S(ruralData, 'govt_compost_pits_count') + S(uData, 'govt_compost_pits_count'),
+          pvtCompostPits: S(ruralData, 'pvt_compost_pits_count'),
+          suryaGharHomes: S(ruralData, 'pm_surya_ghar_solar_houses') + S(uData, 'pm_surya_ghar_solar_houses'),
+          wasteKgDay: S(ruralData, 'total_waste_daily_kg'),
+          housesWithToilets: S(ruralData, 'houses_with_toilets'),
+          housesWithoutToilets: S(uData, 'houses_without_toilets'),
+          govtNurseries: S(uData, 'govt_nurseries_count'),
+          nurserySaplingsAvailable: S(uData, 'nursery_plants_count'),
+        },
+        tourism: {
+          heritageSites: S(ruralData, 'cultural_assets_count'),
+          annualFairs: S(ruralData, 'annual_fairs_count'),
+          dailyFootfall: A(ruralData, 'avg_daily_footfall_cultural_sites'),
+          avgFairFootfallDaily: A(ruralData, 'avg_fair_footfall_daily'),
+          trainedGuides: S(ruralData, 'registered_trained_guides') + S(uData, 'registered_trained_guides'),
+          fairEmployment: S(ruralData, 'fair_related_employment') + S(uData, 'fair_shg_stalls_count'),
+          localProductStalls: S(ruralData, 'fair_product_stalls_count'),
+        },
+        governance: {
+          distPoliceKm: A(ruralData, 'dist_police_station_km'),
+          distEmitraKm: A(ruralData, 'dist_emitra_km'),
+          distLpgKm: A(ruralData, 'dist_lpg_distributor_km'),
+          urbanPoliceKm: 0, urbanEmitraKm: 0,
+        },
+        profileText: '',
+        allProfileTexts: allProfileTextsDistrict,
+        aspirations: allAspirations,
+      };
+    }
 
     if (scope.type === 'rural') {
       // ── RURAL BASELINE ──────────────────────────────────────────
@@ -1046,9 +1287,10 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
     const scopeType = d.scopeType || scope.type;
     const isRural = scopeType === 'rural';
     const isUrban = scopeType === 'urban';
+    const isDistrict = scopeType === 'district';
     // Enforce strict scope isolation: rural reports never show urban units and vice versa.
-    const showRuralProfile = isRural || (!isUrban && !isRural && Number(d.meta?.gpCount || 0) > 0);
-    const showUrbanProfile = isUrban || (!isUrban && !isRural && Number(d.meta?.wardCount || 0) > 0);
+    const showRuralProfile = isRural || isDistrict || (!isUrban && !isRural && Number(d.meta?.gpCount || 0) > 0);
+    const showUrbanProfile = isUrban || isDistrict || (!isUrban && !isRural && Number(d.meta?.wardCount || 0) > 0);
     const district = d.meta?.district || scope.district || 'District';
     const selectedScopeName = scope.gpName || scope.wardName || scope.block || scope.ulb || district;
     const selectedScopeType = scope.gpName
@@ -1153,7 +1395,8 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
       : scope.wardName ? 'ward'
         : scope.block ? 'block'
           : scope.ulb ? 'ulb'
-            : 'district';
+            : (scope.type === 'district' || scopeType === 'district') ? 'district'
+              : 'district';
 
     const demographicSubtitleEn = scopeLevel === 'gp'
       ? 'Gram Panchayat Profile, Settlement & Demography'
@@ -1264,7 +1507,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
             ? `${scope.block ? scope.block + ' खंड' : district}`
             : scopeLevel === 'ward'
               ? `${scope.ulb ? scope.ulb : district}`
-              : isRural
+              : (isRural || isDistrict)
                 ? `${fmt(d.meta?.gpCount || 0)} ग्राम पंचायतें`
                 : `${fmt(d.meta?.wardCount || 0)} वार्ड`
         )}
@@ -1282,7 +1525,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
           ? kpiPill('नगर निकाय', fmt(d.meta?.ulbCount || 0), `${fmt(d.meta?.wardCount || 0)} वार्ड सहित`)
           : kpiPill('नगर निकाय', `${fmt(d.meta?.wardCount || 0)} वार्ड`, 'शहरी प्रशासनिक कवरेज')
 }
-        ${kpiPill('क्षेत्रीय स्थिति', isRural ? `कृषि · डेयरी · ग्राम शासन` : `शहरी सेवा · उद्योग · अवसंरचना`, isRural ? 'ग्रामीण केंद्रित' : 'शहरी केंद्रित')}
+        ${kpiPill('क्षेत्रीय स्थिति', (isRural || isDistrict) ? `कृषि · डेयरी · ग्राम शासन` : `शहरी सेवा · उद्योग · अवसंरचना`, (isRural || isDistrict) ? 'ग्रामीण केंद्रित' : 'शहरी केंद्रित')}
         ${scopeLevel === 'gp'
   ? kpiPill('BPL अनुपात', `${d.population?.totalFamilies > 0 ? ((Number(d.population?.bplFamilies || 0) / Number(d.population?.totalFamilies)) * 100).toFixed(1) : '—'}%`, 'BPL परिवार प्रतिशत')
   : scopeLevel === 'ward'
@@ -1291,7 +1534,9 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
       ? kpiPill('सिंचाई दर', fmtPct(d.agriculture?.irrigationPct), `${fmtLakh(d.agriculture?.totalFarmers || 0)} किसान`)
       : scopeLevel === 'ulb'
         ? kpiPill('शहरी वार्ड', fmt(d.meta?.wardCount || 0), `${scope.ulb || district} में`)
-        : kpiPill('FHTC कवरेज', fmtPct(d.water?.urbanFhtcAvg), 'जल आपूर्ति स्थिति')
+        : isDistrict
+          ? kpiPill('FHTC · ग्रामीण / शहरी', `${fmtPct(d.water?.ruralFhtcAvg)} / ${fmtPct(d.water?.urbanFhtcAvg)}`, 'जल आपूर्ति · दोनों क्षेत्र')
+          : kpiPill('FHTC कवरेज', fmtPct(d.water?.urbanFhtcAvg), 'जल आपूर्ति स्थिति')
 }
       </div>
 
@@ -1300,7 +1545,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
         <div class="featured-body">
     ${profileText
       ? `<div style="font-size:12px; color:#e2e8f0; line-height:1.75; font-family:'Noto Sans Devanagari',sans-serif; white-space:pre-wrap; word-break:break-word; overflow-wrap:break-word;">${escapeHtml(profileText)}</div>`
-      : (isRural ? `
+      : ((isRural || isDistrict) ? `
     <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
       <div>
         <div style="font-size:10px; color:#94a3b8; text-transform:uppercase; letter-spacing:0.08em; font-weight:700; margin-bottom:6px;">जनसंख्या एवं परिवार</div>
@@ -1380,6 +1625,11 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
                   ? statCard('सामाजिक सुरक्षा', `${fmt(Number(d.social?.oldAgePensioners || 0) + Number(d.social?.widowPensioners || 0))}`, '#1a2744', `वृद्धा + विधवा पेंशन`)
                   : statCard('ग्राम पंचायतें', fmt(d.meta?.gpCount || 0), '#1a2744', 'Selected rural units')
                 }
+              ` : isDistrict ? `
+                ${statCard('ग्रामीण FHTC', `${fmtPct(d.water?.ruralFhtcAvg)}`, '#1e3a5f', `${fmt(d.water?.gpsBelow30Fhtc || 0)} GPs below 30% · ${fmt(d.meta?.gpCount || 0)} ग्राम पंचायतें`)}
+                ${statCard('कृषि एवं पशुपालन', `${fmtPct(d.agriculture?.irrigationPct)}`, '#16a34a', `${fmtLakh(d.agriculture?.totalFarmers || 0)} किसान · ${fmtLakh(d.dairy?.totalLivestock || 0)} पशुधन`)}
+                ${statCard('स्वास्थ्य एवं शिक्षा', `${fmt(Number(d.health?.allopathicCenters || 0) + Number(d.health?.ayushCenters || 0))}`, '#e85d04', `${fmt(d.health?.awcCenters || 0)} AWC · ${fmt(d.health?.samChildren || 0)} SAM बच्चे`)}
+                ${statCard('शहरी FHTC · नगर निकाय', `${fmtPct(d.water?.urbanFhtcAvg)} · ${fmt(d.meta?.ulbCount || 0)}`, '#1a2744', `${fmt(d.meta?.wardCount || 0)} वार्ड · ${fmtLakh(d.population?.urbanPop || 0)} शहरी जनसंख्या`)}
               ` : `
                 ${statCard('जल आपूर्ति स्थिति', `${fmtPct(d.water?.urbanFhtcAvg)}`, '#1e3a5f', `Groundwater: ${fmtKm(d.water?.groundwaterDepth || 0, 1)} depth · ${fmt(d.water?.overheadTanks || 0)} overhead tanks`)}
                 ${statCard('स्वास्थ्य सेवाएं', `${fmt(Number(d.health?.allopathicCenters || 0) + Number(d.health?.ayushCenters || 0) + Number(d.health?.privateHealthCenters || 0))}`, '#16a34a', `${fmtLakh(d.health?.urbanAyushman || d.health?.ayushmanBen || 0)} Ayushman · ${fmt(d.health?.healthBeds || 0)} beds`)}
@@ -1496,7 +1746,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
           ${infoRow('लिंग अनुपात (प्रति 1000)', sexRatio)}
           ${infoRow('बच्चे 0-6 वर्ष', fmt(d.population?.children06 || 0))}
           ${infoRow('बच्चे (स्कूली आयु 6-14)', fmt(d.population?.children614 || 0))}
-          ${infoRow('बच्चे (14-18 वर्ष)', fmt(isRural ? (d.population?.pop14_18 || 0) : (d.population?.urbanPop14_18 || 0)))}
+          ${infoRow('बच्चे (14-18 वर्ष)', fmt(isRural || isDistrict ? (Number(d.population?.pop14_18 || 0) + Number(d.population?.urbanPop14_18 || 0)) : (d.population?.urbanPop14_18 || 0)))}
           ${infoRow('वरिष्ठ नागरिक (60+)', fmt(d.population?.seniors || 0))}
         </div>
       </div>
@@ -1640,6 +1890,66 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
         return (Number(a.priority) || 99) - (Number(b.priority) || 99);
       });
 
+      // For district-level reports (maxRows = Infinity), aggregate by item name instead
+      // of returning one row per GP/ward. Summing qty_2030/2035/2047 across all GPs/wards
+      // keeps the report to a manageable page count (target: under 20 pages) while still
+      // showing every distinct sub-indicator, excluding only items in EXCLUDED_ASPIRATION_ITEMS.
+      if (!Number.isFinite(maxRows)) {
+        const aggregateMap = new Map<string, {
+          item: string;
+          dept: string;
+          sector: string;
+          priority: number;
+          qty_2030: number;
+          qty_2035: number;
+          qty_2047: number;
+          status: string;
+          area_type: string;
+        }>();
+
+        const statusOrder: Record<string, number> = { FUNDED: 0, ACCEPT: 1, REVIEW: 2 };
+
+        for (const asp of eligible) {
+          const itemKey = String(asp.item || '').trim();
+          if (!itemKey) continue;
+
+          const existing = aggregateMap.get(itemKey);
+          if (!existing) {
+            aggregateMap.set(itemKey, {
+              item: itemKey,
+              dept: String(asp.dept || asp.sector || '').trim(),
+              sector: String(asp.sector || '').trim(),
+              priority: Number(asp.priority) || 99,
+              qty_2030: Number(asp.qty_2030) || 0,
+              qty_2035: Number(asp.qty_2035) || 0,
+              qty_2047: Number(asp.qty_2047) || 0,
+              status: String(asp.status || ''),
+              area_type: String(asp.area_type || ''),
+            });
+          } else {
+            existing.qty_2030 += Number(asp.qty_2030) || 0;
+            existing.qty_2035 += Number(asp.qty_2035) || 0;
+            existing.qty_2047 += Number(asp.qty_2047) || 0;
+            const newPriority = Number(asp.priority) || 99;
+            if (newPriority < existing.priority) existing.priority = newPriority;
+            const newStatus = String(asp.status || '');
+            if ((statusOrder[newStatus] ?? 3) < (statusOrder[existing.status] ?? 3)) {
+              existing.status = newStatus;
+            }
+          }
+        }
+
+        const aggregated = Array.from(aggregateMap.values());
+
+        aggregated.sort((a, b) => {
+          const statusDiff = (statusOrder[a.status] ?? 3) - (statusOrder[b.status] ?? 3);
+          if (statusDiff !== 0) return statusDiff;
+          return a.priority - b.priority;
+        });
+
+        return aggregated;
+      }
+
       // Step 4: cap at 2 per unique item name to ensure diversity across aspiration types
       const MAX_PER_ITEM = 2;
       const itemCount: Record<string, number> = {};
@@ -1702,7 +2012,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
       `).join('');
     };
 
-    const sectorPages = isRural ? [
+    const sectorPages = (isRural || isDistrict) ? [
       {
         pageNo: '03', groupNo: '01', totalGroups: '04',
         titleHi: 'जन एवं समाज',
@@ -1901,9 +2211,9 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
 
     const thematicPages = sectorPages.map((page) => {
       const dynamicPageNo = `${page.pageNo} / ${String(totalPages).padStart(2, '0')}`;
-      const aspirations = getAspirationsForSector(d.aspirations || [], page.aspirationKeywords, 8, page.pageKey);
+      const aspirations = getAspirationsForSector(d.aspirations || [], page.aspirationKeywords, isDistrict ? Infinity : 8, page.pageKey);
       const cardsHtml = page.cards.map((card) => metricCard(card.value, card.label, card.sub)).join('');
-      const rowsHtml = renderAspirationRows(aspirations, scopeLevel === 'gp' || scopeLevel === 'ward');
+      const rowsHtml = renderAspirationRows(aspirations, scopeLevel === 'gp' || scopeLevel === 'ward' || isDistrict);
 
       return pageShell(`
         ${pageHeader(`${page.pageNo} / ${totalPages}`, page.titleHi, page.titleEn, `PAGE ${dynamicPageNo} · ${page.titleHi}`)}
@@ -1934,7 +2244,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
             <tr>
               <th>आकांक्षा</th>
               <th>प्राथमिकता</th>
-              ${scopeLevel !== 'gp' && scopeLevel !== 'ward' ? '<th>ग्रा.प./वार्ड</th>' : ''}
+              ${scopeLevel !== 'gp' && scopeLevel !== 'ward' && !isDistrict ? '<th>ग्रा.प./वार्ड</th>' : ''}
               <th>2030 तक</th>
               <th>2030-35</th>
               <th>2035-47</th>
@@ -2440,7 +2750,7 @@ ${strategicPage}
     setGeneratedHtml(reportHtml);
 
     try {
-      const areaType = scope.type === 'urban' ? 'Urban' : 'Rural';
+      const areaType = scope.type === 'urban' ? 'Urban' : scope.type === 'district' ? 'District' : 'Rural';
       const districtVal = scope.district || null;
       // Build a clean human-readable name
       const locationParts: string[] = [];
@@ -2459,11 +2769,12 @@ ${strategicPage}
 
       const reportName = `${locationParts.join(' › ')} — ${scopeLevelLabel} (${areaType})`;
 
-      const scopeType = scope.wardName ? 'ward'
-        : scope.gpName ? 'gp'
-          : scope.ulb ? 'ulb'
-            : scope.block ? 'block'
-              : 'district';
+      const scopeType = scope.type === 'district' ? 'district'
+        : scope.wardName ? 'ward'
+          : scope.gpName ? 'gp'
+            : scope.ulb ? 'ulb'
+              : scope.block ? 'block'
+                : 'district';
 
       void (async () => {
         try {
@@ -3173,7 +3484,7 @@ ${closingHtml}
               <div style={{ fontSize: 17, fontWeight: 800, color: '#1a2744', marginBottom: 18 }}>District / Block / GP · Ward Level</div>
 
               <div style={{ display: 'inline-flex', gap: 4, padding: 3, background: '#f1f5f9', borderRadius: 8, marginBottom: 16 }}>
-                {(['rural', 'urban'] as const).map((tab) => {
+                {(['rural', 'urban', 'district'] as const).map((tab) => {
                   const active = activeTab === tab;
                   return (
                     <button
@@ -3191,7 +3502,7 @@ ${closingHtml}
                         transition: 'all 0.15s',
                       }}
                     >
-                      {tab === 'rural' ? 'Rural (GP Level)' : 'Urban (Ward Level)'}
+                      {tab === 'rural' ? 'Rural (GP Level)' : tab === 'urban' ? 'Urban (Ward Level)' : 'District (Full)'}
                     </button>
                   );
                 })}
@@ -3298,6 +3609,17 @@ ${closingHtml}
                       ))}
                     </select>
                   )}
+                </div>
+              )}
+
+              {activeTab === 'district' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <select className="fs" value={ruralDistrict} onChange={(e) => { setRuralDistrict(e.target.value); setUrbanDistrict(e.target.value); }} disabled={generating}>
+                    <option value="">1. District select karo...</option>
+                    {DISTRICTS_EN.map((district) => (
+                      <option key={district} value={district}>{district}</option>
+                    ))}
+                  </select>
                 </div>
               )}
 
