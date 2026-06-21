@@ -1333,7 +1333,8 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
     const pmKisan = Number(d.agriculture?.pmKisan || 0);
     const ujjwala = Number(d.social?.ujjwalaBen || 0);
     const awas = Number(d.social?.awasBen || d.social?.urbanAwas || 0);
-    const puccaPct = ruralFamilies > 0 ? ((Number(d.population?.puccaHouses || 0) / ruralFamilies) * 100).toFixed(1) : '—';
+    const totalHouses = Number(d.population?.puccaHouses || 0) + Number(d.population?.kutchaHouses || 0);
+    const puccaPct = totalHouses > 0 ? ((Number(d.population?.puccaHouses || 0) / totalHouses) * 100).toFixed(1) : '—';
     const avgWardPopulation = d.meta?.wardCount ? Math.round(Number(d.population?.urbanPop || 0) / Number(d.meta.wardCount)) : 0;
     const avgGpArea = d.meta?.gpCount && Number(d.population?.totalAreaHectare || 0) > 0
       ? Math.round(Number(d.population.totalAreaHectare) / Number(d.meta.gpCount))
@@ -1491,10 +1492,10 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
     const scopeMasterLabel = {
       gp:       `ग्राम पंचायत मास्टर प्लान`,
       ward:     `वार्ड मास्टर प्लान`,
-      block:    `खंड मास्टर प्लान`,
-      ulb:      `नगर निकाय मास्टर प्लान`,
-      district: `जिला मास्टर प्लान`,
-    }[scopeLevel] || 'मास्टर प्लान';
+      block:    `समेकित खंड रिपोर्ट`,
+      ulb:      `समेकित नगर निकाय रिपोर्ट`,
+      district: `समेकित जिला रिपोर्ट`,
+    }[scopeLevel] || 'समेकित रिपोर्ट';
 
     const coverPage = pageShell(`
       ${pageHeader('01 / 07', 'आवरण एवं परिचय', 'Cover · Introduction', 'PAGE 01 / 07 · आवरण एवं परिचय')}
@@ -1525,7 +1526,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
           ? kpiPill('नगर निकाय', fmt(d.meta?.ulbCount || 0), `${fmt(d.meta?.wardCount || 0)} वार्ड सहित`)
           : kpiPill('नगर निकाय', `${fmt(d.meta?.wardCount || 0)} वार्ड`, 'शहरी प्रशासनिक कवरेज')
 }
-        ${kpiPill('क्षेत्रीय स्थिति', (isRural || isDistrict) ? `कृषि · डेयरी · ग्राम शासन` : `शहरी सेवा · उद्योग · अवसंरचना`, (isRural || isDistrict) ? 'ग्रामीण केंद्रित' : 'शहरी केंद्रित')}
+        ${kpiPill('क्षेत्रीय स्थिति', isDistrict ? `ग्रामीण · शहरी · समेकित` : isRural ? `कृषि · डेयरी · ग्राम शासन` : `शहरी सेवा · उद्योग · अवसंरचना`, isDistrict ? 'जिला स्तरीय समेकित' : isRural ? 'ग्रामीण केंद्रित' : 'शहरी केंद्रित')}
         ${scopeLevel === 'gp'
   ? kpiPill('BPL अनुपात', `${d.population?.totalFamilies > 0 ? ((Number(d.population?.bplFamilies || 0) / Number(d.population?.totalFamilies)) * 100).toFixed(1) : '—'}%`, 'BPL परिवार प्रतिशत')
   : scopeLevel === 'ward'
@@ -1541,7 +1542,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
       </div>
 
       <div class="featured-box">
-        <div class="featured-title">मास्टर प्लान · एक नज़र में · THE PLANNING PROGRAMME AT A GLANCE</div>
+        <div class="featured-title">${(scopeLevel === 'gp' || scopeLevel === 'ward') ? 'मास्टर प्लान · एक नज़र में · THE PLANNING PROGRAMME AT A GLANCE' : 'समेकित जिला रिपोर्ट · आधारभूत डेटा सारांश · DISTRICT BASELINE SUMMARY AT A GLANCE'}</div>
         <div class="featured-body">
     ${profileText
       ? `<div style="font-size:12px; color:#e2e8f0; line-height:1.75; font-family:'Noto Sans Devanagari',sans-serif; white-space:pre-wrap; word-break:break-word; overflow-wrap:break-word;">${escapeHtml(profileText)}</div>`
@@ -1613,7 +1614,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
     </div>
     `)}
   </div>
-        <div class="featured-caption">${profileText ? 'GP/वार्ड प्रोफाइल — बेसलाइन डेटा से सीधे' : 'जिला आधारभूत डेटा, GP/वार्ड लुकअप से सत्यापित'}</div>
+        <div class="featured-caption"></div>
       </div>
 
       <div class="cover-grid">
@@ -1827,8 +1828,16 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
       ],
       'env_heritage': [
         'पर्यावरणीय स्थिरता और जलवायु अनुकूलता',
-        'पर्यटन एवं सांस्कृतिक विकास',
+        'प्रभावी शासन और सार्वजनिक सेवाएं',
       ],
+    };
+
+    const getEligibleAspirations = (aspirations: any[]) => {
+      if (!aspirations) return [];
+      return aspirations.filter((a: any) => {
+        const item = String(a.item || '').trim();
+        return !EXCLUDED_ASPIRATION_ITEMS.has(item);
+      });
     };
 
     const getAspirationsForSector = (aspirations: any[], includeKeywords: readonly string[], maxRows = 8, pageKey?: string) => {
@@ -1874,13 +1883,8 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
         });
       }
 
-      // Step 2: exclude govt-excluded items (exact match only — no partial/substring matching,
-      // since only items explicitly marked "Excluded from Master Plan" in the source sheet
-      // should be filtered; substring matching risks excluding unrelated items).
-      const eligible = filtered.filter((a: any) => {
-        const item = String(a.item || '').trim();
-        return !EXCLUDED_ASPIRATION_ITEMS.has(item);
-      });
+      // Step 2: exclude govt-excluded items using shared helper
+      const eligible = getEligibleAspirations(filtered);
 
       // Step 3: sort by status priority then numeric priority
       eligible.sort((a: any, b: any) => {
@@ -2022,16 +2026,16 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
         pageKey: 'people_society',
         cards: [
           { value: fmt(d.education?.totalSchools || 0) !== '0' ? fmt(d.education?.totalSchools || 0) : fmt(Number(d.education?.govtSchools || 0) + Number(d.education?.pvtSchools || 0)), label: 'विद्यालय (कुल)', sub: `${fmt(d.education?.govtSchools || 0)} राजकीय + ${fmt(d.education?.pvtSchools || 0)} निजी` },
-          { value: fmt(d.health?.awcCenters || 0), label: 'आंगनवाड़ी केंद्र', sub: `${fmt(d.meta?.blockCount || 0)} blocks में` },
+          { value: fmt(d.education?.enrolledStudents || 0), label: 'नामांकित छात्र', sub: 'School enrollment' },
+          { value: fmt(d.health?.awcCenters || 0), label: 'आंगनवाड़ी केंद्र', sub: isDistrict ? `${fmt(d.meta?.blockCount || 0)} blocks में` : `${fmt(d.meta?.blockCount || 0)} blocks में` },
+          { value: fmt(d.education?.anganwadiEnrolledChildren || 0), label: 'AWC नामांकित बच्चे', sub: 'ICDS · 0-6 वर्ष' },
           { value: Number(d.health?.allopathicCenters || 0) + Number(d.health?.ayushCenters || 0) > 0 ? fmt(Number(d.health?.allopathicCenters || 0) + Number(d.health?.ayushCenters || 0)) : fmt(d.health?.allopathicCenters || 0), label: 'स्वास्थ्य केंद्र', sub: 'SHC · CHC · PHC सहित' },
-          { value: fmt(d.economy?.activeShgs || 0), label: 'सक्रिय SHG', sub: `+ ${fmt(d.economy?.lakhpatiDidis || 0)} लखपति दीदी` },
-          { value: fmtLakh(Number(d.health?.ayushmanBen || 0) + Number(d.health?.urbanAyushman || 0)), label: 'CM Ayushman कवरेज', sub: 'लाभार्थी नागरिक' },
           { value: fmt(d.health?.samChildren || 0), label: 'SAM बच्चे', sub: 'POSHAN 2.0 cohort' },
+          { value: fmtLakh(Number(d.health?.ayushmanBen || 0) + Number(d.health?.urbanAyushman || 0)), label: 'CM Ayushman कवरेज', sub: 'लाभार्थी नागरिक' },
           { value: fmt(d.health?.ashaWorkers || 0), label: 'ASHA कार्यकर्ता', sub: 'अंतिम-छोर स्वास्थ्य दल' },
+          { value: fmt(d.economy?.activeShgs || 0), label: 'सक्रिय SHG', sub: `+ ${fmt(d.economy?.lakhpatiDidis || 0)} लखपति दीदी` },
           { value: fmt(Number(d.social?.widowPensioners || 0) + Number(d.social?.urbanWidow || 0)), label: 'विधवा पेंशन', sub: 'सामाजिक सुरक्षा' },
           { value: fmt(d.population?.seniors || 0), label: 'वरिष्ठ नागरिक (60+)', sub: 'Senior citizens' },
-          { value: fmt(d.population?.pwd || 0), label: 'PwD जनसंख्या', sub: 'Specially Abled Persons' },
-          { value: fmt(d.education?.enrolledStudents || 0), label: 'नामांकित छात्र', sub: 'School enrollment' },
           { value: fmt(d.health?.tbPatients || 0), label: 'TB रोगी', sub: 'NHM tracking' },
         ],
         narrative: [n.sectorNarratives?.health, n.sectorNarratives?.education, n.sectorNarratives?.socialWelfare].filter(Boolean).join(' '),
@@ -2173,7 +2177,6 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
           { value: fmt(d.infrastructure?.privateBanks || 0), label: 'निजी बैंक', sub: 'वित्तीय पहुंच' },
           { value: fmtKm(d.infrastructure?.roadKm || 0), label: 'सड़क नेटवर्क', sub: 'किमी' },
           { value: fmt(d.infrastructure?.solarHomes || 0), label: 'सौर ऊर्जा घर', sub: 'नवीकरणीय ऊर्जा' },
-          { value: fmt(d.infrastructure?.privateBanks || 0), label: 'निजी बैंक', sub: 'Private banking access' },
           { value: fmtKm(d.infrastructure?.distRailwayStationKm || 0), label: 'रेलवे स्टेशन दूरी', sub: 'Avg distance' },
           { value: fmtKm(d.infrastructure?.distBusStandKm || 0), label: 'बस स्टैंड दूरी', sub: 'Avg distance' },
           { value: fmt(d.water?.roFacilities || 0), label: 'RO सुविधाएं', sub: 'Drinking water quality' },
@@ -2256,18 +2259,19 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
       `, 'thematic-page');
     }).join('');
 
+    const eligibleAspirations = getEligibleAspirations(d.aspirations || []);
+
     const sectorCounts: Record<string, number> = {};
-    (d.aspirations || []).forEach((a: any) => {
+    eligibleAspirations.forEach((a: any) => {
       const s = a.sector || 'अन्य';
       sectorCounts[s] = (sectorCounts[s] || 0) + 1;
     });
     const topSectors = Object.entries(sectorCounts)
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 6)
       .map(([sector]) => sector);
 
     const strategicRows = topSectors.map(sector => {
-      const sectorAsps = (d.aspirations || []).filter((a: any) => a.sector === sector);
+      const sectorAsps = eligibleAspirations.filter((a: any) => a.sector === sector);
       const funded = sectorAsps.filter((a: any) => a.status === 'FUNDED');
       const accepted = sectorAsps.filter((a: any) => a.status === 'ACCEPT');
       const qty2030 = sectorAsps.reduce((sum: number, a: any) => sum + (Number(a.qty_2030) || 0), 0);
@@ -2304,7 +2308,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
     }
 
     const schemeMap: Record<string, Set<string>> = {};
-    (d.aspirations || []).forEach((a: any) => {
+    eligibleAspirations.forEach((a: any) => {
       if (!a.scheme) return;
       const sector = a.sector || 'अन्य';
       if (!schemeMap[sector]) schemeMap[sector] = new Set();
@@ -2312,10 +2316,9 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
     });
 
     const schemeRows = Object.entries(schemeMap)
-      .slice(0, 6)
       .map(([sector, schemesSet]) => {
         const schemes = Array.from(schemesSet).slice(0, 2).join(' / ');
-        const sectorAsps = (d.aspirations || []).filter((a: any) => a.sector === sector);
+        const sectorAsps = eligibleAspirations.filter((a: any) => a.sector === sector);
         const funded = sectorAsps.filter((a: any) => a.status === 'FUNDED').length;
         const fastTrack = sectorAsps.filter((a: any) => a.fast_track).length;
         const statusLabel = 'नियोजन चरण';
@@ -3727,6 +3730,7 @@ ${closingHtml}
                   const dateStr = date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
                   const timeStr = date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
                   const isRural = report.area_type === 'Rural';
+                  const isDistrictReport = report.area_type === 'District';
 
                   return (
                     <div key={report.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px 18px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, transition: 'border-color 0.15s' }} onMouseEnter={(e) => {
@@ -3736,15 +3740,15 @@ ${closingHtml}
                       (e.currentTarget as HTMLDivElement).style.borderColor = '#e2e8f0';
                       (e.currentTarget as HTMLDivElement).style.background = '#f8fafc';
                     }}>
-                      <div style={{ width: 40, height: 40, borderRadius: 10, background: isRural ? '#dcfce7' : '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 14 }}>
-                        {isRural ? '🌾' : '🏙️'}
+                      <div style={{ width: 40, height: 40, borderRadius: 10, background: isRural ? '#dcfce7' : isDistrictReport ? '#fef3c7' : '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 14 }}>
+                        {isRural ? '🌾' : isDistrictReport ? '🗺️' : '🏙️'}
                       </div>
 
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 14, fontWeight: 700, color: '#1a2744', marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{report.report_name}</div>
                         <div style={{ display: 'flex', gap: 10, marginTop: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                           <span style={{ fontSize: 12, color: '#64748b' }}>{dateStr} · {timeStr}</span>
-                          <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 999, background: isRural ? '#dcfce7' : '#dbeafe', color: isRural ? '#166534' : '#1d4ed8' }}>{report.area_type.toUpperCase()}</span>
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 999, background: isRural ? '#dcfce7' : isDistrictReport ? '#fef3c7' : '#dbeafe', color: isRural ? '#166534' : isDistrictReport ? '#92400e' : '#1d4ed8' }}>{report.area_type.toUpperCase()}</span>
                           {report.file_size_kb && <span style={{ fontSize: 11, color: '#94a3b8' }}>{report.file_size_kb} KB</span>}
                         </div>
                       </div>
