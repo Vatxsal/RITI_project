@@ -2034,6 +2034,27 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
       });
     };
 
+    const PAGE_SUB_SECTOR_MAP: Record<string, string[]> = {
+      'people_society': [
+        'स्वास्थ्य एवं कल्याण',
+        'शिक्षा संबंधी जानकारी',
+        'सामाजिक सशक्तिकरण और समावेशन',
+      ],
+      'livelihood_economy': [
+        'कृषि एवं आजीविका',
+        'औद्योगिक, खनन और आर्थिक विकास',
+        'पर्यटन एवं सांस्कृतिक विकास',
+      ],
+      'core_infra': [
+        'जल सुरक्षा और समुदाय आधारित क्षमता',
+        'मुख्य (इंफ्रास्ट्रक्चर) आवागमन संबंधित',
+      ],
+      'env_heritage': [
+        'पर्यावरणीय स्थिरता और जलवायु अनुकूलता',
+        'प्रभावी शासन और सार्वजनिक सेवाएं',
+      ],
+    };
+
     const getAspirationsForSector = (aspirations: any[], includeKeywords: readonly string[], maxRows = 8, pageKey?: string) => {
       if (!aspirations || aspirations.length === 0) return [];
 
@@ -2154,12 +2175,93 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
         return aggregated;
       }
 
-      // Step 4: cap at 2 per unique item name to ensure diversity across aspiration types
+      // Step 4 (revised): enforce 2 rows per sub-sector for diversity,
+      // then fill remaining slots with any eligible items
+      // Only applies for finite maxRows (GP/block/ULB/ward level)
+      const subSectors = pageKey ? (PAGE_SUB_SECTOR_MAP[pageKey] || []) : [];
+      const MAX_PER_SUBSECTOR = 2;
+
+      if (subSectors.length > 0) {
+        const buckets: Map<string, any[]> = new Map();
+        for (const ss of subSectors) {
+          buckets.set(ss, []);
+        }
+        buckets.set('__other__', []);
+
+        for (const asp of eligible) {
+          const aspSector = String(asp.sector || asp.dept || '').trim();
+          let matched = false;
+          for (const ss of subSectors) {
+            if (aspSector === ss || aspSector.includes(ss) || ss.includes(aspSector)) {
+              const bucket = buckets.get(ss)!;
+              const alreadyHasItem = bucket.some(
+                (b: any) => String(b.item || '').trim() === String(asp.item || '').trim()
+              );
+              if (!alreadyHasItem) {
+                bucket.push(asp);
+              }
+              matched = true;
+              break;
+            }
+          }
+          if (!matched) {
+            const otherBucket = buckets.get('__other__')!;
+            const alreadyHasItem = otherBucket.some(
+              (b: any) => String(b.item || '').trim() === String(asp.item || '').trim()
+            );
+            if (!alreadyHasItem) {
+              otherBucket.push(asp);
+            }
+          }
+        }
+
+        const result: any[] = [];
+        const usedItems = new Set<string>();
+
+        for (const ss of subSectors) {
+          const bucket = buckets.get(ss) || [];
+          let taken = 0;
+          for (const asp of bucket) {
+            if (taken >= MAX_PER_SUBSECTOR) break;
+            const itemKey = String(asp.item || '').trim();
+            if (!usedItems.has(itemKey)) {
+              result.push(asp);
+              usedItems.add(itemKey);
+              taken++;
+            }
+          }
+        }
+
+        if (result.length < maxRows) {
+          for (const asp of eligible) {
+            if (result.length >= maxRows) break;
+            const itemKey = String(asp.item || '').trim();
+            if (!usedItems.has(itemKey)) {
+              result.push(asp);
+              usedItems.add(itemKey);
+            }
+          }
+        }
+
+        if (result.length < maxRows) {
+          const resultSet = new Set(result);
+          for (const asp of eligible) {
+            if (result.length >= maxRows) break;
+            if (!resultSet.has(asp)) {
+              result.push(asp);
+              resultSet.add(asp);
+            }
+          }
+        }
+
+        return result.slice(0, maxRows);
+      }
+
+      // Fallback (no pageKey or unknown pageKey): original item-level dedup
       const MAX_PER_ITEM = 2;
       const itemCount: Record<string, number> = {};
       const result: any[] = [];
       for (const asp of eligible) {
-        // Normalize item name: strip trailing numbers/locations to group variants
         const itemKey = String(asp.item || 'other').trim();
         itemCount[itemKey] = (itemCount[itemKey] || 0);
         if (itemCount[itemKey] < MAX_PER_ITEM) {
@@ -2169,7 +2271,6 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
         if (result.length >= maxRows) break;
       }
 
-      // Step 5: fill up to maxRows if needed
       if (result.length < maxRows) {
         const resultSet = new Set(result);
         for (const asp of eligible) {
