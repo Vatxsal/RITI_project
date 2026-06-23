@@ -1449,9 +1449,38 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
       <div class="info-row"><span>${escapeHtml(label)}</span><span>${escapeHtml(value)}</span></div>
     `;
 
+    const shortenMetricValue = (value: any): string => {
+      const str = String(value ?? '');
+      if (str === '—') return str;
+
+      if (str.endsWith(' km')) {
+        const num = parseFloat(str);
+        if (!isNaN(num)) {
+          if (num >= 100000) return `${(num / 100000).toFixed(1)} L km`;
+          if (num >= 1000) return `${(num / 1000).toFixed(1)}K km`;
+          return str;
+        }
+      }
+
+      if (str.endsWith(' L')) return str;
+
+      const stripped = str.replace(/,/g, '');
+      const num = parseFloat(stripped);
+      if (!isNaN(num) && isFinite(num)) {
+        if (num >= 10000000) return `${(num / 10000000).toFixed(1)} Cr`;
+        if (num >= 100000) return `${(num / 100000).toFixed(2)} L`;
+        if (num >= 10000) return `${(num / 1000).toFixed(1)}K`;
+        return str;
+      }
+
+      if (str.endsWith('%')) return str;
+
+      return str;
+    };
+
     const metricCard = (value: any, label: string, subLabel: string = '') => `
       <div class="metric-card">
-        <div class="metric-value">${escapeHtml(value)}</div>
+        <div class="metric-value">${escapeHtml(shortenMetricValue(value))}</div>
         <div class="metric-label">${escapeHtml(label)}</div>
         ${subLabel ? `<div class="metric-sub">${escapeHtml(subLabel)}</div>` : ''}
       </div>
@@ -2273,7 +2302,11 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
           { value: fmt(d.tourism?.heritageSites || 0), label: 'धार्मिक/सांस्कृतिक स्थल', sub: `${fmt(d.meta?.gpCount || 0)} GPs में` },
           { value: fmt(d.tourism?.annualFairs || 0), label: 'धार्मिक मेले', sub: 'प्रति वर्ष · जिला-व्यापी' },
           { value: fmt(d.environment?.biogasPlants || 0), label: 'Biogas Plants', sub: 'नवीकरणीय ऊर्जा' },
-          { value: fmt(d.governance?.distEmitraKm ? `${Number(d.governance.distEmitraKm).toFixed(1)} km` : '—'), label: 'ई-मित्र दूरी (औसत)', sub: `${fmt(d.meta?.gpCount || 0)} GPs का औसत` },
+          scopeLevel === 'gp'
+            ? { value: fmtPct(d.water?.ruralFhtcAvg || 0), label: 'FHTC कवरेज', sub: 'नल जल कनेक्शन प्रतिशत' }
+            : scopeLevel === 'block'
+              ? { value: fmtPct(d.water?.ruralFhtcAvg || 0), label: 'FHTC औसत (खंड)', sub: `${fmt(d.water?.gpsBelow30Fhtc || 0)} GPs below 30%` }
+              : { value: fmt(d.water?.gpsBelow30Fhtc || 0), label: 'GPs — FHTC 30% से कम', sub: 'जल आपूर्ति प्राथमिकता' },
           { value: fmt(d.environment?.govtCompostPits || 0), label: 'सरकारी नर्सरी/कॉम्पोस्ट', sub: 'waste processing' },
           { value: fmt(d.environment?.suryaGharHomes || 0), label: 'PM Surya Ghar', sub: 'solar homes' },
           { value: fmt(d.environment?.wasteKgDay || 0), label: 'दैनिक अपशिष्ट (kg)', sub: 'Daily waste generated' },
@@ -2676,7 +2709,8 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
   .kpi-grid-5 .kpi-pill-sub { overflow: visible; text-overflow: unset; white-space: normal; word-break: break-word; font-size: 9px; }
   .kpi-grid-4x2 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 16px; }
   .metric-card { background: var(--report-card-bg); border: 1px solid var(--report-border); border-radius: 10px; padding: 14px 12px; min-height: 112px; overflow: hidden; }
-  .metric-value { font-size: 23px; font-weight: 900; color: var(--report-navy); line-height: 1.1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .metric-value { font-size: 23px; font-weight: 900; color: var(--report-navy); line-height: 1.1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+  .metric-value.wrap { white-space: normal; font-size: 18px; }
   .metric-label { margin-top: 8px; font-size: 11px; color: var(--report-muted); font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .metric-sub { margin-top: 3px; font-size: 10px; color: #94a3b8; }
   .two-col { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-top: 18px; align-items: start; }
