@@ -2609,7 +2609,13 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
       `, 'thematic-page');
     }).join('');
 
-    const eligibleAspirations = getEligibleAspirations(d.aspirations || []);
+    // For strategic table sector counts, use ALL aspirations (no exclusions).
+    // Exclusions apply only to per-page aspiration display tables, not summary counts.
+    const eligibleAspirations = (d.aspirations || []).filter((a: any) => {
+      const item = String(a.item || '').trim();
+      // Only exclude the global "अन्य" catch-all; keep everything else for counting
+      return item.length > 0 && item !== 'अन्य';
+    });
 
     const sectorCounts: Record<string, number> = {};
     eligibleAspirations.forEach((a: any) => {
