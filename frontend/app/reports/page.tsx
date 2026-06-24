@@ -623,17 +623,38 @@ export default function ReportsPage() {
             ruralAspData = districtFallback || [];
           }
         } else if (scope.block) {
-          // Block-level: filter by block, return all GPs
-          ruralAspQuery = ruralAspQuery
-            .ilike('district', dbDistrict)
-            .ilike('block', scope.block);
-          const { data: blockData, error: blockErr } = await ruralAspQuery;
-          if (blockErr) {
-            console.warn('[Rural Asp] block fetch error:', blockErr.message);
-            ruralAspData = [];
-          } else {
-            ruralAspData = blockData || [];
+          // Block-level: paginate to avoid silent truncation at Supabase default row cap
+          const BLOCK_PAGE_SIZE = 1000;
+          let blockAllRows: any[] = [];
+          let blockFrom = 0;
+          let blockKeepFetching = true;
+
+          while (blockKeepFetching) {
+            const { data: blockPageData, error: blockPageErr } = await supabase
+              .from('aspirations_rural')
+              .select(RURAL_ASP_SELECT)
+              .in('status', ['ACCEPT', 'FUNDED', 'REVIEW'])
+              .ilike('district', dbDistrict)
+              .ilike('block', scope.block)
+              .range(blockFrom, blockFrom + BLOCK_PAGE_SIZE - 1);
+
+            if (blockPageErr) {
+              console.warn('[Rural Asp] block page fetch error:', blockPageErr.message);
+              blockKeepFetching = false;
+            } else if (!blockPageData || blockPageData.length === 0) {
+              blockKeepFetching = false;
+            } else {
+              blockAllRows = blockAllRows.concat(blockPageData);
+              if (blockPageData.length < BLOCK_PAGE_SIZE) {
+                blockKeepFetching = false;
+              } else {
+                blockFrom += BLOCK_PAGE_SIZE;
+              }
+            }
           }
+
+          ruralAspData = blockAllRows;
+          console.log(`[Block Asp] Total fetched for block "${scope.block}": ${ruralAspData.length} records`);
         } else {
           // District-level: filter by district only
           ruralAspQuery = ruralAspQuery.ilike('district', dbDistrict);
@@ -846,15 +867,37 @@ export default function ReportsPage() {
             console.log(`[Urban Asp] No match for ulb+ward, returning empty`);
           }
         } else if (scope.ulb) {
-          // ULB level only
-          console.log(`[Urban Asp] ULB match: ulb="${scope.ulb}"`);
-          const { data: ulbData } = await supabase
-            .from('aspirations_urban')
-            .select(URBAN_ASP_SELECT)
-            .in('status', ['ACCEPT', 'FUNDED', 'REVIEW'])
-            .ilike('ulb', scope.ulb.trim());
-          urbanAspData = ulbData || [];
-          console.log(`[Urban Asp] ULB match: ${urbanAspData.length} records`);
+          // ULB level: paginate to avoid silent truncation
+          const ULB_PAGE_SIZE = 1000;
+          let ulbAllRows: any[] = [];
+          let ulbFrom = 0;
+          let ulbKeepFetching = true;
+
+          while (ulbKeepFetching) {
+            const { data: ulbPageData, error: ulbPageErr } = await supabase
+              .from('aspirations_urban')
+              .select(URBAN_ASP_SELECT)
+              .in('status', ['ACCEPT', 'FUNDED', 'REVIEW'])
+              .ilike('ulb', scope.ulb.trim())
+              .range(ulbFrom, ulbFrom + ULB_PAGE_SIZE - 1);
+
+            if (ulbPageErr) {
+              console.warn('[Urban Asp] ULB page fetch error:', ulbPageErr.message);
+              ulbKeepFetching = false;
+            } else if (!ulbPageData || ulbPageData.length === 0) {
+              ulbKeepFetching = false;
+            } else {
+              ulbAllRows = ulbAllRows.concat(ulbPageData);
+              if (ulbPageData.length < ULB_PAGE_SIZE) {
+                ulbKeepFetching = false;
+              } else {
+                ulbFrom += ULB_PAGE_SIZE;
+              }
+            }
+          }
+
+          urbanAspData = ulbAllRows;
+          console.log(`[ULB Asp] Total fetched for ulb "${scope.ulb}": ${urbanAspData.length} records`);
         } else if (scope.wardName) {
           // Ward only (rare — usually ward comes with ULB)
           console.log(`[Urban Asp] Ward match: ward="${scope.wardName}"`);
@@ -2519,9 +2562,11 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
 
     const thematicPages = sectorPages.map((page) => {
       const dynamicPageNo = `${page.pageNo} / ${String(totalPages).padStart(2, '0')}`;
-      const aspirations = getAspirationsForSector(d.aspirations || [], page.aspirationKeywords, isDistrict ? Infinity : 8, page.pageKey);
+      const aspMaxRows = (isDistrict || scopeLevel === 'block' || scopeLevel === 'ulb') ? Infinity : 8;
+      const hideGpColForTable = scopeLevel === 'gp' || scopeLevel === 'ward' || isDistrict || scopeLevel === 'block' || scopeLevel === 'ulb';
+      const aspirations = getAspirationsForSector(d.aspirations || [], page.aspirationKeywords, aspMaxRows, page.pageKey);
       const cardsHtml = page.cards.map((card) => metricCard(card.value, card.label, card.sub)).join('');
-      const rowsHtml = renderAspirationRows(aspirations, scopeLevel === 'gp' || scopeLevel === 'ward' || isDistrict);
+      const rowsHtml = renderAspirationRows(aspirations, hideGpColForTable);
 
       return pageShell(`
         ${pageHeader(`${page.pageNo} / ${totalPages}`, page.titleHi, page.titleEn, `PAGE ${dynamicPageNo} · ${page.titleHi}`)}
@@ -2552,7 +2597,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
             <tr>
               <th>आकांक्षा</th>
               <th>प्राथमिकता</th>
-              ${scopeLevel !== 'gp' && scopeLevel !== 'ward' && !isDistrict ? '<th>ग्रा.प./वार्ड</th>' : ''}
+              ${scopeLevel !== 'gp' && scopeLevel !== 'ward' && !isDistrict && scopeLevel !== 'block' && scopeLevel !== 'ulb' ? '<th>ग्रा.प./वार्ड</th>' : ''}
               <th>2030 तक</th>
               <th>2030-35</th>
               <th>2035-47</th>
