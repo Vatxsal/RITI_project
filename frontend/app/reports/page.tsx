@@ -2056,6 +2056,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
       ],
       'livelihood_economy': [
         'कृषि एवं आजीविका',
+        'औद्योगिक, खनन और आर्थिक विकास',
         'पर्यटन एवं सांस्कृतिक विकास',
       ],
       'core_infra': [
@@ -2111,8 +2112,20 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
       if (knownDepts.length > 0) {
         // Primary: items whose sector/dept column matches this page's known depts
         const deptMatched = aspirations.filter((a: any) => {
-          const dept = String(a.sector || a.dept || '').trim();
-          return knownDepts.some(d => dept.includes(d) || d.includes(dept));
+          const dept = String(a.sector || a.dept || '').trim().replace(/\s+/g, ' ');
+          return knownDepts.some(d => {
+            const dNorm = d.trim().replace(/\s+/g, ' ');
+            // Exact match is the primary check — handles Hindi strings with
+            // parentheses, commas, and Unicode variation reliably
+            if (dept === dNorm) return true;
+            // Substring fallback only when one is clearly a prefix/suffix of the other
+            // and neither is empty — avoids false positives from partial matches
+            if (dept.length > 0 && dNorm.length > 0) {
+              if (dept.includes(dNorm) && dNorm.length >= dept.length * 0.8) return true;
+              if (dNorm.includes(dept) && dept.length >= dNorm.length * 0.8) return true;
+            }
+            return false;
+          });
         });
 
         // Secondary: items with no recognized dept at all (untagged / catch-all)
@@ -2121,9 +2134,18 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
         const allKnownDepts = Object.values(PAGE_DEPT_NAMES).flat();
         const includeKw = (includeKeywords as string[]).map(kw => kw.toLowerCase());
         const keywordFallback = aspirations.filter((a: any) => {
-          const dept = String(a.sector || a.dept || '').trim();
+          const dept = String(a.sector || a.dept || '').trim().replace(/\s+/g, ' ');
           // Skip if this item has a recognized dept (belongs to another page)
-          if (allKnownDepts.some(d => dept.includes(d) || d.includes(dept))) return false;
+          const deptNorm = dept.replace(/\s+/g, ' ');
+          if (allKnownDepts.some(d => {
+            const dNorm = d.trim().replace(/\s+/g, ' ');
+            if (deptNorm === dNorm) return true;
+            if (deptNorm.length > 0 && dNorm.length > 0) {
+              if (deptNorm.includes(dNorm) && dNorm.length >= deptNorm.length * 0.8) return true;
+              if (dNorm.includes(deptNorm) && deptNorm.length >= dNorm.length * 0.8) return true;
+            }
+            return false;
+          })) return false;
           // Accept if item text matches this page's keywords
           const itemText = String(a.item || '').toLowerCase();
           return includeKw.some(kw => itemText.includes(kw));
@@ -2155,176 +2177,65 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
         return (Number(a.priority) || 99) - (Number(b.priority) || 99);
       });
 
-      // For district-level reports (maxRows = Infinity), aggregate by item name instead
-      // of returning one row per GP/ward. Summing qty_2030/2035/2047 across all GPs/wards
-      // keeps the report to a manageable page count (target: under 20 pages) while still
-      // showing every distinct sub-indicator, excluding only items per SECTOR_EXCLUDED_ITEMS.
-      if (!Number.isFinite(maxRows)) {
-        const aggregateMap = new Map<string, {
-          item: string;
-          dept: string;
-          sector: string;
-          priority: number;
-          qty_2030: number;
-          qty_2035: number;
-          qty_2047: number;
-          status: string;
-          area_type: string;
-        }>();
+      // Step 4: aggregate by item name — sum qty_2030/2035/2047 across all GPs/wards
+      // so that each distinct item appears once with consolidated quantities,
+      // regardless of scope level (GP, block, ULB, ward, district).
+      const aggregateMap = new Map<string, {
+        item: string;
+        dept: string;
+        sector: string;
+        priority: number;
+        qty_2030: number;
+        qty_2035: number;
+        qty_2047: number;
+        status: string;
+        area_type: string;
+      }>();
 
-        const statusOrder: Record<string, number> = { FUNDED: 0, ACCEPT: 1, REVIEW: 2 };
+      const statusOrder: Record<string, number> = { FUNDED: 0, ACCEPT: 1, REVIEW: 2 };
 
-        for (const asp of eligible) {
-          const itemKey = String(asp.item || '').trim();
-          if (!itemKey) continue;
-
-          const existing = aggregateMap.get(itemKey);
-          if (!existing) {
-            aggregateMap.set(itemKey, {
-              item: itemKey,
-              dept: String(asp.dept || asp.sector || '').trim(),
-              sector: String(asp.sector || '').trim(),
-              priority: Number(asp.priority) || 99,
-              qty_2030: Number(asp.qty_2030) || 0,
-              qty_2035: Number(asp.qty_2035) || 0,
-              qty_2047: Number(asp.qty_2047) || 0,
-              status: String(asp.status || ''),
-              area_type: String(asp.area_type || ''),
-            });
-          } else {
-            existing.qty_2030 += Number(asp.qty_2030) || 0;
-            existing.qty_2035 += Number(asp.qty_2035) || 0;
-            existing.qty_2047 += Number(asp.qty_2047) || 0;
-            const newPriority = Number(asp.priority) || 99;
-            if (newPriority < existing.priority) existing.priority = newPriority;
-            const newStatus = String(asp.status || '');
-            if ((statusOrder[newStatus] ?? 3) < (statusOrder[existing.status] ?? 3)) {
-              existing.status = newStatus;
-            }
-          }
-        }
-
-        const aggregated = Array.from(aggregateMap.values());
-
-        aggregated.sort((a, b) => {
-          const orderA = ITEM_ORDER_MAP[a.item] ?? 999;
-          const orderB = ITEM_ORDER_MAP[b.item] ?? 999;
-          if (orderA !== orderB) return orderA - orderB;
-          const statusDiff = (statusOrder[a.status] ?? 3) - (statusOrder[b.status] ?? 3);
-          if (statusDiff !== 0) return statusDiff;
-          return a.priority - b.priority;
-        });
-
-        return aggregated;
-      }
-
-      // Step 4 (revised): enforce 2 rows per sub-sector for diversity,
-      // then fill remaining slots with any eligible items
-      // Only applies for finite maxRows (GP/block/ULB/ward level)
-      const subSectors = pageKey ? (PAGE_SUB_SECTOR_MAP[pageKey] || []) : [];
-      const MAX_PER_SUBSECTOR = 2;
-
-      if (subSectors.length > 0) {
-        const buckets: Map<string, any[]> = new Map();
-        for (const ss of subSectors) {
-          buckets.set(ss, []);
-        }
-        buckets.set('__other__', []);
-
-        for (const asp of eligible) {
-          const aspSector = String(asp.sector || asp.dept || '').trim();
-          let matched = false;
-          for (const ss of subSectors) {
-            if (aspSector === ss || aspSector.includes(ss) || ss.includes(aspSector)) {
-              const bucket = buckets.get(ss)!;
-              const alreadyHasItem = bucket.some(
-                (b: any) => String(b.item || '').trim() === String(asp.item || '').trim()
-              );
-              if (!alreadyHasItem) {
-                bucket.push(asp);
-              }
-              matched = true;
-              break;
-            }
-          }
-          if (!matched) {
-            const otherBucket = buckets.get('__other__')!;
-            const alreadyHasItem = otherBucket.some(
-              (b: any) => String(b.item || '').trim() === String(asp.item || '').trim()
-            );
-            if (!alreadyHasItem) {
-              otherBucket.push(asp);
-            }
-          }
-        }
-
-        const result: any[] = [];
-        const usedItems = new Set<string>();
-
-        for (const ss of subSectors) {
-          const bucket = buckets.get(ss) || [];
-          let taken = 0;
-          for (const asp of bucket) {
-            if (taken >= MAX_PER_SUBSECTOR) break;
-            const itemKey = String(asp.item || '').trim();
-            if (!usedItems.has(itemKey)) {
-              result.push(asp);
-              usedItems.add(itemKey);
-              taken++;
-            }
-          }
-        }
-
-        if (result.length < maxRows) {
-          for (const asp of eligible) {
-            if (result.length >= maxRows) break;
-            const itemKey = String(asp.item || '').trim();
-            if (!usedItems.has(itemKey)) {
-              result.push(asp);
-              usedItems.add(itemKey);
-            }
-          }
-        }
-
-        if (result.length < maxRows) {
-          const resultSet = new Set(result);
-          for (const asp of eligible) {
-            if (result.length >= maxRows) break;
-            if (!resultSet.has(asp)) {
-              result.push(asp);
-              resultSet.add(asp);
-            }
-          }
-        }
-
-        return result.slice(0, maxRows);
-      }
-
-      // Fallback (no pageKey or unknown pageKey): original item-level dedup
-      const MAX_PER_ITEM = 2;
-      const itemCount: Record<string, number> = {};
-      const result: any[] = [];
       for (const asp of eligible) {
-        const itemKey = String(asp.item || 'other').trim();
-        itemCount[itemKey] = (itemCount[itemKey] || 0);
-        if (itemCount[itemKey] < MAX_PER_ITEM) {
-          result.push(asp);
-          itemCount[itemKey]++;
-        }
-        if (result.length >= maxRows) break;
-      }
+        const itemKey = String(asp.item || '').trim();
+        if (!itemKey) continue;
 
-      if (result.length < maxRows) {
-        const resultSet = new Set(result);
-        for (const asp of eligible) {
-          if (!resultSet.has(asp)) {
-            result.push(asp);
-            if (result.length >= maxRows) break;
+        const existing = aggregateMap.get(itemKey);
+        if (!existing) {
+          aggregateMap.set(itemKey, {
+            item: itemKey,
+            dept: String(asp.dept || asp.sector || '').trim(),
+            sector: String(asp.sector || '').trim(),
+            priority: Number(asp.priority) || 99,
+            qty_2030: Number(asp.qty_2030) || 0,
+            qty_2035: Number(asp.qty_2035) || 0,
+            qty_2047: Number(asp.qty_2047) || 0,
+            status: String(asp.status || ''),
+            area_type: String(asp.area_type || ''),
+          });
+        } else {
+          existing.qty_2030 += Number(asp.qty_2030) || 0;
+          existing.qty_2035 += Number(asp.qty_2035) || 0;
+          existing.qty_2047 += Number(asp.qty_2047) || 0;
+          const newPriority = Number(asp.priority) || 99;
+          if (newPriority < existing.priority) existing.priority = newPriority;
+          const newStatus = String(asp.status || '');
+          if ((statusOrder[newStatus] ?? 3) < (statusOrder[existing.status] ?? 3)) {
+            existing.status = newStatus;
           }
         }
       }
 
-      return result;
+      const aggregated = Array.from(aggregateMap.values());
+
+      aggregated.sort((a, b) => {
+        const orderA = ITEM_ORDER_MAP[a.item] ?? 999;
+        const orderB = ITEM_ORDER_MAP[b.item] ?? 999;
+        if (orderA !== orderB) return orderA - orderB;
+        const statusDiff = (statusOrder[a.status] ?? 3) - (statusOrder[b.status] ?? 3);
+        if (statusDiff !== 0) return statusDiff;
+        return a.priority - b.priority;
+      });
+
+      return aggregated;
     };
 
     const renderAspirationRows = (aspirations: any[], hideGpCol = false, sectorHint?: string) => {
@@ -2333,7 +2244,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
         (a: any) => !isExcludedForSector(String(a.item || '').trim(), sectorHint || String(a.sector || a.dept || '').trim())
       );
       if (!aspirations || aspirations.length === 0) {
-        const colCount = hideGpCol ? 5 : 6;
+        const colCount = 4;
         return `<tr><td colspan="${colCount}" style="text-align:center; color:#94a3b8; padding:16px; font-style:italic; font-family:'Noto Sans Devanagari',sans-serif;">इस क्षेत्र के लिए कोई स्वीकृत आकांक्षा उपलब्ध नहीं है</td></tr>`;
       }
 
@@ -2343,16 +2254,6 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
             <div style="font-weight:700; color:#1a1a2e; font-family:'Noto Sans Devanagari',sans-serif;">${escapeHtml(aspiration.item || '—')}</div>
             <div style="font-size:10px; color:#64748b; margin-top:2px; font-family:sans-serif;">${escapeHtml(aspiration.dept || aspiration.sector || '')}</div>
           </td>
-          <td style="text-align:center;">
-            <span class="priority-badge ${Number(aspiration.priority) <= 2 ? 'p1' : 'p2'}">P-${escapeHtml(aspiration.priority || '—')}</span>
-          </td>
-          ${hideGpCol ? '' : `<td style="text-align:center; font-family:sans-serif; font-weight:700; font-size:11px; max-width:80px; word-break:break-word;">
-            ${escapeHtml(
-        (aspiration.area_type === 'Urban' || aspiration.area_type === 'urban' || aspiration.ward)
-          ? (aspiration.ward || aspiration.ward_name || aspiration.city || aspiration.ulb || String(aspiration.ward_id || '') || '—')
-          : (aspiration.gram_panchayat || aspiration.gp_name || '—')
-      )}
-          </td>`}
           <td style="font-family:sans-serif;">${escapeHtml(aspiration.qty_2030 ?? '—')}</td>
           <td style="font-family:sans-serif;">${escapeHtml(aspiration.qty_2035 ?? '—')}</td>
           <td style="font-family:sans-serif;">${escapeHtml(aspiration.qty_2047 ?? '—')}</td>
@@ -2562,8 +2463,8 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
 
     const thematicPages = sectorPages.map((page) => {
       const dynamicPageNo = `${page.pageNo} / ${String(totalPages).padStart(2, '0')}`;
-      const aspMaxRows = (isDistrict || scopeLevel === 'block' || scopeLevel === 'ulb') ? Infinity : 8;
-      const hideGpColForTable = scopeLevel === 'gp' || scopeLevel === 'ward' || isDistrict || scopeLevel === 'block' || scopeLevel === 'ulb';
+      const aspMaxRows = Infinity;
+      const hideGpColForTable = true;
       const aspirations = getAspirationsForSector(d.aspirations || [], page.aspirationKeywords, aspMaxRows, page.pageKey);
       const cardsHtml = page.cards.map((card) => metricCard(card.value, card.label, card.sub)).join('');
       const rowsHtml = renderAspirationRows(aspirations, hideGpColForTable);
@@ -2596,8 +2497,6 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
           <thead>
             <tr>
               <th>आकांक्षा</th>
-              <th>प्राथमिकता</th>
-              ${scopeLevel !== 'gp' && scopeLevel !== 'ward' && !isDistrict && scopeLevel !== 'block' && scopeLevel !== 'ulb' ? '<th>ग्रा.प./वार्ड</th>' : ''}
               <th>2030 तक</th>
               <th>2030-35</th>
               <th>2035-47</th>
