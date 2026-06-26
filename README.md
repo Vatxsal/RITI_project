@@ -37,10 +37,9 @@ A planning intelligence platform for aspirational governance under the **Viksit 
 - **Aspiration Analytics** — Track and manage aspirational projects across rural/urban areas
 - **GIS Mapping** — Spatial visualization of district-level development data
 - **AI Planning Assistant** — Gemini-powered chat with live data context
-- **Budget Engine** — Compute budget allocations with central/state funding splits
-- **Report Generation** — Drill-down reports from state → district → block → GP level
+- **Report Generation** — AI-powered planning intelligence briefs with drill-down from state → district → block → GP/ward level
 - **Data Validation** — 8-rule engine + CNI scoring for data quality and prioritization
-- **ETL Pipeline** — Excel → CSV → Supabase data ingestion
+- **ETL Pipeline** — Excel → Supabase data ingestion via baseline_upload.py
 
 ---
 
@@ -51,13 +50,13 @@ A planning intelligence platform for aspirational governance under the **Viksit 
 │                   Next.js 16 App                    │
 │  ┌─────────┐  ┌──────────┐  ┌───────────────────┐  │
 │  │ Pages   │  │ API      │  │ Components        │  │
-│  │ (17)    │  │ Routes   │  │ (20+)             │  │
+│  │ (16)    │  │ Routes   │  │ (20+)             │  │
 │  └────┬────┘  └────┬─────┘  └────────┬──────────┘  │
 │       │            │                  │             │
 │  ┌────┴────────────┴──────────────────┴──────────┐  │
-│  │           Lib Layer (13 files)                │  │
+│  │           Lib Layer (12 files)                │  │
 │  │  supabase.ts │ data.ts │ ruleEngine.ts        │  │
-│  │  cniEngine.ts │ aiContext.ts │ budgetEngine.ts│  │
+│  │  cniEngine.ts │ aiContext.ts │ dashboard-kpis │  │
 │  └─────────────────────┬─────────────────────────┘  │
 │                        │                            │
 │  ┌─────────────────────┴─────────────────────────┐  │
@@ -68,8 +67,8 @@ A planning intelligence platform for aspirational governance under the **Viksit 
 ┌────────────────────────┼────────────────────────────┐
 │              Supabase (PostgreSQL)                   │
 │  ┌──────────┐ ┌──────────────┐ ┌────────────────┐  │
-│  │ Dimension│ │ Fact Tables  │ │ Materialized    │  │
-│  │ Tables   │ │ (20)         │ │ Views (3)       │  │
+│  │ Baseline │ │ Aspiration   │ │ Materialized    │  │
+│  │ Tables   │ │ Tables       │ │ Views (3)       │  │
 │  └──────────┘ └──────────────┘ └────────────────┘  │
 │  ┌──────────┐ ┌──────────────┐ ┌────────────────┐  │
 │  │ Auth     │ │ Cache Tables │ │ RPC Functions   │  │
@@ -79,8 +78,7 @@ A planning intelligence platform for aspirational governance under the **Viksit 
                          │
 ┌────────────────────────┼────────────────────────────┐
 │              ETL Pipeline (Python)                   │
-│  export_to_csv.py → enrich_csv_with_ids.py →        │
-│  baseline_upload.py → validate_audit.py             │
+│              baseline_upload.py                      │
 └────────────────────────────────────────────────────┘
 ```
 
@@ -90,16 +88,13 @@ A planning intelligence platform for aspirational governance under the **Viksit 
 Excel Baseline Files
        ↓
 ETL Pipeline (Python)
-  - export_to_csv.py (12 rural sheets + 9 urban sheets)
-  - enrich_csv_with_ids.py (add Supabase IDs)
-  - baseline_upload.py (upload to Supabase)
-  - validate_audit.py (validate uploaded data)
+  - baseline_upload.py (reads RURAL_BASELINE.xlsx + URBAN_BASELINE.xlsx)
        ↓
 Supabase PostgreSQL
-  - Dimension tables (dim_rural_gps, dim_urban_wards)
-  - Fact tables (20: admin, health, education, infra, water, etc.)
+  - Baseline tables (baseline_rural, baseline_urban)
+  - Aspiration tables (aspirations_rural, aspirations_urban)
   - Materialized Views (district KPIs, aspirations summary)
-  - Cache tables (dashboard KPI cache)
+  - Cache tables (dashboard KPI cache, generated_reports)
        ↓
 Next.js API Routes (server-side)
   - Dashboard KPI aggregation (/api/dashboard/kpis)
@@ -113,7 +108,7 @@ React Components (client-side)
   - GIS Map (Leaflet)
   - Data tables (TanStack Table)
        ↓
-User Interface (17 routes)
+User Interface (16 routes)
 ```
 
 ---
@@ -127,18 +122,18 @@ User Interface (17 routes)
 | **District Scores** (`/districts`) | Sortable/searchable table of 41 districts with composite scores and 11 sector scores |
 | **Sector Dashboards** (`/sector/[sector]`) | 11 dynamic sector pages with baseline KPIs, aspiration data, district rankings, AI-generated insights |
 | **GP Performance Ranking** (`/gp-ranking`) | Zone/tribal/desert-aware ranking with CNI banding (Critical/Moderate/On Track) |
-| **GP Baseline Viewer** (`/gp-baseline`) | Lookup by GP ID or Ward ID, fetches from 7-15 fact tables |
+| **GP Baseline Viewer** (`/gp-baseline`) | Lookup by GP ID or Ward ID, fetches from baseline tables |
 
 ### ✅ GIS & Mapping
 | Feature | Description |
 |---------|-------------|
-| **Primary GIS Map** (`/gis-map`) | Leaflet with 41 district circle markers (score-based coloring), predicate builder, layer toggles (schools, health, AYUSH, police, anganwadi) |
+| **Primary GIS Map** (`/gis-map`) | Leaflet with 41 district circle markers (score-based coloring), predicate builder, layer toggles (schools, health, AYUSH, police, anganwadi) — [currently hidden — not shown in navigation] |
 | **Alternate GIS View** (`/gis-map-new`) | Simplified map with area-type filter and demo markers |
 
 ### ✅ AI Planning Assistant
 | Feature | Description |
 |---------|-------------|
-| **AI Chat** (`/ai-chat`) | Gemini-powered chat with Markdown rendering, copy button, suggestion buttons, loading animation |
+| **AI Chat** (`/ai-chat`) | Manthaan AI-powered chat with Markdown rendering, copy button, suggestion buttons, loading animation |
 | **Context Builder** (`aiContext.ts`, 862 lines) | Intelligent query parser detecting districts (41 in English & Hindi), sectors (12 with keyword maps), intent classification (FULL_REPORT/INTERVENTIONS/COMPARISON/GENERAL), fetches live Supabase baseline data |
 
 ### ✅ Data Management
@@ -154,14 +149,12 @@ User Interface (17 routes)
 |---------|-------------|
 | **8-Rule Validation Engine** | R1 (Integrity), R2 (GIS bounds), R3 (Population Norm), R4 (Scheme), R5 (Priority), R6 (Budget Ceiling 50Cr), R7 (Duplicate), R8 (Baseline Gap/Fast-track) |
 | **CNI Scoring Engine** | Weighted sector scoring (health 22%, education 22%, water 13%, etc.) with desert/tribal adjustments |
-| **Budget Engine** | Unit costs for 15 item types, central/state split ratios, aggregate budgeting |
 | **Web Worker** | Offloads rule computation to background thread via `public/workers/ruleWorker.js` |
 
 ### ✅ Reports & Export
 | Feature | Description |
 |---------|-------------|
-| **Report Library** (`/reports`, ~3220 lines) | Full-featured PDF-style HTML report generation with Hindi (Devanagari) UI: rural/urban tabs, district/block/GP/ward drill-down, generated report history, Supabase-backed storage. **Key features:** AI-synthesized profile text aggregation for block/district scope (Gemini combines up to 8 GP/ward profiles × 300 chars each, capped at 60-80 words), 14-18 age group ("किशोर 14-18 वर्ष") demographic data with `pop_14_18_2026` baseline fields, absolute logo URL (`window.location.origin`) for iframe/standalone HTML, GP/Ward profiles truncated to 400 chars, simplified header branding ("Govt. of Rajasthan"), removed deprecated badges |
-| **Budget Report Download** | Offline HTML report from budget engine |
+| **Report Library** (`/reports`, ~3200 lines) | Full-featured AI-powered planning intelligence brief generation with Hindi (Devanagari) UI. **Three report tabs:** Rural (GP Level) — district → block → GP drill-down; Urban (Ward Level) — district → ULB → ward drill-down; District (Full) — aggregates both rural + urban baseline data, paginates aspirations (1000/page) to avoid Supabase row cap. **7-page report structure:** Cover, Demographic Structure, 4 thematic sector pages (जन एवं समाज, आजीविका एवं अर्थव्यवस्था, मूलभूत संरचना, पर्यावरण एवं विरासत), Strategic Development Framework. **Gemini AI narrative generation** with a 5-model fallback chain (tries each model up to 2 times before moving on): `gemini-3.1-flash-lite` → `gemini-3.1-flash` → `gemini-2.5-flash` → `gemini-2.0-flash` → `gemini-1.5-flash`. **Aspiration filtering** uses `PAGE_DEPT_NAMES` mapping (dept-first, not keyword-based) — aspirations are routed by their sector/dept DB column to the correct thematic page. **SECTOR_EXCLUDED_ITEMS** per-sector exclusion sets and **ITEM_ORDER_MAP** for canonical sort order (~130 items from Aspiration_Grouping Excel). **PAGE_SUB_SECTOR_MAP** ensures sub-sector diversity (2 rows per sub-sector). ShortenMetricValue() helper compacts large numbers (Cr/L/K) in metric cards. Report history saved to `generated_reports` Supabase table with Open + PDF download buttons. **Error branding:** all Gemini errors shown as "Manthaan AI" errors in Hindi, no model names exposed to user. Scope-aware metric cards (e.g. FHTC card shows GP %, block avg, or district count depending on level). |
 
 ---
 
@@ -169,19 +162,18 @@ User Interface (17 routes)
 
 | Route | File (lines) | Purpose |
 |-------|-------------|---------|
-| `/` | `app/page.tsx` (714) | **Command Center** — Main dashboard with KPI cards, sector charts, aspiration analytics, year/area filters |
+| `/` | `app/page.tsx` (717) | **Command Center** — Main dashboard with KPI cards, sector charts, aspiration analytics, year/area filters |
 | `/login` | `app/login/page.tsx` (246) | **Admin Login** — Two-panel layout, username/password/role form, displays dev credentials |
 | `/overview` | Same as `/` | Alias to Command Center |
 | `/aspirations` | `app/aspirations/page.tsx` (77) | **Aspiration Analytics** — Filterable table with district/block/status/priority/search, stats summary |
 | `/districts` | `app/districts/page.tsx` (129) | **District Scores** — Searchable/sortable table of 41 districts with composite scores |
 | `/gp-ranking` | `app/gp-ranking/page.tsx` (184) | **GP Performance Ranking** — Zone-aware ranking with CNI banding |
-| `/gp-baseline` | `app/gp-baseline/page.tsx` (115) | **GP Baseline Viewer** — Lookup by GP/Ward ID across 7-15 fact tables |
+| `/gp-baseline` | `app/gp-baseline/page.tsx` (115) | **GP Baseline Viewer** — Lookup by GP/Ward ID across baseline tables |
 | `/sector/[sector]` | `app/sector/[sector]/page.tsx` (783) | **Sector Detail Pages** — 11 dynamic sector dashboards |
-| `/budget-engine` | `app/budget-engine/page.tsx` (160) | **Budget Engine** — Aggregated budgets by sector/phase/central-state split, HTML report download |
-| `/gis-map` | `app/gis-map/page.tsx` (400) | **GIS Map** — Leaflet with predicate builder, layer toggles, district markers |
+| `/gis-map` | `app/gis-map/page.tsx` (400) | **GIS Map** — Leaflet with predicate builder, layer toggles, district markers [currently hidden — not shown in navigation] |
 | `/gis-map-new` | `app/gis-map-new/page.tsx` (103) | **Alternate GIS View** — Simplified map with area-type filter |
-| `/ai-chat` | `app/ai-chat/page.tsx` (177) | **AI Planning Assistant** — Gemini-powered chat with Markdown rendering |
-| `/reports` | `app/reports/page.tsx` (~3220) | **Report Library** — Full-featured report engine with drill-down, Gemini profile aggregation, generated reports |
+| `/ai-chat` | `app/ai-chat/page.tsx` (177) | **AI Planning Assistant** — Manthaan AI-powered chat with Markdown rendering |
+| `/reports` | `app/reports/page.tsx` (~3200) | **Report Library** — Full-featured report engine with 3 tabs, Gemini narrative generation, report history |
 | `/upload` | `app/upload/page.tsx` (16) | **CSV Upload Portal** — Drag-and-drop with data preview |
 | `/backend` | `app/backend/page.tsx` (55) | **Backend Portal Gate** — Super-admin only, links to static HTML portal |
 | `/dashboard/backend` | `app/dashboard/backend/page.tsx` (5) | Redirect to `/backend` |
@@ -197,8 +189,8 @@ User Interface (17 routes)
 | POST | `/api/auth/logout` | `api/auth/logout/route.ts` (36) | Revokes session in DB, clears cookie |
 | GET | `/api/dashboard/kpis` | `api/dashboard/kpis/route.ts` (416) | Main KPI aggregation — checks cache, queries materialized views, computes 11 sector scores per district |
 | POST | `/api/dashboard/refresh` | `api/dashboard/refresh/route.ts` (42) | Clears KPI cache, refreshes materialized views and aspiration summaries |
-| GET | `/api/gp-baseline` | `api/gp-baseline/route.ts` (35) | Fetches dim table + 7 fact tables for given GP/Ward ID |
-| GET | `/api/gp-search` | `api/gp-search/route.ts` (24) | Autocomplete search against dim_rural_gps / dim_urban_wards |
+| GET | `/api/gp-baseline` | `api/gp-baseline/route.ts` (35) | Fetches baseline tables for given GP/Ward ID |
+| GET | `/api/gp-search` | `api/gp-search/route.ts` (24) | Autocomplete search against baseline tables |
 | GET | `/api/sidebar-stats` | `api/sidebar-stats/route.ts` (68) | Rural GP count, urban ward count, data quality |
 | GET | `/api/stats` | `api/stats/route.ts` (34) | District count (41), block count (457), GP count (14,404) |
 | GET | `/api/compliance-norms` | `api/compliance-norms/route.ts` (12) | Fetches compliance norms from Supabase |
@@ -208,22 +200,11 @@ User Interface (17 routes)
 
 ## Database Schema
 
-### Dimension Tables
-| Table | Purpose |
-|-------|---------|
-| `dim_rural_gps` | Rural Gram Panchayats (gp_id, district, block, gram_panchayat, is_desert, is_tribal) |
-| `dim_urban_wards` | Urban wards (ward_id, district, ulb, ward) |
-
-### Fact Tables (20 total)
-**Rural (11):** `fact_rural_admin`, `fact_rural_livelihood`, `fact_rural_health`, `fact_rural_education`, `fact_rural_social`, `fact_rural_economy`, `fact_rural_infra`, `fact_rural_governance`, `fact_rural_water`, `fact_rural_environment`, `fact_rural_tourism`
-
-**Urban (9):** `fact_urban_admin`, `fact_urban_health`, `fact_urban_education`, `fact_urban_social`, `fact_urban_economy`, `fact_urban_infra`, `fact_urban_governance`, `fact_urban_water`, `fact_urban_environment`, `fact_urban_tourism`
-
 ### Baseline Tables
 | Table | Purpose |
 |-------|---------|
-| `baseline_rural` | Raw rural baseline data (denormalized, many rows per GP) |
-| `baseline_urban` | Raw urban baseline data |
+| `baseline_rural` | Raw rural baseline data (denormalized, 200+ columns per GP) |
+| `baseline_urban` | Raw urban baseline data (denormalized, 200+ columns per ward) |
 
 ### Aspiration Tables
 | Table | Purpose |
@@ -267,7 +248,7 @@ User Interface (17 routes)
 | Component | Lines | Purpose |
 |-----------|-------|---------|
 | `DashboardLayout.tsx` | 84 | Main wrapper — auth check, sidebar, topbar, right panel, filter provider, mobile responsive |
-| `Sidebar.tsx` | 211 | Navigation — brand logo, 11 sector links, GIS Map, Report Library, AI Chat, admin-only links, mobile overlay |
+| `Sidebar.tsx` | 174 | Navigation — brand logo, Command Center, Report Library, Talk to Data, 11 sector links, mobile overlay |
 | `Topbar.tsx` | 254 | Header — district selector (41), area-type filter, ask-AI button, refresh button, session info, user badge, logout |
 | `RightPanel.tsx` | 118 | Slide-in district detail — 11-sector scores, key metrics, snapshot |
 | `KPICard.tsx` | 41 | Reusable KPI card with label, value, status, color-keyed progress bar |
@@ -329,14 +310,20 @@ User Query → /api/chat → aiContext.ts → Gemini API → Markdown Response
 - **Data Aggregation**: Fetches live baseline data per district/sector
 - **Prompt Builder**: Constructs comprehensive Gemini prompts with 11-sector metrics
 
-### Gemini Model Fallback Chain
+### Gemini Model Fallback Chain (AI Chat)
 1. `gemini-3-flash-preview`
 2. `gemini-3-pro-preview`
 3. `gemini-3-flash-thinking`
 4. `gemini-3-pro-thinking`
 
-### AI Profile Aggregation (Report Generation)
-For block/district-level reports, individual GP/ward profile texts are collected from all rows in scope and sent to Gemini (`gemini-2.5-flash`) to synthesize a unified Hindi paragraph (60-80 words, 350 max tokens). This provides a coherent narrative for broader scopes instead of a random single profile.
+### Gemini Model Fallback Chain (Report Generation)
+1. `gemini-3.1-flash-lite`
+2. `gemini-3.1-flash`
+3. `gemini-2.5-flash`
+4. `gemini-2.0-flash`
+5. `gemini-1.5-flash`
+
+Each model is tried up to 2 times for transient errors (503/429). The AI is branded as **Manthaan AI** throughout user-facing UI, with error messages in Hindi (Devanagari). Technical model names are never exposed to users.
 
 ---
 
@@ -373,37 +360,20 @@ Stored in `lib/data.ts` (202 lines, 41 entries) with 30+ metrics per district:
 
 | Script | Lines | Purpose |
 |--------|-------|---------|
-| `export_to_csv.py` | 539 | Reads Rural_GP_Final_Baseline.xlsx (12 sheets) + Urban_Ward_Final_Baseline.xlsx (9 sheets), exports dimension + fact CSVs |
-| `enrich_csv_with_ids.py` | — | Adds Supabase foreign key IDs to fact CSVs |
-| `baseline_upload.py` | — | Uploads baseline data to Supabase tables |
-| `simple_csv_import.py` | — | Direct CSV import helper utility |
-| `validate_audit.py` | — | Validates uploaded data integrity |
-| `test_timing_diagnostic.py` | — | Timing/performance diagnostics |
+| `baseline_upload.py` | 653 | **Active pipeline** — Reads `RURAL_BASELINE.xlsx` and `URBAN_BASELINE.xlsx` directly, normalizes Unicode (NFC), converts numeric columns to float64, truncates and inserts into `baseline_rural` and `baseline_urban` tables via psycopg2 batch inserts. Includes row-level error recovery and schema cache retry logic. |
+
+### Data Ingestion Flow
+```
+Excel Files
+  ├── RURAL_BASELINE.xlsx → baseline_upload.py → baseline_rural
+  └── URBAN_BASELINE.xlsx → baseline_upload.py → baseline_urban
+```
+
+Data is uploaded directly via `baseline_upload.py` — the sole active ETL script. Other scripts (`export_to_csv.py`, `enrich_csv_with_ids.py`, `validate_audit.py`, `test_timing_diagnostic.py`, `simple_csv_import.py`) exist in the repo but are not part of the current workflow.
 
 ### Dependencies (`requirements.txt`)
 ```
 pandas, SQLAlchemy, psycopg2-binary, openpyxl, python-dotenv, supabase-py, python-calamine
-```
-
-### Export Pipeline
-```
-Excel Files
-  ├── Rural_GP_Final_Baseline.xlsx (12 sheets)
-  │   ├── Admin → fact_rural_admin
-  │   ├── Health → fact_rural_health
-  │   ├── Education → fact_rural_education
-  │   ├── Infrastructure → fact_rural_infra
-  │   ├── Water → fact_rural_water
-  │   ├── Environment → fact_rural_environment
-  │   ├── Livelihood → fact_rural_livelihood
-  │   ├── Economy → fact_rural_economy
-  │   ├── Social → fact_rural_social
-  │   ├── Tourism → fact_rural_tourism
-  │   └── Governance → fact_rural_governance
-  │
-  └── Urban_Ward_Final_Baseline.xlsx (9 sheets)
-      └── (same structure: admin, health, education, social,
-           economy, infra, governance, water, environment)
 ```
 
 ---
@@ -428,12 +398,6 @@ Excel Files
 - **Sector Weights**: Health 22%, Education 22%, Water 13%, Infrastructure 11%, Agriculture 8%, etc.
 - **Adjustments**: Desert zone, tribal zone, urban zone modifiers
 - **Banding**: `bandFromCNI()` → Critical, Moderate, On Track
-
-### Budget Engine (`lib/budgetEngine.ts`, 52 lines)
-
-- Unit costs for 15 item types (agricultural, infrastructure, social)
-- Central/state funding split ratios
-- `computeRowBudget()`, `aggregateBudget()`
 
 ---
 
@@ -481,6 +445,15 @@ Request → /api/dashboard/kpis
 | Manual refresh button | In Topbar for on-demand refresh |
 | Cache key strategy | District + area_type + year combination |
 
+### Geo Lookup Cache (`lib/cache/refresh_cache_dashboard.ts`)
+Provides sessionStorage-backed lookup functions used by the Reports page for drill-down selectors:
+- **`fetchBlocksForDistrict(district)`** — Returns blocks for a given district with Hindi/English paired names
+- **`fetchGpsForBlock(district, block)`** — Returns GPs within a block with Hindi/English paired names
+- **`fetchUlbsForDistrict(district)`** — Returns ULBs for a given district
+- **`fetchWardsForUlb(district, ulb)`** — Returns wards within a ULB
+
+Also provides `fetchAspirationsKpis()` and `fetchSectorPageData()` with in-memory 10-minute/5-minute TTL caching for dashboard and sector page data.
+
 ---
 
 ## Quick Start
@@ -524,8 +497,6 @@ cd ETL
 python -m venv venv
 venv\Scripts\activate  # Windows
 pip install -r requirements.txt
-python export_to_csv.py
-python enrich_csv_with_ids.py
 python baseline_upload.py
 ```
 
@@ -581,8 +552,7 @@ RITI_data_test/
 │   │   ├── gp-ranking/page.tsx   # GP Ranking
 │   │   ├── gp-baseline/page.tsx  # GP Baseline Viewer
 │   │   ├── sector/[sector]/page.tsx  # Sector Dashboards
-│   │   ├── budget-engine/page.tsx    # Budget Engine
-│   │   ├── gis-map/page.tsx      # GIS Map
+│   │   ├── gis-map/page.tsx      # GIS Map (hidden from nav)
 │   │   ├── gis-map-new/page.tsx  # Alternate GIS
 │   │   ├── ai-chat/page.tsx      # AI Chat
 │   │   ├── reports/page.tsx      # Report Library
@@ -636,12 +606,12 @@ RITI_data_test/
 │   └── vercel.json
 │
 ├── ETL/                          # Python ETL pipeline
-│   ├── export_to_csv.py          # Excel → CSVs (539 lines)
-│   ├── enrich_csv_with_ids.py    # Add Supabase IDs
-│   ├── baseline_upload.py        # Upload to Supabase
-│   ├── simple_csv_import.py      # CSV import helper
-│   ├── validate_audit.py         # Data validation
-│   ├── test_timing_diagnostic.py # Performance diagnostics
+│   ├── baseline_upload.py        # Upload to Supabase (active)
+│   ├── export_to_csv.py          # Excel → CSVs (archived)
+│   ├── enrich_csv_with_ids.py    # Add Supabase IDs (archived)
+│   ├── simple_csv_import.py      # CSV import helper (archived)
+│   ├── validate_audit.py         # Data validation (archived)
+│   ├── test_timing_diagnostic.py # Performance diagnostics (archived)
 │   ├── requirements.txt
 │   └── .env.example
 │
@@ -693,23 +663,22 @@ RITI_data_test/
 ## Current Status
 
 ### Implemented & Working (Complete)
-- All 17 routes rendering correctly
+- All 16 routes rendering correctly
 - 10 API routes functional with Supabase integration
 - Authentication with session management (admin + super_admin roles)
 - Command Center dashboard with live KPI cards, charts, and filters
 - All 11 sector dashboards with baseline data and aspiration analytics
 - 41-district scores page with sorting and search
 - GP performance ranking with CNI banding (Critical/Moderate/On Track)
-- GP baseline viewer with multi-table fact data
-- GIS Map with district markers, predicate builder, and layer toggles
-- AI Chat with Gemini integration and live data context
-- Budget engine with central/state split and HTML report download
-- Full report library with rural/urban tabs and district/block/GP drill-down
+- GP baseline viewer with multi-table baseline data
+- GIS Map with district markers, predicate builder, and layer toggles (hidden from navigation)
+- AI Chat with Manthaan AI branding, Gemini integration, and live data context
+- Full report library with rural/urban/district tabs, Gemini-powered narrative generation with 5-model fallback chain
 - CSV upload portal with dropzone and preview
 - Backend portal for super-admin data management
-- Cache system (cache_dashboard_kpis + refresh endpoint)
+- Cache system (cache_dashboard_kpis + refresh endpoint + geo lookup cache)
 - Materialized views for dashboard performance
-- ETL pipeline from Excel → CSV → Supabase
+- ETL pipeline via baseline_upload.py (Excel → Supabase)
 - 8-rule validation engine + CNI scoring engine
 - Build passes (`npm run build` succeeds)
 - Vercel deployment configuration
@@ -717,6 +686,8 @@ RITI_data_test/
 ### Known Gaps
 - Some API route directories exist but are empty (`api/aspirations/kpis/`, `api/backend/ingest/`, `api/cache-invalidate/`, `api/warm-aspirations/`)
 - Old middleware file present but unused (`middleware_old.ts`)
+- Education baseline data (schools, teachers, enrollment) not yet loaded in CDO baseline for rural GP reports — AWC and ASHA data used as proxy
+- Budget Engine page and lib/budgetEngine.ts still present in codebase but deprecated (removed from feature documentation)
 
 ---
 
