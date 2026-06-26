@@ -623,38 +623,92 @@ export default function ReportsPage() {
             ruralAspData = districtFallback || [];
           }
         } else if (scope.block) {
-          // Block-level: paginate to avoid silent truncation at Supabase default row cap
           const BLOCK_PAGE_SIZE = 1000;
           let blockAllRows: any[] = [];
-          let blockFrom = 0;
-          let blockKeepFetching = true;
 
-          while (blockKeepFetching) {
-            const { data: blockPageData, error: blockPageErr } = await supabase
-              .from('aspirations_rural')
-              .select(RURAL_ASP_SELECT)
-              .in('status', ['ACCEPT', 'FUNDED', 'REVIEW'])
-              .ilike('district', dbDistrict)
-              .ilike('block', scope.block)
-              .range(blockFrom, blockFrom + BLOCK_PAGE_SIZE - 1);
+          // Strategy A: fetch by GP names derived from baseline_rural
+          // (baseline is filtered by .eq('block', scope.block) so GP names are reliable)
+          const gpNamesInBlock: string[] = [...new Set(
+            data.map((r: any) => String(r.gram_panchayat || '').trim()).filter(Boolean)
+          )] as string[];
 
-            if (blockPageErr) {
-              console.warn('[Rural Asp] block page fetch error:', blockPageErr.message);
-              blockKeepFetching = false;
-            } else if (!blockPageData || blockPageData.length === 0) {
-              blockKeepFetching = false;
-            } else {
-              blockAllRows = blockAllRows.concat(blockPageData);
-              if (blockPageData.length < BLOCK_PAGE_SIZE) {
-                blockKeepFetching = false;
-              } else {
-                blockFrom += BLOCK_PAGE_SIZE;
+          console.log(`[Block Asp] Strategy A: ${gpNamesInBlock.length} GP names from baseline for block "${scope.block}"`);
+
+          const strategyARows: any[] = [];
+          if (gpNamesInBlock.length > 0) {
+            const CHUNK_SIZE = 50;
+            for (let i = 0; i < gpNamesInBlock.length; i += CHUNK_SIZE) {
+              const gpChunk = gpNamesInBlock.slice(i, i + CHUNK_SIZE);
+              let from = 0, keepFetching = true;
+              while (keepFetching) {
+                const { data: chunkData, error: chunkErr } = await supabase
+                  .from('aspirations_rural')
+                  .select(RURAL_ASP_SELECT)
+                  .in('status', ['ACCEPT', 'FUNDED', 'REVIEW'])
+                  .ilike('district', dbDistrict)
+                  .in('gram_panchayat', gpChunk)
+                  .range(from, from + BLOCK_PAGE_SIZE - 1);
+                if (chunkErr || !chunkData || chunkData.length === 0) {
+                  keepFetching = false;
+                } else {
+                  strategyARows.push(...chunkData);
+                  keepFetching = chunkData.length === BLOCK_PAGE_SIZE;
+                  from += BLOCK_PAGE_SIZE;
+                }
               }
             }
           }
+          console.log(`[Block Asp] Strategy A fetched: ${strategyARows.length} rows`);
+
+          // Strategy B: fetch by block name ilike (original approach)
+          const strategyBRows: any[] = [];
+          {
+            let from = 0, keepFetching = true;
+            while (keepFetching) {
+              const { data: bData, error: bErr } = await supabase
+                .from('aspirations_rural')
+                .select(RURAL_ASP_SELECT)
+                .in('status', ['ACCEPT', 'FUNDED', 'REVIEW'])
+                .ilike('district', dbDistrict)
+                .ilike('block', scope.block)
+                .range(from, from + BLOCK_PAGE_SIZE - 1);
+              if (bErr || !bData || bData.length === 0) {
+                keepFetching = false;
+              } else {
+                strategyBRows.push(...bData);
+                keepFetching = bData.length === BLOCK_PAGE_SIZE;
+                from += BLOCK_PAGE_SIZE;
+              }
+            }
+          }
+          console.log(`[Block Asp] Strategy B fetched: ${strategyBRows.length} rows`);
+
+          // Union-deduplicate: prefer Strategy A rows; add Strategy B rows
+          // not already present (dedup by gp_id+item+sector composite key,
+          // fallback to gram_panchayat+item+sector if gp_id is null)
+          const seenKeys = new Set<string>();
+          for (const row of strategyARows) {
+            const key = `${row.gp_id || row.gram_panchayat}||${row.item}||${row.sector}`;
+            seenKeys.add(key);
+            blockAllRows.push(row);
+          }
+          for (const row of strategyBRows) {
+            const key = `${row.gp_id || row.gram_panchayat}||${row.item}||${row.sector}`;
+            if (!seenKeys.has(key)) {
+              seenKeys.add(key);
+              blockAllRows.push(row);
+            }
+          }
+
+          // Log sector breakdown for debugging
+          const sectorBreakdown: Record<string, number> = {};
+          blockAllRows.forEach((r: any) => {
+            const s = r.sector || 'unknown';
+            sectorBreakdown[s] = (sectorBreakdown[s] || 0) + 1;
+          });
+          console.log(`[Block Asp] Union total: ${blockAllRows.length} rows. Sector breakdown:`, sectorBreakdown);
 
           ruralAspData = blockAllRows;
-          console.log(`[Block Asp] Total fetched for block "${scope.block}": ${ruralAspData.length} records`);
         } else {
           // District-level: filter by district only
           ruralAspQuery = ruralAspQuery.ilike('district', dbDistrict);
@@ -2110,50 +2164,23 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
       let filtered: any[];
 
       if (knownDepts.length > 0) {
-        // Primary: items whose sector/dept column matches this page's known depts
-        const deptMatched = aspirations.filter((a: any) => {
+        // Pure exact-match filter: normalize whitespace then compare strictly.
+        // No substring/ratio heuristics — those cause cross-page bleed and
+        // false negatives on Hindi strings with parentheses or commas.
+        const knownDeptsNorm = knownDepts.map(d => d.trim().replace(/\s+/g, ' '));
+
+        filtered = aspirations.filter((a: any) => {
           const dept = String(a.sector || a.dept || '').trim().replace(/\s+/g, ' ');
-          return knownDepts.some(d => {
-            const dNorm = d.trim().replace(/\s+/g, ' ');
-            // Exact match is the primary check — handles Hindi strings with
-            // parentheses, commas, and Unicode variation reliably
-            if (dept === dNorm) return true;
-            // Substring fallback only when one is clearly a prefix/suffix of the other
-            // and neither is empty — avoids false positives from partial matches
-            if (dept.length > 0 && dNorm.length > 0) {
-              if (dept.includes(dNorm) && dNorm.length >= dept.length * 0.8) return true;
-              if (dNorm.includes(dept) && dept.length >= dNorm.length * 0.8) return true;
-            }
-            return false;
-          });
+          return knownDeptsNorm.some(dNorm => dept === dNorm);
         });
 
-        // Secondary: items with no recognized dept at all (untagged / catch-all)
-        // — only include these via keyword match on item text, and only if they
-        // don't already belong to a different page's depts
-        const allKnownDepts = Object.values(PAGE_DEPT_NAMES).flat();
-        const includeKw = (includeKeywords as string[]).map(kw => kw.toLowerCase());
-        const keywordFallback = aspirations.filter((a: any) => {
-          const dept = String(a.sector || a.dept || '').trim().replace(/\s+/g, ' ');
-          // Skip if this item has a recognized dept (belongs to another page)
-          const deptNorm = dept.replace(/\s+/g, ' ');
-          if (allKnownDepts.some(d => {
-            const dNorm = d.trim().replace(/\s+/g, ' ');
-            if (deptNorm === dNorm) return true;
-            if (deptNorm.length > 0 && dNorm.length > 0) {
-              if (deptNorm.includes(dNorm) && dNorm.length >= deptNorm.length * 0.8) return true;
-              if (dNorm.includes(deptNorm) && deptNorm.length >= dNorm.length * 0.8) return true;
-            }
-            return false;
-          })) return false;
-          // Accept if item text matches this page's keywords
-          const itemText = String(a.item || '').toLowerCase();
-          return includeKw.some(kw => itemText.includes(kw));
+        // Debug: log how many matched per page
+        const matchedBySector: Record<string, number> = {};
+        filtered.forEach((a: any) => {
+          const s = String(a.sector || a.dept || 'unknown').trim();
+          matchedBySector[s] = (matchedBySector[s] || 0) + 1;
         });
-
-        // Combine: dept-matched items first, then untagged keyword matches
-        const seen = new Set(deptMatched);
-        filtered = [...deptMatched, ...keywordFallback.filter(a => !seen.has(a))];
+        if (pageKey) console.log(`[Asp Filter] pageKey="${pageKey}" knownDepts=${JSON.stringify(knownDeptsNorm)} matched=${filtered.length}`, matchedBySector);
       } else {
         // No known dept mapping for this page — fall back to keyword matching as before
         const includeKw = (includeKeywords as string[]).map(kw => kw.toLowerCase());
