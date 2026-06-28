@@ -89,6 +89,87 @@ export default function AIChatPage() {
 
   return (
     <div style={{ background: '#f8fafc', minHeight: '100vh', padding: 24, color: '#1a2744' }}>
+      <style>{`
+  .ai-response table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin: 12px 0;
+    font-family: 'Segoe UI', sans-serif;
+  }
+  .ai-response th {
+    background: #1a2744;
+    color: #ffffff;
+    padding: 8px 12px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .ai-response td {
+    padding: 8px 12px;
+    border-bottom: 1px solid #e2e8f0;
+    color: #1a1a2e;
+    vertical-align: top;
+  }
+  .ai-response tr:nth-child(even) td {
+    background: #f8fafc;
+  }
+  .ai-response tr:hover td {
+    background: #eff6ff;
+  }
+  .ai-response h1, .ai-response h2 {
+    font-size: 15px;
+    font-weight: 700;
+    color: #1a2744;
+    margin: 16px 0 8px;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 4px;
+  }
+  .ai-response h3 {
+    font-size: 13px;
+    font-weight: 700;
+    color: #1a2744;
+    margin: 12px 0 6px;
+  }
+  .ai-response p {
+    margin: 6px 0;
+    line-height: 1.65;
+    font-size: 13px;
+    color: #1a1a2e;
+  }
+  .ai-response ul, .ai-response ol {
+    padding-left: 20px;
+    margin: 6px 0;
+  }
+  .ai-response li {
+    margin: 4px 0;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #1a1a2e;
+  }
+  .ai-response strong {
+    color: #1a2744;
+    font-weight: 700;
+  }
+  .ai-response code {
+    background: #f1f5f9;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: monospace;
+    color: #1a2744;
+  }
+  .ai-response blockquote {
+    border-left: 3px solid #e85d04;
+    margin: 8px 0;
+    padding: 8px 14px;
+    background: #fff7ed;
+    color: #374151;
+    font-size: 13px;
+  }
+`}</style>
       <div>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 3 }}>
           <div className="pg-t">Ask Manthaan OS Planning Intelligence</div>

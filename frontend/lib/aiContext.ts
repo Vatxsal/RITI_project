@@ -6,9 +6,11 @@ export type QueryIntent =
   | 'STAT_LOOKUP'
   | 'COMPARISON'
   | 'TOP_BOTTOM'
+  | 'COMPLEX_FILTER'
+  | 'ASPIRATIONS_QUERY'
   | 'GENERAL';
 
-export type QueryType = 'FULL_REPORT' | 'INTERVENTIONS' | 'GP_REPORT' | 'COMPARISON' | 'GENERAL';
+export type QueryType = 'FULL_REPORT' | 'INTERVENTIONS' | 'GP_REPORT' | 'COMPARISON' | 'COMPLEX_FILTER' | 'ASPIRATIONS_QUERY' | 'GENERAL';
 
 type LocationContext =
   | { type: 'district'; name: string }
@@ -280,15 +282,103 @@ function detectSector(question: string): string | null {
   return null;
 }
 
+/**
+ * Detect what geographic level the user is asking about.
+ * Returns 'block' | 'gp' | 'ward' | 'ulb' | 'district' | null
+ */
+function detectGeoLevel(question: string): 'block' | 'gp' | 'ward' | 'ulb' | 'district' | null {
+  const q = question.toLowerCase();
+  if (['block', 'blocks', 'panchayat samiti', 'tehsil'].some(w => q.includes(w))) return 'block';
+  if (['gp', 'gram panchayat', 'gram panchayats', 'panchayat', 'village', 'gaon', 'gramin'].some(w => q.includes(w))) return 'gp';
+  if (['ward', 'wards', 'shahari ward'].some(w => q.includes(w))) return 'ward';
+  if (['ulb', 'nagar palika', 'nagar nigam', 'nagar parishad', 'municipal'].some(w => q.includes(w))) return 'ulb';
+  if (['district', 'zila', 'jila'].some(w => q.includes(w))) return 'district';
+  return null;
+}
+
+/**
+ * Detect which baseline column the user wants to rank/filter by.
+ * Returns a column name from baseline_rural or baseline_urban.
+ */
+function detectSortColumn(question: string, _geoLevel: string | null): { col: string; label: string } {
+  const q = question.toLowerCase();
+
+  // Population
+  if (['population', 'pop', 'jansankhya', 'aabadi', 'log'].some(w => q.includes(w))) {
+    return { col: 'pop_2026_est', label: 'Population (2026)' };
+  }
+  // FHTC / tap water
+  if (['fhtc', 'tap', 'nal', 'water connection', 'pani connection'].some(w => q.includes(w))) {
+    return { col: 'tap_connection_pct', label: 'FHTC Coverage (%)' };
+  }
+  // Farmers
+  if (['farmer', 'kisan', 'kisaan'].some(w => q.includes(w))) {
+    return { col: 'total_farmers_count', label: 'Total Farmers' };
+  }
+  // Livestock
+  if (['livestock', 'pashu', 'animals'].some(w => q.includes(w))) {
+    return { col: 'total_livestock_count', label: 'Total Livestock' };
+  }
+  // SAM children
+  if (['sam', 'malnourished', 'kuposhan'].some(w => q.includes(w))) {
+    return { col: 'sam_children_count', label: 'SAM Children' };
+  }
+  // BPL families
+  if (['bpl', 'below poverty'].some(w => q.includes(w))) {
+    return { col: 'bpl_families_2026', label: 'BPL Families' };
+  }
+  // Schools
+  if (['school', 'vidyalay', 'shiksha'].some(w => q.includes(w))) {
+    return { col: 'total_schools_count', label: 'Total Schools' };
+  }
+  // SHG
+  if (['shg', 'self help', 'samuh'].some(w => q.includes(w))) {
+    return { col: 'active_shg_count', label: 'Active SHGs' };
+  }
+  // Anganwadi
+  if (['anganwadi', 'awc'].some(w => q.includes(w))) {
+    return { col: 'anganwadi_centers_count', label: 'Anganwadi Centers' };
+  }
+  // Health centers
+  if (['health center', 'hospital', 'chc', 'phc'].some(w => q.includes(w))) {
+    return { col: 'allopathic_centers', label: 'Health Centers' };
+  }
+  // Default to population
+  return { col: 'pop_2026_est', label: 'Population (2026)' };
+}
+
 function classifyIntent(question: string): QueryIntent {
   const q = question.toLowerCase();
   const hasReport = ['report','brief','analysis','summary','full','detail','poori','saari','पूर्ण','सम्पूर्ण'].some((w) => q.includes(w));
   const hasComparison = ['compare','vs','versus','difference','tulna','comparison'].some((w) => q.includes(w));
   const hasTopBottom = ['top','best','worst','bottom','highest','lowest','sabse','ranking','rank'].some((w) => q.includes(w));
   const hasStat = ['kitne','kitni','total','count','average','avg','percentage','percent','%','how many','how much'].some((w) => q.includes(w));
+
+  // Detect COMPLEX_FILTER — queries with numeric conditions, "where", "greater than", etc.
+  const hasComplexFilter = [
+    'greater than', 'less than', 'more than', 'above', 'below', 'where', 'filter',
+    'se zyada', 'se kam', 'jahan', 'wahan', 'jinki', 'jinke', 'top 5', 'top 10',
+    'top 3', 'bottom 5', 'highest 5', 'lowest 5', 'sabse zyada', 'sabse kam'
+  ].some(w => q.includes(w));
+
+  // Detect ASPIRATIONS_QUERY — queries specifically about aspirations / demands / items
+  const hasAspirationsQuery = [
+    'aspiration', 'aakanksha', 'demand', 'mangna', 'item', 'qty', 'quantity',
+    'mang', '2030', '2035', '2047', 'community demand', 'planning demand',
+    'fast track', 'funded', 'accepted', 'scheme'
+  ].some(w => q.includes(w));
+
+  // Also trigger COMPLEX_FILTER when user asks for block/GP/ULB/ward level ranking
+  const hasGeoRanking = (
+    (hasTopBottom || hasStat) &&
+    ['block', 'blocks', 'gp', 'gram panchayat', 'ward', 'wards', 'ulb'].some(w => q.includes(w))
+  );
+
   const district = detectDistrict(question, DISTRICTS_EN);
   const sector = detectSector(question);
 
+  if (hasComplexFilter || hasGeoRanking) return 'COMPLEX_FILTER';
+  if (hasAspirationsQuery) return 'ASPIRATIONS_QUERY';
   if (district && hasReport) return 'DISTRICT_FULL_REPORT';
   if (district && sector) return 'DISTRICT_SECTOR';
   if (district && hasStat) return 'STAT_LOOKUP';
@@ -303,6 +393,8 @@ function resolveQueryType(intent: QueryIntent, district: string | null, sector: 
   if (intent === 'DISTRICT_SECTOR' || (district && sector)) return 'INTERVENTIONS';
   if (intent === 'COMPARISON' || intent === 'TOP_BOTTOM') return 'COMPARISON';
   if (intent === 'STAT_LOOKUP') return 'GENERAL';
+  if (intent === 'COMPLEX_FILTER') return 'COMPLEX_FILTER';
+  if (intent === 'ASPIRATIONS_QUERY') return 'ASPIRATIONS_QUERY';
   if (district) return 'GP_REPORT';
   return 'GENERAL';
 }
@@ -311,6 +403,8 @@ function getMaxTokens(queryType: QueryType) {
   if (queryType === 'FULL_REPORT') return 3000;
   if (queryType === 'GP_REPORT' || queryType === 'COMPARISON') return 2200;
   if (queryType === 'INTERVENTIONS') return 1800;
+  if (queryType === 'COMPLEX_FILTER') return 2500;
+  if (queryType === 'ASPIRATIONS_QUERY') return 2000;
   return 900;
 }
 
@@ -432,6 +526,357 @@ async function fetchStateBaseline() {
     } satisfies BaselineMeta,
     rural,
     urban,
+  };
+}
+
+/**
+ * Fetch and aggregate raw rows for complex analytical queries.
+ * Handles block / GP / ULB / ward level breakdowns by aggregating
+ * raw baseline_rural and baseline_urban rows in JavaScript.
+ *
+ * Called only when queryType is COMPLEX_FILTER or ASPIRATIONS_QUERY.
+ */
+async function fetchComplexQueryData(
+  userMessage: string,
+  englishDistrict: string | null,
+  sector: string | null
+): Promise<{
+  baselineRows: any[];
+  aspirationRows: any[];
+  fetchDescription: string;
+  geoLevel: string | null;
+  sortColumn: string;
+  sortColumnLabel: string;
+}> {
+  const q = userMessage.toLowerCase();
+  const fetchedParts: string[] = [];
+  let baselineRows: any[] = [];
+  let aspirationRows: any[] = [];
+
+  const geoLevel = detectGeoLevel(userMessage);
+
+  // ── Detect population threshold ──────────────────────────────────────────
+  const popMatch = q.match(/(?:population|pop|jansankhya|aabadi)\s*(?:greater than|more than|above|se zyada|>)\s*(\d[\d,]*)/i)
+    || q.match(/>[\s]*(\d[\d,]*)/);
+  const popThreshold = popMatch ? parseInt(popMatch[1].replace(/,/g, ''), 10) : null;
+
+  // ── Detect top-N ─────────────────────────────────────────────────────────
+  const topNMatch = q.match(/top\s*(\d+)/i) || q.match(/(\d+)\s*(?:highest|best|most)/i);
+  const topN = topNMatch ? parseInt(topNMatch[1], 10) : 10;
+
+  // ── Detect bottom-N ──────────────────────────────────────────────────────
+  const bottomNMatch = q.match(/bottom\s*(\d+)/i) || q.match(/(\d+)\s*(?:lowest|worst|least)/i);
+  const sortAscending = !!(bottomNMatch || q.includes('lowest') || q.includes('worst') || q.includes('sabse kam'));
+
+  // ── Detect which metric to sort by ───────────────────────────────────────
+  const { col: sortCol, label: sortColLabel } = detectSortColumn(userMessage, geoLevel);
+
+  // ── Detect qty threshold for aspirations ─────────────────────────────────
+  const qtyMatch = q.match(/(?:qty|quantity|matra)\s*(?:greater than|more than|above|se zyada|>)\s*(\d[\d,]*)/i)
+    || q.match(/(?:2030|2035|2047)\s*(?:greater than|more than|>)\s*(\d[\d,]*)/i);
+  const qtyThreshold = qtyMatch ? parseInt(qtyMatch[1].replace(/,/g, ''), 10) : null;
+
+  const hindiDistrict = englishDistrict ? (DISTRICT_EN_TO_HI[englishDistrict] || englishDistrict) : null;
+
+  // ── Decide: aspirations query or baseline query ───────────────────────────
+  const isAboutAspirations = [
+    'aspiration', 'aakanksha', 'demand', 'item', 'mang', '2030', '2035', '2047',
+    'fast track', 'funded', 'scheme', 'qty', 'quantity', 'planning demand'
+  ].some(kw => q.includes(kw));
+
+  // ── ASPIRATIONS path ─────────────────────────────────────────────────────
+  if (isAboutAspirations) {
+    const aspSortCol = q.includes('2035') ? 'qty_2035' : q.includes('2047') ? 'qty_2047' : 'qty_2030';
+
+    let ruralQ = supabase
+      .from('aspirations_rural')
+      .select('district, block, gram_panchayat, gp_id, item, sector, dept, priority, qty_2030, qty_2035, qty_2047, status, total_budget, scheme, fast_track, baseline_population')
+      .in('status', ['ACCEPT', 'FUNDED', 'REVIEW']);
+
+    if (hindiDistrict) ruralQ = ruralQ.ilike('district', hindiDistrict);
+    if (sector && SECTOR_KEYWORDS[sector]) {
+      const kw = SECTOR_KEYWORDS[sector][0];
+      ruralQ = ruralQ.or(`sector.ilike.%${kw}%,dept.ilike.%${kw}%`);
+    }
+    if (qtyThreshold) ruralQ = ruralQ.gte(aspSortCol, qtyThreshold);
+    ruralQ = ruralQ.order(aspSortCol, { ascending: sortAscending }).limit(topN * 5);
+
+    let urbanQ = supabase
+      .from('aspirations_urban')
+      .select('district, ulb, ward, ward_id, item, sector, dept, priority, qty_2030, qty_2035, qty_2047, status, total_budget, scheme, fast_track, baseline_population')
+      .in('status', ['ACCEPT', 'FUNDED', 'REVIEW']);
+
+    if (hindiDistrict) urbanQ = urbanQ.ilike('district', hindiDistrict);
+    if (sector && SECTOR_KEYWORDS[sector]) {
+      const kw = SECTOR_KEYWORDS[sector][0];
+      urbanQ = urbanQ.or(`sector.ilike.%${kw}%,dept.ilike.%${kw}%`);
+    }
+    if (qtyThreshold) urbanQ = urbanQ.gte(aspSortCol, qtyThreshold);
+    urbanQ = urbanQ.order(aspSortCol, { ascending: sortAscending }).limit(topN * 5);
+
+    const [ruralRes, urbanRes] = await Promise.all([ruralQ, urbanQ]);
+    const combined = [
+      ...(ruralRes.data || []).map((r: any) => ({ ...r, _source: 'rural' })),
+      ...(urbanRes.data || []).map((r: any) => ({ ...r, _source: 'urban' })),
+    ];
+
+    // Filter by baseline_population threshold if "population > X" was detected
+    const filteredByPop = popThreshold
+      ? combined.filter((r: any) => Number(r.baseline_population || 0) >= popThreshold)
+      : combined;
+
+    filteredByPop.sort((a, b) => sortAscending
+      ? (Number(a[aspSortCol] || 0) - Number(b[aspSortCol] || 0))
+      : (Number(b[aspSortCol] || 0) - Number(a[aspSortCol] || 0))
+    );
+    aspirationRows = filteredByPop.slice(0, topN);
+    fetchedParts.push(`${aspirationRows.length} aspiration rows (rural+urban, sorted by ${aspSortCol})`);
+
+    return {
+      baselineRows: [],
+      aspirationRows,
+      fetchDescription: fetchedParts.join('; ') || 'no rows fetched',
+      geoLevel,
+      sortColumn: aspSortCol,
+      sortColumnLabel: aspSortCol,
+    };
+  }
+
+  // ── BASELINE path — block / GP / ULB / ward level ────────────────────────
+  const RURAL_SELECT = 'district, block, gram_panchayat, gp_id, pop_2026_est, male_pop_2026, female_pop_2026, total_families_2026, bpl_families_2026, nfsa_families_2026, pucca_houses_2026, kutcha_houses_2026, tap_connection_pct, groundwater_depth_meters, total_livestock_count, milch_animals_count, total_farmers_count, kcc_holders_count, pm_cm_kisan_beneficiaries, allopathic_centers, ayush_centers, anganwadi_centers_count, asha_workers_count, sam_children_count, active_shg_count, women_in_shgs, lakhpati_didis_count, houses_with_electricity, road_length_km, forest_area_hectare';
+
+  const URBAN_SELECT = 'district, ulb, ward, ward_id, pop_2026_est, male_pop_2026, female_pop_2026, pucca_houses_2026, kutcha_houses_2026, tap_connection_pct, allopathic_centers, ayush_centers, private_health_centers, anganwadi_centers_count, asha_workers_count, sam_children_count, active_shg_count, houses_with_electricity, road_length_km, large_industrial_units, small_scale_industries';
+
+  const isUrbanQuery = geoLevel === 'ward' || geoLevel === 'ulb';
+  const isRuralQuery = geoLevel === 'block' || geoLevel === 'gp' || !isUrbanQuery;
+
+  // Fetch RURAL rows (for block/GP queries)
+  if (isRuralQuery) {
+    let bRuralQ = supabase.from('baseline_rural').select(RURAL_SELECT);
+    if (hindiDistrict) bRuralQ = bRuralQ.ilike('district', hindiDistrict);
+
+    if (geoLevel === 'gp' && popThreshold) {
+      bRuralQ = bRuralQ.gte('pop_2026_est', popThreshold);
+    }
+
+    const fetchLimit = geoLevel === 'block' ? 2000 : topN * 5;
+    bRuralQ = bRuralQ.order(sortCol, { ascending: sortAscending, nullsFirst: false }).limit(fetchLimit);
+
+    const { data: bRuralData, error: bRuralErr } = await bRuralQ;
+    if (bRuralErr) {
+      console.warn('[fetchComplexQueryData] baseline_rural error:', bRuralErr.message);
+    }
+    const rawRuralRows = bRuralData || [];
+
+    if (geoLevel === 'block') {
+      // Aggregate GP rows → block-level totals in JavaScript
+      const blockMap = new Map<string, any>();
+
+      for (const row of rawRuralRows) {
+        const blockName = String(row.block || '').trim();
+        if (!blockName) continue;
+
+        const existing = blockMap.get(blockName);
+        const pop = Number(row.pop_2026_est || 0);
+
+        if (!existing) {
+          blockMap.set(blockName, {
+            district: row.district,
+            block: blockName,
+            _geo_level: 'block',
+            gp_count: 1,
+            pop_2026_est: pop,
+            male_pop_2026: Number(row.male_pop_2026 || 0),
+            female_pop_2026: Number(row.female_pop_2026 || 0),
+            total_families_2026: Number(row.total_families_2026 || 0),
+            bpl_families_2026: Number(row.bpl_families_2026 || 0),
+            pucca_houses_2026: Number(row.pucca_houses_2026 || 0),
+            kutcha_houses_2026: Number(row.kutcha_houses_2026 || 0),
+            total_farmers_count: Number(row.total_farmers_count || 0),
+            kcc_holders_count: Number(row.kcc_holders_count || 0),
+            total_livestock_count: Number(row.total_livestock_count || 0),
+            allopathic_centers: Number(row.allopathic_centers || 0),
+            ayush_centers: Number(row.ayush_centers || 0),
+            anganwadi_centers_count: Number(row.anganwadi_centers_count || 0),
+            asha_workers_count: Number(row.asha_workers_count || 0),
+            sam_children_count: Number(row.sam_children_count || 0),
+            active_shg_count: Number(row.active_shg_count || 0),
+            women_in_shgs: Number(row.women_in_shgs || 0),
+            lakhpati_didis_count: Number(row.lakhpati_didis_count || 0),
+            houses_with_electricity: Number(row.houses_with_electricity || 0),
+            road_length_km: Number(row.road_length_km || 0),
+            _tap_sum: Number(row.tap_connection_pct || 0),
+            _tap_count: 1,
+          });
+        } else {
+          existing.gp_count += 1;
+          existing.pop_2026_est += pop;
+          existing.male_pop_2026 += Number(row.male_pop_2026 || 0);
+          existing.female_pop_2026 += Number(row.female_pop_2026 || 0);
+          existing.total_families_2026 += Number(row.total_families_2026 || 0);
+          existing.bpl_families_2026 += Number(row.bpl_families_2026 || 0);
+          existing.pucca_houses_2026 += Number(row.pucca_houses_2026 || 0);
+          existing.kutcha_houses_2026 += Number(row.kutcha_houses_2026 || 0);
+          existing.total_farmers_count += Number(row.total_farmers_count || 0);
+          existing.kcc_holders_count += Number(row.kcc_holders_count || 0);
+          existing.total_livestock_count += Number(row.total_livestock_count || 0);
+          existing.allopathic_centers += Number(row.allopathic_centers || 0);
+          existing.ayush_centers += Number(row.ayush_centers || 0);
+          existing.anganwadi_centers_count += Number(row.anganwadi_centers_count || 0);
+          existing.asha_workers_count += Number(row.asha_workers_count || 0);
+          existing.sam_children_count += Number(row.sam_children_count || 0);
+          existing.active_shg_count += Number(row.active_shg_count || 0);
+          existing.women_in_shgs += Number(row.women_in_shgs || 0);
+          existing.lakhpati_didis_count += Number(row.lakhpati_didis_count || 0);
+          existing.houses_with_electricity += Number(row.houses_with_electricity || 0);
+          existing.road_length_km += Number(row.road_length_km || 0);
+          existing._tap_sum += Number(row.tap_connection_pct || 0);
+          existing._tap_count += 1;
+        }
+      }
+
+      // Finalize averages
+      let blockRows = Array.from(blockMap.values()).map(b => ({
+        ...b,
+        tap_connection_pct: b._tap_count > 0 ? (b._tap_sum / b._tap_count).toFixed(1) : 0,
+      }));
+
+      // Apply population threshold filter AFTER aggregation
+      if (popThreshold) {
+        blockRows = blockRows.filter(b => b.pop_2026_est >= popThreshold);
+      }
+
+      // Sort by detected sort column (use aggregated field)
+      blockRows.sort((a, b) => {
+        const va = Number(a[sortCol] || 0);
+        const vb = Number(b[sortCol] || 0);
+        return sortAscending ? va - vb : vb - va;
+      });
+
+      baselineRows = blockRows.slice(0, topN);
+      fetchedParts.push(`${baselineRows.length} blocks (aggregated from ${rawRuralRows.length} GP rows)`);
+
+    } else {
+      // GP-level: already filtered, just take topN
+      let gpRows = rawRuralRows.map((r: any) => ({ ...r, _geo_level: 'gp' }));
+      if (popThreshold && geoLevel !== 'gp') {
+        gpRows = gpRows.filter((r: any) => Number(r.pop_2026_est || 0) >= popThreshold);
+      }
+      baselineRows = gpRows.slice(0, topN);
+      fetchedParts.push(`${baselineRows.length} GP rows`);
+    }
+  }
+
+  // Fetch URBAN rows (for ULB/ward queries)
+  if (isUrbanQuery) {
+    let bUrbanQ = supabase.from('baseline_urban').select(URBAN_SELECT);
+    if (hindiDistrict) bUrbanQ = bUrbanQ.ilike('district', hindiDistrict);
+
+    if (geoLevel === 'ward' && popThreshold) {
+      bUrbanQ = bUrbanQ.gte('pop_2026_est', popThreshold);
+    }
+
+    const fetchLimit = geoLevel === 'ulb' ? 2000 : topN * 5;
+    bUrbanQ = bUrbanQ.order('pop_2026_est', { ascending: sortAscending, nullsFirst: false }).limit(fetchLimit);
+
+    const { data: bUrbanData, error: bUrbanErr } = await bUrbanQ;
+    if (bUrbanErr) {
+      console.warn('[fetchComplexQueryData] baseline_urban error:', bUrbanErr.message);
+    }
+    const rawUrbanRows = bUrbanData || [];
+
+    if (geoLevel === 'ulb') {
+      // Aggregate ward rows → ULB-level totals
+      const ulbMap = new Map<string, any>();
+
+      for (const row of rawUrbanRows) {
+        const ulbName = String(row.ulb || '').trim();
+        if (!ulbName) continue;
+
+        const existing = ulbMap.get(ulbName);
+        const pop = Number(row.pop_2026_est || 0);
+
+        if (!existing) {
+          ulbMap.set(ulbName, {
+            district: row.district,
+            ulb: ulbName,
+            _geo_level: 'ulb',
+            ward_count: 1,
+            pop_2026_est: pop,
+            male_pop_2026: Number(row.male_pop_2026 || 0),
+            female_pop_2026: Number(row.female_pop_2026 || 0),
+            pucca_houses_2026: Number(row.pucca_houses_2026 || 0),
+            kutcha_houses_2026: Number(row.kutcha_houses_2026 || 0),
+            allopathic_centers: Number(row.allopathic_centers || 0),
+            ayush_centers: Number(row.ayush_centers || 0),
+            private_health_centers: Number(row.private_health_centers || 0),
+            anganwadi_centers_count: Number(row.anganwadi_centers_count || 0),
+            asha_workers_count: Number(row.asha_workers_count || 0),
+            sam_children_count: Number(row.sam_children_count || 0),
+            active_shg_count: Number(row.active_shg_count || 0),
+            houses_with_electricity: Number(row.houses_with_electricity || 0),
+            road_length_km: Number(row.road_length_km || 0),
+            large_industrial_units: Number(row.large_industrial_units || 0),
+            small_scale_industries: Number(row.small_scale_industries || 0),
+            _tap_sum: Number(row.tap_connection_pct || 0),
+            _tap_count: 1,
+          });
+        } else {
+          existing.ward_count += 1;
+          existing.pop_2026_est += pop;
+          existing.male_pop_2026 += Number(row.male_pop_2026 || 0);
+          existing.female_pop_2026 += Number(row.female_pop_2026 || 0);
+          existing.pucca_houses_2026 += Number(row.pucca_houses_2026 || 0);
+          existing.kutcha_houses_2026 += Number(row.kutcha_houses_2026 || 0);
+          existing.allopathic_centers += Number(row.allopathic_centers || 0);
+          existing.ayush_centers += Number(row.ayush_centers || 0);
+          existing.private_health_centers += Number(row.private_health_centers || 0);
+          existing.anganwadi_centers_count += Number(row.anganwadi_centers_count || 0);
+          existing.asha_workers_count += Number(row.asha_workers_count || 0);
+          existing.sam_children_count += Number(row.sam_children_count || 0);
+          existing.active_shg_count += Number(row.active_shg_count || 0);
+          existing.houses_with_electricity += Number(row.houses_with_electricity || 0);
+          existing.road_length_km += Number(row.road_length_km || 0);
+          existing.large_industrial_units += Number(row.large_industrial_units || 0);
+          existing.small_scale_industries += Number(row.small_scale_industries || 0);
+          existing._tap_sum += Number(row.tap_connection_pct || 0);
+          existing._tap_count += 1;
+        }
+      }
+
+      let ulbRows = Array.from(ulbMap.values()).map(u => ({
+        ...u,
+        tap_connection_pct: u._tap_count > 0 ? (u._tap_sum / u._tap_count).toFixed(1) : 0,
+      }));
+
+      if (popThreshold) {
+        ulbRows = ulbRows.filter(u => u.pop_2026_est >= popThreshold);
+      }
+      ulbRows.sort((a, b) => sortAscending
+        ? Number(a.pop_2026_est || 0) - Number(b.pop_2026_est || 0)
+        : Number(b.pop_2026_est || 0) - Number(a.pop_2026_est || 0)
+      );
+      baselineRows = ulbRows.slice(0, topN);
+      fetchedParts.push(`${baselineRows.length} ULBs (aggregated from ${rawUrbanRows.length} ward rows)`);
+
+    } else {
+      // Ward-level
+      let wardRows = rawUrbanRows.map((r: any) => ({ ...r, _geo_level: 'ward' }));
+      if (popThreshold) {
+        wardRows = wardRows.filter((r: any) => Number(r.pop_2026_est || 0) >= popThreshold);
+      }
+      baselineRows = wardRows.slice(0, topN);
+      fetchedParts.push(`${baselineRows.length} ward rows`);
+    }
+  }
+
+  return {
+    baselineRows,
+    aspirationRows,
+    fetchDescription: fetchedParts.join('; ') || 'no raw rows fetched',
+    geoLevel,
+    sortColumn: sortCol,
+    sortColumnLabel: sortColLabel,
   };
 }
 
@@ -636,17 +1081,20 @@ function getQueryTypeInstructions(queryType: QueryType) {
   if (queryType === 'INTERVENTIONS') return 'Sector-specific ya intervention-focused answer do. 2-3 actionable steps, har step ke saath real scheme name aur exact number cite karo.';
   if (queryType === 'GP_REPORT') return 'GP/ward deep dive do. Local constraints, baseline numbers, aur practical sequencing samjhao.';
   if (queryType === 'COMPARISON') return 'Comparison karte waqt sirf live baseline numbers use karo. Side-by-side clarity rakhna.';
+  if (queryType === 'COMPLEX_FILTER') return 'Complex analytical query hai. Use ONLY the RAW ROWS provided in the prompt. Present results as a formal numbered markdown table with clear column headers. Do NOT use emojis. Show row numbers, location, item, and key metrics. End with a brief planning recommendation.';
+  if (queryType === 'ASPIRATIONS_QUERY') return 'Aspirations-specific query hai. Use ONLY the LIVE ASPIRATIONS DATA or RAW ASPIRATION ROWS provided. Show as a formal markdown table: S.No. | Item | Sector | Location | Qty_2030 | Status | Scheme. No emojis. End with one scheme-linked recommendation.';
   return 'Direct answer do, data-first raho, aur exact numbers cite karo.';
 }
 
 function buildGeminiPrompt(
-  context: { meta: BaselineMeta; metrics: BaselineMetrics; scopeLabel: string; queryType: QueryType; sector?: string | null; aspirations?: any[] },
+  context: { meta: BaselineMeta; metrics: BaselineMetrics; scopeLabel: string; queryType: QueryType; sector?: string | null; aspirations?: any[]; complexData?: any },
   userQuestion: string,
   _language: 'en' | 'hi' | 'hinglish'
 ) {
   const m = context.metrics;
   const meta = context.meta;
   const q = context.queryType;
+  const cd = context.complexData;
 
   const baseRole = `You are Manthaan AI, planning intelligence engine for Viksit Rajasthan @ 2047 by Aasvaa Innovation Labs.
 LANGUAGE: Always respond in Hinglish — Hindi sentence structure with English technical terms mixed naturally. Scheme names (JJM, PMKSY, KCC, RCDF, SARAS, NHM, POSHAN, SRLM etc.), numbers, and metric names stay in English.
@@ -657,7 +1105,11 @@ CRITICAL RULES:
 3. If a value is 0, say "baseline mein 0 recorded hai". Do not say data unavailable.
 4. Keep numbers in English digits. Short, crisp sentences for government officers.
 5. Never mention Gemini, Google, or any model name.
-6. End with one concrete actionable recommendation tied to a real scheme.`;
+6. End with one concrete actionable recommendation tied to a real scheme.
+7. NO EMOJIS anywhere in the response. This is a formal government intelligence system.
+8. When presenting tabular data, ALWAYS use proper markdown tables with header row and separator row (|---|---|).
+9. For COMPLEX_FILTER and ASPIRATIONS_QUERY: present results as numbered tables. Do NOT summarise the raw rows — show them.
+10. General knowledge queries (GENERAL intent): answer from your training data about Rajasthan, India, central schemes, governance etc. Be accurate and cite scheme names correctly.`;
 
   const lines = [
     `LOCATION: ${context.scopeLabel}`,
@@ -758,10 +1210,76 @@ CRITICAL RULES:
     lines.push('ASPIRATIONS DATA: No aspiration records found for this scope/sector.');
   }
 
+  // Inject complex raw data for COMPLEX_FILTER / ASPIRATIONS_QUERY
+  if ((q === 'COMPLEX_FILTER' || q === 'ASPIRATIONS_QUERY') && cd) {
+    if (cd.aspirationRows && cd.aspirationRows.length > 0) {
+      lines.push('');
+      lines.push(`RAW ASPIRATION ROWS (filtered from aspirations_rural + aspirations_urban, ${cd.fetchDescription}):`);
+      lines.push('Source | District | Location | Item | Sector | Status | Qty_2030 | Qty_2035 | Qty_2047 | Budget | Scheme');
+      for (const r of cd.aspirationRows) {
+        const loc = r._source === 'rural'
+          ? `${r.gram_panchayat || ''} (Block: ${r.block || ''})`
+          : `${r.ward || ''} (ULB: ${r.ulb || ''})`;
+        lines.push(`${r._source} | ${r.district || ''} | ${loc} | ${r.item || ''} | ${r.sector || r.dept || ''} | ${r.status || ''} | ${r.qty_2030 || 0} | ${r.qty_2035 || 0} | ${r.qty_2047 || 0} | ${r.total_budget || '-'} | ${r.scheme || '-'}`);
+      }
+      lines.push(`INSTRUCTION: Answer the user query using ONLY the ${cd.aspirationRows.length} rows above. Present as a formal numbered table. No emojis. Hindi-English mix acceptable but formal tone.`);
+    }
+
+    if (cd.baselineRows && cd.baselineRows.length > 0) {
+      const gl = cd.geoLevel || 'gp';
+      lines.push('');
+      lines.push(`RAW BASELINE DATA — ${gl.toUpperCase()} LEVEL (${cd.fetchDescription}):`);
+      lines.push(`Sorted by: ${cd.sortColumnLabel || cd.sortColumn}`);
+      lines.push('');
+
+      if (gl === 'block') {
+        lines.push('S.No. | Block | District | GPs | Population | BPL Families | Farmers | FHTC% | Health Centers | AWC | ASHA | SAM Children | Active SHGs');
+        lines.push('------|-------|----------|-----|------------|--------------|---------|-------|----------------|-----|------|--------------|------------');
+        cd.baselineRows.forEach((r: any, idx: number) => {
+          const healthCenters = Number(r.allopathic_centers || 0) + Number(r.ayush_centers || 0);
+          lines.push(`${idx + 1} | ${r.block || '-'} | ${r.district || '-'} | ${r.gp_count || '-'} | ${Number(r.pop_2026_est || 0).toLocaleString('en-IN')} | ${Number(r.bpl_families_2026 || 0).toLocaleString('en-IN')} | ${Number(r.total_farmers_count || 0).toLocaleString('en-IN')} | ${r.tap_connection_pct || 0}% | ${healthCenters} | ${r.anganwadi_centers_count || 0} | ${r.asha_workers_count || 0} | ${r.sam_children_count || 0} | ${r.active_shg_count || 0}`);
+        });
+      } else if (gl === 'gp') {
+        lines.push('S.No. | Gram Panchayat | Block | District | Population | BPL Families | Farmers | FHTC% | Health Centers | AWC | SAM Children');
+        lines.push('------|----------------|-------|----------|------------|--------------|---------|-------|----------------|-----|------------');
+        cd.baselineRows.forEach((r: any, idx: number) => {
+          const healthCenters = Number(r.allopathic_centers || 0) + Number(r.ayush_centers || 0);
+          lines.push(`${idx + 1} | ${r.gram_panchayat || '-'} | ${r.block || '-'} | ${r.district || '-'} | ${Number(r.pop_2026_est || 0).toLocaleString('en-IN')} | ${Number(r.bpl_families_2026 || 0).toLocaleString('en-IN')} | ${Number(r.total_farmers_count || 0).toLocaleString('en-IN')} | ${r.tap_connection_pct || 0}% | ${healthCenters} | ${r.anganwadi_centers_count || 0} | ${r.sam_children_count || 0}`);
+        });
+      } else if (gl === 'ulb') {
+        lines.push('S.No. | ULB | District | Wards | Population | Health Centers | AWC | SAM Children | Active SHGs | Industries');
+        lines.push('------|-----|----------|-------|------------|----------------|-----|--------------|-------------|----------');
+        cd.baselineRows.forEach((r: any, idx: number) => {
+          const healthCenters = Number(r.allopathic_centers || 0) + Number(r.ayush_centers || 0) + Number(r.private_health_centers || 0);
+          const industries = Number(r.large_industrial_units || 0) + Number(r.small_scale_industries || 0);
+          lines.push(`${idx + 1} | ${r.ulb || '-'} | ${r.district || '-'} | ${r.ward_count || '-'} | ${Number(r.pop_2026_est || 0).toLocaleString('en-IN')} | ${healthCenters} | ${r.anganwadi_centers_count || 0} | ${r.sam_children_count || 0} | ${r.active_shg_count || 0} | ${industries}`);
+        });
+      } else if (gl === 'ward') {
+        lines.push('S.No. | Ward | ULB | District | Population | Health Centers | AWC | SAM Children | Active SHGs');
+        lines.push('------|------|-----|----------|------------|----------------|-----|--------------|------------');
+        cd.baselineRows.forEach((r: any, idx: number) => {
+          const healthCenters = Number(r.allopathic_centers || 0) + Number(r.ayush_centers || 0) + Number(r.private_health_centers || 0);
+          lines.push(`${idx + 1} | ${r.ward || '-'} | ${r.ulb || '-'} | ${r.district || '-'} | ${Number(r.pop_2026_est || 0).toLocaleString('en-IN')} | ${healthCenters} | ${r.anganwadi_centers_count || 0} | ${r.sam_children_count || 0} | ${r.active_shg_count || 0}`);
+        });
+      }
+
+      lines.push('');
+      lines.push(`INSTRUCTION: The table above contains REAL ${gl.toUpperCase()}-LEVEL data aggregated from raw Supabase rows. Answer the user query using ONLY these ${cd.baselineRows.length} rows. Present as a formal numbered markdown table matching the column structure above. No emojis. Formal Hinglish tone appropriate for government officers.`);
+    }
+  }
+
+  // GENERAL intent — tell Gemini to answer from its own knowledge
+  if (q === 'GENERAL') {
+    lines.push('');
+    lines.push('NOTE: This appears to be a general knowledge query not requiring specific baseline data.');
+    lines.push('Answer from your general knowledge about Rajasthan, India, planning, governance, schemes etc.');
+    lines.push('Be concise, accurate, and formal. No emojis. Still end with a relevant recommendation if applicable.');
+  }
+
   lines.push('');
   lines.push(`User question: ${userQuestion}`);
 
-  return `${baseRole}\n\nLIVE BASELINE DATA FROM SUPABASE:\n${lines.join('\n')}\n\nRules:\n- Use the data above only.\n- Never hallucinate or invent figures.\n- If a value is 0, say baseline mein 0 recorded hai.\n- End with one concrete recommendation tied to a real scheme.`;
+  return `${baseRole}\n\nLIVE BASELINE DATA FROM SUPABASE:\n${lines.join('\n')}\n\nRules:\n- Use the data above only.\n- Never hallucinate or invent figures.\n- If a value is 0, say baseline mein 0 recorded hai.\n- No emojis.\n- End with one concrete recommendation tied to a real scheme.`;
 }
 
 function buildFallbackPrompt(userMessage: string) {
@@ -785,6 +1303,19 @@ async function fetchBaselineContext(userMessage: string) {
 
   console.log(`[AI CONTEXT] intent=${intent} queryType=${queryType} district=${district || 'none'} sector=${sector || 'none'}`);
 
+  // Fetch complex raw data for COMPLEX_FILTER / ASPIRATIONS_QUERY
+  let complexData: {
+    baselineRows: any[];
+    aspirationRows: any[];
+    fetchDescription: string;
+    geoLevel: string | null;
+    sortColumn: string;
+    sortColumnLabel: string;
+  } | null = null;
+  if (queryType === 'COMPLEX_FILTER' || queryType === 'ASPIRATIONS_QUERY') {
+    complexData = await fetchComplexQueryData(userMessage, district, sector);
+  }
+
   if (district) {
     const [live, aspRows] = await Promise.all([
       fetchDistrictBaseline(district),
@@ -795,6 +1326,7 @@ async function fetchBaselineContext(userMessage: string) {
       meta: live.meta,
       metrics,
       aspirations: aspRows,
+      complexData,
       sector,
       queryType,
       language: detectLanguage(userMessage),
@@ -813,6 +1345,7 @@ async function fetchBaselineContext(userMessage: string) {
     meta: live.meta,
     metrics,
     aspirations: aspRows,
+    complexData,
     sector,
     queryType,
     language: detectLanguage(userMessage),
