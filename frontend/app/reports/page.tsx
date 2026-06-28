@@ -1668,7 +1668,15 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
       </div>
 
       <div class="featured-box">
-        <div class="featured-title">${(scopeLevel === 'gp' || scopeLevel === 'ward') ? 'मास्टर प्लान · एक नज़र में · THE PLANNING PROGRAMME AT A GLANCE' : 'समेकित जिला रिपोर्ट · आधारभूत डेटा सारांश · DISTRICT BASELINE SUMMARY AT A GLANCE'}</div>
+        <div class="featured-title">${
+  (scopeLevel === 'gp' || scopeLevel === 'ward')
+    ? 'मास्टर प्लान · एक नज़र में · THE PLANNING PROGRAMME AT A GLANCE'
+    : scopeLevel === 'block'
+      ? 'समेकित खंड रिपोर्ट · आधारभूत डेटा सारांश · BLOCK BASELINE SUMMARY AT A GLANCE'
+      : scopeLevel === 'ulb'
+        ? 'समेकित नगर निकाय रिपोर्ट · आधारभूत डेटा सारांश · ULB BASELINE SUMMARY AT A GLANCE'
+        : 'समेकित जिला रिपोर्ट · आधारभूत डेटा सारांश · DISTRICT BASELINE SUMMARY AT A GLANCE'
+}</div>
         <div class="featured-body">
     ${profileText
       ? `<div style="font-size:12px; color:#e2e8f0; line-height:1.75; font-family:'Noto Sans Devanagari',sans-serif; white-space:pre-wrap; word-break:break-word; overflow-wrap:break-word;">${escapeHtml(profileText)}</div>`
