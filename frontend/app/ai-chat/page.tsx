@@ -60,9 +60,39 @@ export default function AIChatPage() {
         })
       });
 
-      const data = await response.json();
-      const reply = data?.reply || 'Unable to get a response from planning intelligence. Please try again.';
-      setMsgs((prev) => [...prev, { who: 'ai', text: reply }] );
+      if (!response.body) throw new Error('No stream');
+
+      // Add a placeholder AI message that we'll update as chunks arrive
+      setMsgs((prev) => [...prev, { who: 'ai', text: '' }]);
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let accumulated = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const json = JSON.parse(line.slice(6));
+              if (json.chunk) {
+                accumulated += json.chunk;
+                setMsgs((prev) => {
+                  const updated = [...prev];
+                  updated[updated.length - 1] = { who: 'ai', text: accumulated };
+                  return updated;
+                });
+              }
+              if (json.done || json.error) break;
+            } catch {}
+          }
+        }
+      }
     } catch (error) {
       console.error('Chat request failed:', error);
       setMsgs((prev) => [
@@ -139,9 +169,18 @@ export default function AIChatPage() {
     font-size: 13px;
     color: #1a1a2e;
   }
-  .ai-response ul, .ai-response ol {
+  .ai-response ul {
     padding-left: 20px;
     margin: 6px 0;
+    list-style-type: disc;
+  }
+  .ai-response ol {
+    padding-left: 20px;
+    margin: 6px 0;
+    list-style-type: decimal;
+  }
+  .ai-response ul ul {
+    list-style-type: circle;
   }
   .ai-response li {
     margin: 4px 0;

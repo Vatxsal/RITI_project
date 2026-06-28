@@ -11,15 +11,22 @@ export async function POST(req: Request) {
   try {
     let systemPrompt = '';
     let maxOutputTokens = 1200;
+    let hasRealData = true;
     try {
       const chatContext = await buildChatContext(message || '');
       systemPrompt = chatContext.systemPrompt;
       maxOutputTokens = chatContext.maxOutputTokens;
+      hasRealData = (chatContext as any).hasRealData !== false;
       console.log('[AI CHAT CONTEXT] Full context object:', JSON.stringify(chatContext.contextObject, null, 2));
     } catch (ctxError) {
       console.error('[AI CHAT CONTEXT] Context build failed, using fallback prompt:', ctxError);
       systemPrompt = `You are Manthaan OS Planning Intelligence for Rajasthan. Use only available baseline data and avoid guessing values. If exact metrics are unavailable, explicitly say data not available. End with 3 priority actions.`;
       maxOutputTokens = 1200;
+    }
+
+    // Add web search fallback instruction when no Supabase data found
+    if (!hasRealData) {
+      systemPrompt += `\n\nFALLBACK INSTRUCTION: Supabase baseline data is not available for this query. Use Google Search to find current, verified data for this question about Rajasthan. When you use web search results, clearly state at the start of your answer: "⚠️ यह डेटा Supabase बेसलाइन से नहीं, बल्कि वेब सर्च से प्राप्त किया गया है — स्रोत: [source name/URL]". This is important so government officials know the data source.`;
     }
 
     const contents = [
@@ -46,6 +53,20 @@ export async function POST(req: Request) {
       'gemini-flash-latest'
     ].filter(Boolean) as string[];
 
+    // Build request body with optional Google Search grounding
+    const requestBody: any = {
+      contents,
+      generationConfig: {
+        temperature: 0.35,
+        maxOutputTokens,
+        topP: 0.95,
+        candidateCount: 1
+      }
+    };
+    if (!hasRealData) {
+      requestBody.tools = [{ googleSearch: {} }];
+    }
+
     let response: Response | null = null;
     let lastError: any = null;
 
@@ -53,19 +74,11 @@ export async function POST(req: Request) {
       try {
         console.log(`Attempting chat with model: ${model}`);
         const res = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents,
-              generationConfig: {
-                temperature: 0.35,
-                maxOutputTokens,
-                topP: 0.95,
-                candidateCount: 1
-              }
-            })
+            body: JSON.stringify(requestBody)
           }
         );
 
@@ -92,19 +105,53 @@ export async function POST(req: Request) {
       }, { status: 500 });
     }
 
-    const data = await response.json();
+    // Stream Gemini SSE → client SSE
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          if (!response || !response.body) {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: true })}\n\n`));
+            controller.close();
+            return;
+          }
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                try {
+                  const json = JSON.parse(line.slice(6));
+                  const text = json?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                  if (text) {
+                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ chunk: text })}\n\n`));
+                  }
+                } catch {}
+              }
+            }
+          }
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true })}\n\n`));
+          controller.close();
+        } catch (err) {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: true })}\n\n`));
+          controller.close();
+        }
+      }
+    });
 
-    const reply =
-      data?.candidates?.[0]?.content?.parts?.[0]?.text ||
-      data?.candidates?.[0]?.content?.[0]?.text ||
-      data?.output?.[0]?.content?.[0]?.text;
-
-    if (reply) {
-      return Response.json({ reply });
-    }
-
-    console.error('Gemini unexpected response:', data);
-    return Response.json({ reply: 'Unable to generate response. Please try again.' });
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      },
+    });
   } catch (error) {
     console.error('Gemini API error:', error);
     return Response.json(

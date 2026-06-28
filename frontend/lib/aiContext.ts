@@ -377,8 +377,8 @@ function classifyIntent(question: string): QueryIntent {
   const district = detectDistrict(question, DISTRICTS_EN);
   const sector = detectSector(question);
 
-  if (hasComplexFilter || hasGeoRanking) return 'COMPLEX_FILTER';
   if (hasAspirationsQuery) return 'ASPIRATIONS_QUERY';
+  if (hasComplexFilter || hasGeoRanking) return 'COMPLEX_FILTER';
   if (district && hasReport) return 'DISTRICT_FULL_REPORT';
   if (district && sector) return 'DISTRICT_SECTOR';
   if (district && hasStat) return 'STAT_LOOKUP';
@@ -392,9 +392,10 @@ function resolveQueryType(intent: QueryIntent, district: string | null, sector: 
   if (intent === 'DISTRICT_FULL_REPORT') return 'FULL_REPORT';
   if (intent === 'DISTRICT_SECTOR' || (district && sector)) return 'INTERVENTIONS';
   if (intent === 'COMPARISON' || intent === 'TOP_BOTTOM') return 'COMPARISON';
-  if (intent === 'STAT_LOOKUP') return 'GENERAL';
   if (intent === 'COMPLEX_FILTER') return 'COMPLEX_FILTER';
   if (intent === 'ASPIRATIONS_QUERY') return 'ASPIRATIONS_QUERY';
+  if (intent === 'STAT_LOOKUP' && district) return 'COMPLEX_FILTER';
+  if (intent === 'STAT_LOOKUP') return 'GENERAL';
   if (district) return 'GP_REPORT';
   return 'GENERAL';
 }
@@ -439,9 +440,10 @@ async function fetchDistrictMvRows(hindiDistrict: string) {
 
 /**
  * Aspirations summary for a district (English district name).
- * Uses mv_aspirations_summary — fast, pre-aggregated.
+ * First tries mv_aspirations_summary, falls back to direct aspirations_rural + aspirations_urban.
  */
 async function fetchDistrictAspSummary(englishDistrict: string, sector?: string | null) {
+  // First try mv_aspirations_summary (English district name)
   let query = supabase
     .from('mv_aspirations_summary')
     .select('sector, dept, item, status, fast_track, sum_qty_2030, sum_qty_2035, sum_qty_2047, total_budget, total_count')
@@ -449,7 +451,6 @@ async function fetchDistrictAspSummary(englishDistrict: string, sector?: string 
     .order('sum_qty_2030', { ascending: false })
     .limit(60);
 
-  // Only filter by district if one is provided
   if (englishDistrict) {
     query = query.eq('district', englishDistrict);
   }
@@ -461,8 +462,63 @@ async function fetchDistrictAspSummary(englishDistrict: string, sector?: string 
   }
 
   const { data, error } = await query;
-  if (error) { console.warn('[fetchDistrictAspSummary]', error.message); return []; }
-  return data || [];
+  if (!error && data && data.length > 0) return data;
+
+  // MV returned 0 or errored — fall back to direct aspirations_rural + aspirations_urban queries
+  // aspirations_rural/urban store district in HINDI
+  const hindiDist = englishDistrict ? (DISTRICT_EN_TO_HI[englishDistrict] || englishDistrict) : null;
+
+  const buildDirectQuery = (table: 'aspirations_rural' | 'aspirations_urban') => {
+    const cols = 'sector, item, status, fast_track, qty_2030, qty_2035, qty_2047, total_budget, scheme';
+    let q = supabase.from(table).select(cols).in('status', ['ACCEPT', 'FUNDED', 'REVIEW']);
+    if (hindiDist) q = q.ilike('district', hindiDist);
+    if (sector && SECTOR_KEYWORDS[sector]) {
+      const kw = SECTOR_KEYWORDS[sector][0];
+      q = q.or(`sector.ilike.%${kw}%,item.ilike.%${kw}%`);
+    }
+    return q.order('qty_2030', { ascending: false }).limit(80);
+  };
+
+  const [ruralRes, urbanRes] = await Promise.all([
+    buildDirectQuery('aspirations_rural'),
+    buildDirectQuery('aspirations_urban'),
+  ]);
+
+  const combined = [...(ruralRes.data || []), ...(urbanRes.data || [])];
+  if (combined.length === 0) {
+    console.warn('[fetchDistrictAspSummary] No aspiration data found for district:', englishDistrict);
+    return [];
+  }
+
+  // Aggregate by item+sector
+  const aspMap = new Map<string, any>();
+  for (const row of combined) {
+    const key = `${row.item || ''}__${row.sector || ''}`;
+    const existing = aspMap.get(key);
+    if (!existing) {
+      aspMap.set(key, {
+        sector: row.sector || '',
+        dept: row.sector || '',
+        item: row.item || '',
+        status: row.status || '',
+        fast_track: row.fast_track || false,
+        sum_qty_2030: Number(row.qty_2030 || 0),
+        sum_qty_2035: Number(row.qty_2035 || 0),
+        sum_qty_2047: Number(row.qty_2047 || 0),
+        total_budget: Number(row.total_budget || 0),
+        total_count: 1,
+      });
+    } else {
+      existing.sum_qty_2030 += Number(row.qty_2030 || 0);
+      existing.sum_qty_2035 += Number(row.qty_2035 || 0);
+      existing.sum_qty_2047 += Number(row.qty_2047 || 0);
+      existing.total_count += 1;
+    }
+  }
+
+  return Array.from(aspMap.values())
+    .sort((a, b) => b.sum_qty_2030 - a.sum_qty_2030)
+    .slice(0, 60);
 }
 
 /**
@@ -581,7 +637,9 @@ async function fetchComplexQueryData(
   // ── Decide: aspirations query or baseline query ───────────────────────────
   const isAboutAspirations = [
     'aspiration', 'aakanksha', 'demand', 'item', 'mang', '2030', '2035', '2047',
-    'fast track', 'funded', 'scheme', 'qty', 'quantity', 'planning demand'
+    'fast track', 'funded', 'scheme', 'qty', 'quantity', 'planning demand',
+    'priority level', 'priority 1', 'priority 2', 'sum count', 'top aspiration',
+    'community demand', 'planning item', 'accepted', 'review',
   ].some(kw => q.includes(kw));
 
   // ── ASPIRATIONS path ─────────────────────────────────────────────────────
@@ -593,7 +651,13 @@ async function fetchComplexQueryData(
       .select('district, block, gram_panchayat, gp_id, item, sector, dept, priority, qty_2030, qty_2035, qty_2047, status, total_budget, scheme, fast_track, baseline_population')
       .in('status', ['ACCEPT', 'FUNDED', 'REVIEW']);
 
+    // Detect priority filter from user query (e.g. "priority level is 1", "priority 1", "p-1")
+    const priorityMatch = q.match(/priority\s*(?:level\s*(?:is\s*)?|=\s*)?(\d+)/i)
+      || q.match(/p-?(\d+)\b/i);
+    const priorityFilter = priorityMatch ? parseInt(priorityMatch[1], 10) : null;
+
     if (hindiDistrict) ruralQ = ruralQ.ilike('district', hindiDistrict);
+    if (priorityFilter !== null) ruralQ = ruralQ.eq('priority', priorityFilter);
     if (sector && SECTOR_KEYWORDS[sector]) {
       const kw = SECTOR_KEYWORDS[sector][0];
       ruralQ = ruralQ.or(`sector.ilike.%${kw}%,dept.ilike.%${kw}%`);
@@ -607,6 +671,7 @@ async function fetchComplexQueryData(
       .in('status', ['ACCEPT', 'FUNDED', 'REVIEW']);
 
     if (hindiDistrict) urbanQ = urbanQ.ilike('district', hindiDistrict);
+    if (priorityFilter !== null) urbanQ = urbanQ.eq('priority', priorityFilter);
     if (sector && SECTOR_KEYWORDS[sector]) {
       const kw = SECTOR_KEYWORDS[sector][0];
       urbanQ = urbanQ.or(`sector.ilike.%${kw}%,dept.ilike.%${kw}%`);
@@ -615,9 +680,33 @@ async function fetchComplexQueryData(
     urbanQ = urbanQ.order(aspSortCol, { ascending: sortAscending }).limit(topN * 5);
 
     const [ruralRes, urbanRes] = await Promise.all([ruralQ, urbanQ]);
+    let ruralRows = ruralRes.data || [];
+    let urbanRows = urbanRes.data || [];
+
+    // If 0 rows and we have a district, retry without district filter to diagnose
+    if (ruralRows.length === 0 && urbanRows.length === 0 && englishDistrict) {
+      console.warn('[AspQuery] 0 rows with district filter, retrying without district filter for diagnosis');
+      const [retryRural, retryUrban] = await Promise.all([
+        supabase
+          .from('aspirations_rural')
+          .select('district, block, gram_panchayat, gp_id, item, sector, dept, priority, qty_2030, qty_2035, qty_2047, status, total_budget, scheme, fast_track, baseline_population')
+          .in('status', ['ACCEPT', 'FUNDED', 'REVIEW'])
+          .order(aspSortCol, { ascending: sortAscending })
+          .limit(5),
+        supabase
+          .from('aspirations_urban')
+          .select('district, ulb, ward, ward_id, item, sector, dept, priority, qty_2030, qty_2035, qty_2047, status, total_budget, scheme, fast_track, baseline_population')
+          .in('status', ['ACCEPT', 'FUNDED', 'REVIEW'])
+          .order(aspSortCol, { ascending: sortAscending })
+          .limit(5),
+      ]);
+      console.warn('[AspQuery] Sample districts in aspirations_rural:', (retryRural.data || []).map((r: any) => r.district));
+      console.warn('[AspQuery] Sample districts in aspirations_urban:', (retryUrban.data || []).map((r: any) => r.district));
+    }
+
     const combined = [
-      ...(ruralRes.data || []).map((r: any) => ({ ...r, _source: 'rural' })),
-      ...(urbanRes.data || []).map((r: any) => ({ ...r, _source: 'urban' })),
+      ...ruralRows.map((r: any) => ({ ...r, _source: 'rural' })),
+      ...urbanRows.map((r: any) => ({ ...r, _source: 'urban' })),
     ];
 
     // Filter by baseline_population threshold if "population > X" was detected
@@ -870,6 +959,17 @@ async function fetchComplexQueryData(
     }
   }
 
+  // If no geo-level detected and no rows fetched, fall back to district MV
+  if (baselineRows.length === 0 && aspirationRows.length === 0 && englishDistrict) {
+    const hindiDist = DISTRICT_EN_TO_HI[englishDistrict] || englishDistrict;
+    const { rural, urban } = await fetchDistrictMvRows(hindiDist);
+    baselineRows = [
+      ...(rural.length ? [{ ...rural[0], _geo_level: 'district', _source: 'rural_mv' }] : []),
+      ...(urban.length ? [{ ...urban[0], _geo_level: 'district', _source: 'urban_mv' }] : []),
+    ];
+    fetchedParts.push(`district MV fallback (${baselineRows.length} rows)`);
+  }
+
   return {
     baselineRows,
     aspirationRows,
@@ -1082,7 +1182,7 @@ function getQueryTypeInstructions(queryType: QueryType) {
   if (queryType === 'GP_REPORT') return 'GP/ward deep dive do. Local constraints, baseline numbers, aur practical sequencing samjhao.';
   if (queryType === 'COMPARISON') return 'Comparison karte waqt sirf live baseline numbers use karo. Side-by-side clarity rakhna.';
   if (queryType === 'COMPLEX_FILTER') return 'Complex analytical query hai. Use ONLY the RAW ROWS provided in the prompt. Present results as a formal numbered markdown table with clear column headers. Do NOT use emojis. Show row numbers, location, item, and key metrics. End with a brief planning recommendation.';
-  if (queryType === 'ASPIRATIONS_QUERY') return 'Aspirations-specific query hai. Use ONLY the LIVE ASPIRATIONS DATA or RAW ASPIRATION ROWS provided. Show as a formal markdown table: S.No. | Item | Sector | Location | Qty_2030 | Status | Scheme. No emojis. End with one scheme-linked recommendation.';
+  if (queryType === 'ASPIRATIONS_QUERY') return 'Aspirations-specific query hai. Use ONLY the RAW ASPIRATION ROWS provided in this prompt (not baseline metrics). Show as a formal numbered markdown table with columns: S.No. | Item | Sector | Location | Priority | Qty_2030 | Qty_2035 | Qty_2047 | Status. Sort by Qty_2030 descending. No emojis. If 0 rows found, say "Is query ke liye koi aspiration record nahi mila." End with one scheme-linked recommendation.';
   return 'Direct answer do, data-first raho, aur exact numbers cite karo.';
 }
 
@@ -1115,67 +1215,74 @@ CRITICAL RULES:
     `LOCATION: ${context.scopeLabel}`,
     `SCOPE: ${meta.scope}${meta.district ? ` | District: ${meta.district}` : ' | Statewide'}`,
     `GPs: ${meta.gpCount} | Urban Wards: ${meta.wardCount} | Blocks: ${meta.blockCount} | ULBs: ${meta.ulbCount}`,
-    '',
-    'POPULATION:',
-    `Rural: ${formatMetric(m.population.rural)} | Urban: ${formatMetric(m.population.urban)} | Total: ${formatMetric(m.population.total)}`,
-    `Male: ${formatMetric(m.population.male)} | Female: ${formatMetric(m.population.female)}`,
-    `Children 0-6: ${formatMetric(m.population.children06)} | 6-14: ${formatMetric(m.population.children614)} | 14-18: ${formatMetric(m.population.children1418)}`,
-    `Senior citizens: ${formatMetric(m.population.seniors)} | PwD: ${formatMetric(m.population.pwd)}`,
-    `Total families: ${formatMetric(m.population.totalFamilies)} | BPL: ${formatMetric(m.population.bplFamilies)} | NFSA: ${formatMetric(m.population.nfsaFamilies)}`,
-    `Pucca houses: ${formatMetric(m.population.puccaHouses)} | Kutcha houses: ${formatMetric(m.population.kutchaHouses)}`,
-    '',
-    'WATER & SANITATION:',
-    `Rural FHTC avg: ${formatMetric(m.water.ruralFhtcAvg, 1)}% | Urban FHTC avg: ${formatMetric(m.water.urbanFhtcAvg, 1)}%`,
-    `Overhead tanks: ${formatMetric(m.water.overheadTanks)} | Handpump homes: ${formatMetric(m.water.handpumpHomes)} | Tanker-only homes: ${formatMetric(m.water.tankerHomes)}`,
-    `Avg groundwater depth: ${formatMetric(m.water.groundwaterDepthAvg, 1)}m | RO facilities: ${formatMetric(m.water.roFacilities)}`,
-    '',
-    'AGRICULTURE:',
-    `Cultivable land: ${formatMetric(m.agriculture.cultivableLand, 1)} ha | Irrigated: ${formatMetric(m.agriculture.irrigatedLand, 1)} ha (${formatMetric(m.agriculture.irrigationCoverage, 1)}%)`,
-    `Total farmers: ${formatMetric(m.agriculture.totalFarmers)} | KCC holders: ${formatMetric(m.agriculture.kccHolders)} | PM-Kisan: ${formatMetric(m.agriculture.pmKisan)}`,
-    `Soil health cards: ${formatMetric(m.agriculture.soilHealthCards)} | Crop insurance: ${formatMetric(m.agriculture.cropInsurance)} | FPOs: ${formatMetric(m.agriculture.fpoCount)} | Solar pumps: ${formatMetric(m.agriculture.solarPumps)}`,
-    '',
-    'DAIRY & LIVESTOCK:',
-    `Total livestock: ${formatMetric(m.dairy.totalLivestock)} | Milch animals: ${formatMetric(m.dairy.milchAnimals)}`,
-    `Daily milk: ${formatMetric(m.dairy.dailyMilkProduction)} LPD | Est. annual dairy value: Rs ${formatMetric(m.dairy.annualDairyPotentialCr, 2)} Cr`,
-    `Milk centers: ${formatMetric(m.dairy.milkCollectionCenters)} | Goat farms: ${formatMetric(m.dairy.goatFarms)} | Poultry farms: ${formatMetric(m.dairy.poultryFarms)}`,
-    '',
-    'HEALTH:',
-    `Allopathic centers: ${formatMetric(m.health.allopathicCenters)} | AYUSH: ${formatMetric(m.health.ayushCenters)} | Private: ${formatMetric(m.health.privateHealthCenters)}`,
-    `Health beds: ${formatMetric(m.health.healthBeds)} | Health staff: ${formatMetric(m.health.workingHealthStaff)}`,
-    `Ayushman beneficiaries: ${formatMetric(m.health.ayushmanBeneficiaries)} | TB patients: ${formatMetric(m.health.tbPatients)} | Anemic pregnant: ${formatMetric(m.health.anemicPregnant)}`,
-    `AWC centers: ${formatMetric(m.health.awcCenters)} | ASHA workers: ${formatMetric(m.health.ashaWorkers)} | SAM children: ${formatMetric(m.health.samChildren)}`,
-    `PHC distance: ${formatMetric(m.health.phcDistKm, 1)} km | CHC distance: ${formatMetric(m.health.chcDistKm, 1)} km`,
-    '',
-    'EDUCATION:',
-    `Govt schools: ${formatMetric(m.education.govtSchools)} | Pvt schools: ${formatMetric(m.education.pvtSchools)} | Total: ${formatMetric(m.education.totalSchools)}`,
-    `Enrolled students: ${formatMetric(m.education.totalEnrolledStudents)} | Working teachers: ${formatMetric(m.education.workingTeachers)} | Sanctioned: ${formatMetric(m.education.sanctionedTeachers)} | Vacancy: ${formatMetric(Math.max(m.education.sanctionedTeachers - m.education.workingTeachers, 0))}`,
-    `Dropout children: ${formatMetric(m.education.dropoutChildren)} | Skill centers: ${formatMetric(m.education.skillCenters)} | Govt hostels: ${formatMetric(m.education.govtHostels)}`,
-    '',
-    'SOCIAL WELFARE:',
-    `Old age pensioners: ${formatMetric(m.social.oldAgePensioners)} | Widow pensioners: ${formatMetric(m.social.widowPensioners)} | PwD: ${formatMetric(m.social.pwdPensioners)}`,
-    `PM Ujjwala: ${formatMetric(m.social.ujjwalaBeneficiaries)} | PM/CM Awas: ${formatMetric(m.social.awasBeneficiaries)}`,
-    '',
-    'ECONOMY & SHGs:',
-    `Active SHGs: ${formatMetric(m.economy.activeShgs)} | Women in SHGs: ${formatMetric(m.economy.womenInShgs)} | Lakhpati Didis: ${formatMetric(m.economy.lakhpatiDidis)}`,
-    `Mudra beneficiaries: ${formatMetric(m.economy.mudraBeneficiaries)} | Local artisans: ${formatMetric(m.economy.localArtisans)} | Large industries: ${formatMetric(m.economy.largeIndustrialUnits)}`,
-    '',
-    'INFRASTRUCTURE:',
-    `Houses with electricity: ${formatMetric(m.infrastructure.housesWithElectricity)} | Road length: ${formatMetric(m.infrastructure.roadLengthKm, 1)} km`,
-    `Govt banks: ${formatMetric(m.infrastructure.govtBanks)} | Public toilets: ${formatMetric(m.infrastructure.publicToilets)} | Solar homes: ${formatMetric(m.infrastructure.solarHomes)}`,
-    '',
-    'GOVERNANCE:',
-    `Rural police dist: ${formatMetric(m.governance.distPoliceKm, 1)} km | Rural e-Mitra dist: ${formatMetric(m.governance.distEmitraKm, 1)} km | LPG dist: ${formatMetric(m.governance.distLpgKm, 1)} km`,
-    '',
-    'ENVIRONMENT:',
-    `Forest area: ${formatMetric(m.environment.forestArea, 1)} ha | Pasture: ${formatMetric(m.environment.pastureArea, 1)} ha | Houses with toilets: ${formatMetric(m.environment.housesWithToilets)}`,
-    `Biogas plants: ${formatMetric(m.environment.biogasPlants)} | Compost pits: ${formatMetric(m.environment.compostPits)} | PM Surya Ghar homes: ${formatMetric(m.environment.pmSuryaGharHomes)}`,
-    '',
-    'TOURISM:',
-    `Cultural assets: ${formatMetric(m.tourism.culturalAssets)} | Annual fairs: ${formatMetric(m.tourism.annualFairs)} | Daily fair footfall: ${formatMetric(m.tourism.dailyFairFootfall)}`,
-    `Trained guides: ${formatMetric(m.tourism.trainedGuides)} | Fair employment: ${formatMetric(m.tourism.fairEmployment)}`,
-    '',
-    `TASK: ${getQueryTypeInstructions(q)}`,
   ];
+
+  // Only include full baseline metrics for non-aspirations queries
+  if (q !== 'ASPIRATIONS_QUERY') {
+    lines.push(
+      '',
+      'POPULATION:',
+      `Rural: ${formatMetric(m.population.rural)} | Urban: ${formatMetric(m.population.urban)} | Total: ${formatMetric(m.population.total)}`,
+      `Male: ${formatMetric(m.population.male)} | Female: ${formatMetric(m.population.female)}`,
+      `Children 0-6: ${formatMetric(m.population.children06)} | 6-14: ${formatMetric(m.population.children614)} | 14-18: ${formatMetric(m.population.children1418)}`,
+      `Senior citizens: ${formatMetric(m.population.seniors)} | PwD: ${formatMetric(m.population.pwd)}`,
+      `Total families: ${formatMetric(m.population.totalFamilies)} | BPL: ${formatMetric(m.population.bplFamilies)} | NFSA: ${formatMetric(m.population.nfsaFamilies)}`,
+      `Pucca houses: ${formatMetric(m.population.puccaHouses)} | Kutcha houses: ${formatMetric(m.population.kutchaHouses)}`,
+      '',
+      'WATER & SANITATION:',
+      `Rural FHTC avg: ${formatMetric(m.water.ruralFhtcAvg, 1)}% | Urban FHTC avg: ${formatMetric(m.water.urbanFhtcAvg, 1)}%`,
+      `Overhead tanks: ${formatMetric(m.water.overheadTanks)} | Handpump homes: ${formatMetric(m.water.handpumpHomes)} | Tanker-only homes: ${formatMetric(m.water.tankerHomes)}`,
+      `Avg groundwater depth: ${formatMetric(m.water.groundwaterDepthAvg, 1)}m | RO facilities: ${formatMetric(m.water.roFacilities)}`,
+      '',
+      'AGRICULTURE:',
+      `Cultivable land: ${formatMetric(m.agriculture.cultivableLand, 1)} ha | Irrigated: ${formatMetric(m.agriculture.irrigatedLand, 1)} ha (${formatMetric(m.agriculture.irrigationCoverage, 1)}%)`,
+      `Total farmers: ${formatMetric(m.agriculture.totalFarmers)} | KCC holders: ${formatMetric(m.agriculture.kccHolders)} | PM-Kisan: ${formatMetric(m.agriculture.pmKisan)}`,
+      `Soil health cards: ${formatMetric(m.agriculture.soilHealthCards)} | Crop insurance: ${formatMetric(m.agriculture.cropInsurance)} | FPOs: ${formatMetric(m.agriculture.fpoCount)} | Solar pumps: ${formatMetric(m.agriculture.solarPumps)}`,
+      '',
+      'DAIRY & LIVESTOCK:',
+      `Total livestock: ${formatMetric(m.dairy.totalLivestock)} | Milch animals: ${formatMetric(m.dairy.milchAnimals)}`,
+      `Daily milk: ${formatMetric(m.dairy.dailyMilkProduction)} LPD | Est. annual dairy value: Rs ${formatMetric(m.dairy.annualDairyPotentialCr, 2)} Cr`,
+      `Milk centers: ${formatMetric(m.dairy.milkCollectionCenters)} | Goat farms: ${formatMetric(m.dairy.goatFarms)} | Poultry farms: ${formatMetric(m.dairy.poultryFarms)}`,
+      '',
+      'HEALTH:',
+      `Allopathic centers: ${formatMetric(m.health.allopathicCenters)} | AYUSH: ${formatMetric(m.health.ayushCenters)} | Private: ${formatMetric(m.health.privateHealthCenters)}`,
+      `Health beds: ${formatMetric(m.health.healthBeds)} | Health staff: ${formatMetric(m.health.workingHealthStaff)}`,
+      `Ayushman beneficiaries: ${formatMetric(m.health.ayushmanBeneficiaries)} | TB patients: ${formatMetric(m.health.tbPatients)} | Anemic pregnant: ${formatMetric(m.health.anemicPregnant)}`,
+      `AWC centers: ${formatMetric(m.health.awcCenters)} | ASHA workers: ${formatMetric(m.health.ashaWorkers)} | SAM children: ${formatMetric(m.health.samChildren)}`,
+      `PHC distance: ${formatMetric(m.health.phcDistKm, 1)} km | CHC distance: ${formatMetric(m.health.chcDistKm, 1)} km`,
+      '',
+      'EDUCATION:',
+      `Govt schools: ${formatMetric(m.education.govtSchools)} | Pvt schools: ${formatMetric(m.education.pvtSchools)} | Total: ${formatMetric(m.education.totalSchools)}`,
+      `Enrolled students: ${formatMetric(m.education.totalEnrolledStudents)} | Working teachers: ${formatMetric(m.education.workingTeachers)} | Sanctioned: ${formatMetric(m.education.sanctionedTeachers)} | Vacancy: ${formatMetric(Math.max(m.education.sanctionedTeachers - m.education.workingTeachers, 0))}`,
+      `Dropout children: ${formatMetric(m.education.dropoutChildren)} | Skill centers: ${formatMetric(m.education.skillCenters)} | Govt hostels: ${formatMetric(m.education.govtHostels)}`,
+      '',
+      'SOCIAL WELFARE:',
+      `Old age pensioners: ${formatMetric(m.social.oldAgePensioners)} | Widow pensioners: ${formatMetric(m.social.widowPensioners)} | PwD: ${formatMetric(m.social.pwdPensioners)}`,
+      `PM Ujjwala: ${formatMetric(m.social.ujjwalaBeneficiaries)} | PM/CM Awas: ${formatMetric(m.social.awasBeneficiaries)}`,
+      '',
+      'ECONOMY & SHGs:',
+      `Active SHGs: ${formatMetric(m.economy.activeShgs)} | Women in SHGs: ${formatMetric(m.economy.womenInShgs)} | Lakhpati Didis: ${formatMetric(m.economy.lakhpatiDidis)}`,
+      `Mudra beneficiaries: ${formatMetric(m.economy.mudraBeneficiaries)} | Local artisans: ${formatMetric(m.economy.localArtisans)} | Large industries: ${formatMetric(m.economy.largeIndustrialUnits)}`,
+      '',
+      'INFRASTRUCTURE:',
+      `Houses with electricity: ${formatMetric(m.infrastructure.housesWithElectricity)} | Road length: ${formatMetric(m.infrastructure.roadLengthKm, 1)} km`,
+      `Govt banks: ${formatMetric(m.infrastructure.govtBanks)} | Public toilets: ${formatMetric(m.infrastructure.publicToilets)} | Solar homes: ${formatMetric(m.infrastructure.solarHomes)}`,
+      '',
+      'GOVERNANCE:',
+      `Rural police dist: ${formatMetric(m.governance.distPoliceKm, 1)} km | Rural e-Mitra dist: ${formatMetric(m.governance.distEmitraKm, 1)} km | LPG dist: ${formatMetric(m.governance.distLpgKm, 1)} km`,
+      '',
+      'ENVIRONMENT:',
+      `Forest area: ${formatMetric(m.environment.forestArea, 1)} ha | Pasture: ${formatMetric(m.environment.pastureArea, 1)} ha | Houses with toilets: ${formatMetric(m.environment.housesWithToilets)}`,
+      `Biogas plants: ${formatMetric(m.environment.biogasPlants)} | Compost pits: ${formatMetric(m.environment.compostPits)} | PM Surya Ghar homes: ${formatMetric(m.environment.pmSuryaGharHomes)}`,
+      '',
+      'TOURISM:',
+      `Cultural assets: ${formatMetric(m.tourism.culturalAssets)} | Annual fairs: ${formatMetric(m.tourism.annualFairs)} | Daily fair footfall: ${formatMetric(m.tourism.dailyFairFootfall)}`,
+      `Trained guides: ${formatMetric(m.tourism.trainedGuides)} | Fair employment: ${formatMetric(m.tourism.fairEmployment)}`,
+    );
+  }
+
+  lines.push('');
+  lines.push(`TASK: ${getQueryTypeInstructions(q)}`);
 
   // Append live aspirations data if available
   if (context.aspirations && context.aspirations.length > 0) {
@@ -1223,6 +1330,17 @@ CRITICAL RULES:
         lines.push(`${r._source} | ${r.district || ''} | ${loc} | ${r.item || ''} | ${r.sector || r.dept || ''} | ${r.status || ''} | ${r.qty_2030 || 0} | ${r.qty_2035 || 0} | ${r.qty_2047 || 0} | ${r.total_budget || '-'} | ${r.scheme || '-'}`);
       }
       lines.push(`INSTRUCTION: Answer the user query using ONLY the ${cd.aspirationRows.length} rows above. Present as a formal numbered table. No emojis. Hindi-English mix acceptable but formal tone.`);
+    }
+
+    // If complex query returned 0 aspiration rows but live aspirations exist, use those
+    if ((!cd.aspirationRows || cd.aspirationRows.length === 0) && context.aspirations && context.aspirations.length > 0) {
+      lines.push('');
+      lines.push('NOTE: Direct aspiration query returned 0 rows. Using aggregated aspirations data from mv_aspirations_summary instead.');
+      lines.push('INSTRUCTION: Answer the user aspiration query using the LIVE ASPIRATIONS DATA section above. Present as a formal numbered table sorted by Qty 2030 descending.');
+    }
+    if ((!cd.aspirationRows || cd.aspirationRows.length === 0) && (!context.aspirations || context.aspirations.length === 0)) {
+      lines.push('');
+      lines.push('INSTRUCTION: No aspiration data found for this query. Tell the user: "Is query ke liye Jaipur district mein koi aspiration record nahi mila. Aspirations data load hone mein time lag sakta hai ya district name match nahi hua." Do NOT reference baseline metrics as aspirations.');
     }
 
     if (cd.baselineRows && cd.baselineRows.length > 0) {
@@ -1359,10 +1477,21 @@ export async function buildChatContext(userMessage: string) {
     const live = await fetchBaselineContext(userMessage || '');
     const systemPrompt = buildGeminiPrompt({ ...live, aspirations: live.aspirations }, userMessage || '', live.language);
 
+    // Check if meaningful data was found
+    const m = live.metrics;
+    const hasRealData = (
+      m.population.total > 0 ||
+      m.water.ruralFhtcAvg > 0 ||
+      m.agriculture.totalFarmers > 0 ||
+      live.tableCounts.rural > 0 ||
+      live.tableCounts.urban > 0
+    );
+
     return {
       systemPrompt,
       queryType: live.queryType,
       maxOutputTokens: getMaxTokens(live.queryType),
+      hasRealData,
       contextObject: {
         meta: live.meta,
         scopeLabel: live.scopeLabel,
@@ -1372,6 +1501,7 @@ export async function buildChatContext(userMessage: string) {
         baseline: live.metrics,
         aspirationsCount: live.aspirations?.length || 0,
         tableCounts: live.tableCounts,
+        hasRealData,
         liveFetch: true,
       },
     };
