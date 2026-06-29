@@ -1830,8 +1830,8 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
               ${infoRow('चयनित इकाई', selectedScopeName)}
               ${scopeLevel === 'block' ? '' : infoRow('प्रशासनिक खंड', fmt(d.meta?.blockCount || 0))}
               ${infoRow('ग्राम पंचायतें', fmt(d.meta?.gpCount || 0))}
-              ${infoRow('औसत GP क्षेत्र', avgGpArea ? `~${fmt(avgGpArea)} हे.` : '—')}
-              ${infoRow('कुल भौगोलिक क्षेत्र', d.population?.totalAreaHectare ? `${fmt(d.population.totalAreaHectare)} हे.` : '—')}
+              ${scopeLevel !== 'block' ? infoRow('औसत GP क्षेत्र', avgGpArea ? `~${fmt(avgGpArea)} हे.` : '—') : ''}
+              ${scopeLevel !== 'block' ? infoRow('कुल भौगोलिक क्षेत्र', d.population?.totalAreaHectare ? `${fmt(d.population.totalAreaHectare)} हे.` : '—') : ''}
               ${infoRow('BPL परिवार', fmt(d.population?.bplFamilies || 0))}
               ${infoRow('PwD (Specially Abled) जनसंख्या', fmt(d.population?.pwd || 0))}
             `
