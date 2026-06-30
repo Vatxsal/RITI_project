@@ -514,6 +514,9 @@ export default function ReportsPage() {
           publicToilets: S(ruralData, 'public_toilets') + S(uData, 'public_toilets_functional'),
           solarHomes: S(ruralData, 'solar_installed_houses') + S(uData, 'solar_installed_houses'),
           privateBanks: S(uData, 'private_banks_count'),
+          distMainMarketKm: A(uData, 'dist_main_market_km'),
+          distBusStandKm: A(uData, 'dist_bus_stand_km'),
+          distRailwayStationKm: A(uData, 'dist_railway_station_km'),
         },
         environment: {
           forestHa: S(ruralData, 'forest_area_hectare') + S(uData, 'forest_area_hectare'),
@@ -541,7 +544,8 @@ export default function ReportsPage() {
           distPoliceKm: A(ruralData, 'dist_police_station_km'),
           distEmitraKm: A(ruralData, 'dist_emitra_km'),
           distLpgKm: A(ruralData, 'dist_lpg_distributor_km'),
-          urbanPoliceKm: 0, urbanEmitraKm: 0,
+          urbanPoliceKm: A(uData, 'dist_police_station_km'),
+          urbanEmitraKm: A(uData, 'dist_emitra_km'),
         },
         profileText: '',
         allProfileTexts: allProfileTextsDistrict,
@@ -1082,7 +1086,13 @@ export default function ReportsPage() {
           fairEmployment: S(data, 'fair_shg_stalls_count'),
           heritageSites: 0, annualFairs: 0,
         },
-        governance: { urbanPoliceKm: 0, urbanEmitraKm: 0, distPoliceKm: 0, distEmitraKm: 0, distLpgKm: 0 },
+        governance: {
+          urbanPoliceKm: A(data, 'dist_police_station_km'),
+          urbanEmitraKm: A(data, 'dist_emitra_km'),
+          distPoliceKm: 0,
+          distEmitraKm: 0,
+          distLpgKm: A(data, 'dist_lpg_distributor_km'),
+        },
         profileText: wardProfileText,
         allProfileTexts: scope.wardName ? [] : allWardProfiles,
         aspirations: urbanAspData,
@@ -2347,7 +2357,11 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
         cards: [
           { value: fmtKm(d.infrastructure?.roadKm || 0), label: 'ग्रामीण सड़क नेटवर्क', sub: 'सभी श्रेणियां' },
           { value: fmtPct(d.water?.ruralFhtcAvg), label: 'FHTC (ग्रामीण)', sub: 'JJM Phase 2 inflow' },
-          { value: fmtPct(d.water?.urbanFhtcAvg || 0), label: 'FHTC (शहरी)', sub: 'AMRUT linkages' },
+          isDistrict
+            ? { value: fmtPct(d.water?.urbanFhtcAvg || 0), label: 'FHTC (शहरी)', sub: 'AMRUT linkages' }
+            : scopeLevel === 'gp'
+              ? { value: fmtKm(d.water?.groundwaterDepth || 0), label: 'भूजल गहराई', sub: 'Average groundwater depth' }
+              : { value: fmt(d.water?.gpsBelow30Fhtc || 0), label: 'GPs FHTC 30% से कम', sub: 'प्राथमिकता क्षेत्र' },
           { value: fmt(d.population?.totalFamilies || 0), label: 'ग्रामीण परिवार', sub: 'सेवा-क्षेत्र आधार' },
           { value: fmt(d.water?.overheadTanks || 0), label: 'OVERHEAD TANKS', sub: 'भंडारण अवसंरचना' },
           { value: fmt(d.infrastructure?.electricityHouses || 0), label: 'विद्युतीकृत परिवार', sub: `${d.population?.puccaHouses > 0 ? ((Number(d.infrastructure?.electricityHouses || 0) / (Number(d.population?.puccaHouses || 1) + Number(d.population?.kutchaHouses || 1))) * 100).toFixed(1) : '—'}% ग्रामीण HH` },
