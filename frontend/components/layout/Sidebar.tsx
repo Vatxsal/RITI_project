@@ -1,4 +1,3 @@
-
 import React from 'react'
 import Link from 'next/link'
 
@@ -35,19 +34,17 @@ export default function Sidebar() {
         Talk to Data
       </Link>
 
-      <div className="sbl" style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--t3)', padding: '11px 16px 4px', opacity: 0.55 }}>11 Sector Dashboards</div>
+      <div className="sbl" style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--t3)', padding: '11px 16px 4px', opacity: 0.55 }}>9 Sector Dashboards</div>
       {[
-        { view: 'water', label: 'Water & Sanitation', icon: '◯' },
-        { view: 'health', label: 'Health & Nutrition', icon: '✚' },
-        { view: 'agri', label: 'Agriculture', icon: '❖' },
-        { view: 'dairy', label: 'Dairy & Livestock', icon: 'Ⓓ' },
-        { view: 'edu', label: 'Education', icon: '✎' },
-        { view: 'employ', label: 'Employment & Skills', icon: '⊙' },
-        { view: 'women', label: 'Social Empowerment', icon: '✧' },
-        { view: 'welfare', label: 'Welfare & Housing', icon: '♥' },
-        { view: 'infra', label: 'Infrastructure', icon: '⚙' },
-        { view: 'tourism', label: 'Tourism & Heritage', icon: '✈' },
-        { view: 'env', label: 'Environment & Forest', icon: '♲' }
+        { view: 'agri', label: 'Agriculture & Livelihoods', icon: '❖' },
+        { view: 'health', label: 'Health & Wellness', icon: '✚' },
+        { view: 'edu', label: 'Education-Related Information', icon: '✎' },
+        { view: 'women', label: 'Social Empowerment & Inclusion', icon: '✧' },
+        { view: 'infra', label: 'Core Infrastructure & Transportation', icon: '⚙' },
+        { view: 'water', label: 'Water Security & Community-Based Capacity', icon: '◯' },
+        { view: 'env', label: 'Environmental Sustainability & Climate Resilience', icon: '♲' },
+        { view: 'tourism', label: 'Tourism & Cultural Development', icon: '✈' },
+        { view: 'welfare', label: 'Effective Governance & Public Services', icon: '♥' }
       ].map(item => (
         <Link key={item.view} href={`/${item.view}`} className="si" style={{ display: 'flex', alignItems: 'center', gap: '9px', padding: '7px 16px', cursor: 'pointer', color: 'var(--t3)', fontSize: '12px', borderLeft: '2px solid transparent', transition: 'all .15s', userSelect: 'none' }}>
           <span className="ic" style={{ width: '16px', textAlign: 'center', flexShrink: 0, fontSize: '13px', opacity: 0.6 }}>{item.icon}</span>

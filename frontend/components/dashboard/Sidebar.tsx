@@ -2,10 +2,20 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { SECTORS } from '@/lib/data';
 
 export default function Sidebar({ isMobileOpen, onMobileClose }: { isMobileOpen?: boolean; onMobileClose?: () => void }) {
   const pathname = usePathname();
+  const sectorNavItems = [
+    { v: 'agri', label: 'कृषि एवं आजीविका', icon: '♞' },
+    { v: 'health', label: 'स्वास्थ्य एवं कल्याण', icon: '✚' },
+    { v: 'edu', label: 'शिक्षा संबंधी जानकारी', icon: '✎' },
+    { v: 'women', label: 'सामाजिक सशक्तिकरण और समावेशन', icon: '⚪' },
+    { v: 'infra', label: 'मुख्य (इन्फ्रास्ट्रक्चर) आवागमन संबंधित', icon: '⚙' },
+    { v: 'water', label: 'जल सुरक्षा और समुदाय आधारित क्षमता', icon: '◯' },
+    { v: 'env', label: 'पर्यावरणीय स्थिरता और जलवायु अनुकूलता', icon: '⛷' },
+    { v: 'tourism', label: 'पर्यटन एवं सांस्कृतिक विकास', icon: '✈' },
+    { v: 'welfare', label: 'प्रभावी शासन और सार्वजनिक सेवाएं', icon: '❤' }
+  ];
 
   const isActive = (path: string) => pathname === path;
   
@@ -131,8 +141,8 @@ export default function Sidebar({ isMobileOpen, onMobileClose }: { isMobileOpen?
         <span>Talk to Data</span>
       </Link>
 
-      <div className="sbl" style={{ color: 'rgba(255,255,255,0.35)', fontSize: '9px', fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', padding: '16px 20px 6px', opacity: 1 }}>11 Sector Dashboards</div>
-      {SECTORS.map(sector => {
+      <div className="sbl" style={{ color: 'rgba(255,255,255,0.35)', fontSize: '9px', fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', padding: '16px 20px 6px', opacity: 1 }}>9 Sector Dashboards</div>
+      {sectorNavItems.map(sector => {
         const sectorRoute = sector.v === 'women' ? 'social' : sector.v;
 
         return (

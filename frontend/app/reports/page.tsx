@@ -1926,6 +1926,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
         'नवीन मां-बाड़ी केन्द्र',
         'छात्रावास का निर्माण',
         'छात्रावास भवन की मरम्मत',
+        'अन्य',
       ]),
       'शिक्षा संबंधी जानकारी': new Set([
         'नवीन प्राथमिक विद्यालय की स्थापना',
@@ -1938,32 +1939,49 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
         'राजकीय संस्कृत महाविद्यालयों का आचार्य स्तर पर क्रमोन्नयन',
         'नए राजकीय आईटीआई संस्थान की स्थापना',
         'राजकीय पॉलिटेक्निक महाविद्यालयों की स्थापना',
+        'अन्य',
       ]),
       'सामाजिक सशक्तिकरण और समावेशन': new Set([
         'नगर परिषद से नगर निगम में क्रमोन्नयन',
         'नगरपालिका से नगर परिषद में क्रमोन्नयन',
         'नवीन नगरपालिका का गठन',
+        'अन्य',
       ]),
       'औद्योगिक, खनन और आर्थिक विकास': new Set([
         'औद्योगिक क्षेत्र की स्थापना',
         'औद्योगिक भूखंड का आवंटन',
+        'अन्य',
       ]),
       'मुख्य (इंफ्रास्ट्रक्चर) आवागमन संबंधित': new Set([
         '132 केवी के नए ग्रिड सब स्टेशन',
         '220 केवी के नए ग्रिड सब स्टेशन',
         '400 केवी के नए ग्रिड सब स्टेशन',
+        'अन्य',
       ]),
       'पर्यावरणीय स्थिरता और जलवायु अनुकूलता': new Set([
         'वन चौकी की स्थापना',
+        'अन्य',
       ]),
       'प्रभावी शासन और सार्वजनिक सेवाएं': new Set([
         'नवीन पुलिस चौकी का सृजन',
+        'अन्य',
+      ]),
+      'पर्यटन एवं सांस्कृतिक विकास': new Set([
+        'अन्य',
+      ]),
+      'जल सुरक्षा और समुदाय आधारित क्षमता': new Set([
+        'अन्य',
       ]),
     };
 
-    // Helper: check if an aspiration item is excluded for its sector
+    // Helper: check if an aspiration item is excluded for its sector.
+    // 'अन्य' is a global catch-all exclusion — it must never display in
+    // any report regardless of which sector it's tagged with, whether
+    // that sector is a recognized key in SECTOR_EXCLUDED_ITEMS, or
+    // whether the sector field is missing/empty/differently formatted.
     const isExcludedForSector = (item: string, sector: string): boolean => {
       const itemTrimmed = item.trim();
+      if (itemTrimmed === 'अन्य') return true;
       const sectorSet = SECTOR_EXCLUDED_ITEMS[sector.trim()];
       return sectorSet ? sectorSet.has(itemTrimmed) : false;
     };

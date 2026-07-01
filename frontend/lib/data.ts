@@ -46,7 +46,7 @@ export const DISTRICTS = [
 export const SECTORS = [
   {
     v: 'water',
-    label: 'Water & Sanitation',
+    label: 'Water Security & Community-Based Capacity',
     icon: '◯',
     key: 'sc_water',
     description: 'FHTC, household water access, JJM coverage',
@@ -57,7 +57,7 @@ export const SECTORS = [
   },
   {
     v: 'health',
-    label: 'Health & Nutrition',
+    label: 'Health & Wellness',
     icon: '✚',
     key: 'sc_health',
     description: 'POSHAN scheme, SAM children, AWC coverage',
@@ -68,7 +68,7 @@ export const SECTORS = [
   },
   {
     v: 'agri',
-    label: 'Agriculture',
+    label: 'Agriculture & Livelihoods',
     icon: '♞',
     key: 'sc_agri',
     description: 'Irrigation, PM-Kisan, crop productivity',
@@ -78,19 +78,8 @@ export const SECTORS = [
     ]
   },
   {
-    v: 'dairy',
-    label: 'Dairy & Livestock',
-    icon: 'Ⓡ',
-    key: 'sc_dairy',
-    description: 'KCC, milk production, SARAS cold chains',
-    metrics: [
-      { label: 'Milk LPD', key: 'milk_lpd', metric: 'Liters milk per day' },
-      { label: 'KCC Active', key: 'kcc', metric: 'Kisan Credit Card holders' }
-    ]
-  },
-  {
     v: 'edu',
-    label: 'Education',
+    label: 'Education-Related Information',
     icon: '✎',
     key: 'sc_edu',
     description: 'Enrollment, school infrastructure, quality metrics',
@@ -98,7 +87,7 @@ export const SECTORS = [
   },
   {
     v: 'women',
-    label: 'Social Empowerment',
+    label: 'Social Empowerment & Inclusion',
     icon: '⚪',
     key: 'sc_women',
     description: 'PMMUY, Shakti, gender parity in employment',
@@ -106,7 +95,7 @@ export const SECTORS = [
   },
   {
     v: 'welfare',
-    label: 'Welfare & Housing',
+    label: 'Effective Governance & Public Services',
     icon: '❤',
     key: 'sc_welfare',
     description: 'PM Awas, widow pensions, old age allowance',
@@ -117,7 +106,7 @@ export const SECTORS = [
   },
   {
     v: 'infra',
-    label: 'Infrastructure',
+    label: 'Core Infrastructure & Transportation',
     icon: '⚙',
     key: 'sc_infra',
     description: 'Roads, electricity, sewerage, water supply',
@@ -125,7 +114,7 @@ export const SECTORS = [
   },
   {
     v: 'tourism',
-    label: 'Tourism & Heritage',
+    label: 'Tourism & Cultural Development',
     icon: '✈',
     key: 'sc_tourism',
     description: 'Heritage sites, tourism circuits, archeological',
@@ -133,7 +122,7 @@ export const SECTORS = [
   },
   {
     v: 'env',
-    label: 'Environment & Forest',
+    label: 'Environmental Sustainability & Climate Resilience',
     icon: '⛷',
     key: 'sc_env',
     description: 'Afforestation, CAMPA, wetland conservation',

@@ -440,7 +440,7 @@ Write 3 planning intelligence insights in proper Hindi (Devanagari). Mix of patt
       <div style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
           <div className="pg-t">{sector.label}</div>
-          <div className="ai-badge">VR 2047 · AI Analysis</div>
+          <div className="ai-badge">AI Analysis</div>
         </div>
         <div className="pg-s">{baselineSummary}</div>
       </div>
