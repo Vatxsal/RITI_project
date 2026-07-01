@@ -2589,30 +2589,16 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
 
     const strategicRows = topSectors.map(sector => {
       const sectorAsps = eligibleAspirations.filter((a: any) => a.sector === sector);
-      const funded = sectorAsps.filter((a: any) => a.status === 'FUNDED');
-      const accepted = sectorAsps.filter((a: any) => a.status === 'ACCEPT');
       const qty2030 = sectorAsps.reduce((sum: number, a: any) => sum + (Number(a.qty_2030) || 0), 0);
       const qty2035 = sectorAsps.reduce((sum: number, a: any) => sum + (Number(a.qty_2035) || 0), 0);
       const qty2047 = sectorAsps.reduce((sum: number, a: any) => sum + (Number(a.qty_2047) || 0), 0);
-      const topItem = sectorAsps[0]?.item || sector;
-      const reviewCount = sectorAsps.filter((a: any) => a.status === 'REVIEW').length;
-      const fastTrackCount = sectorAsps.filter((a: any) => a.fast_track).length;
-      const topScheme = sectorAsps.find((a: any) => a.scheme)?.scheme || null;
-
-      const phase2 = qty2035 > 0
-        ? `${qty2035} आकांक्षाएं · ${topScheme || 'विस्तार चरण'}`
-        : reviewCount > 0
-          ? `${reviewCount} under review`
-          : topScheme
-            ? `${topScheme}`
-            : `${accepted.length} accepted`;
 
       return {
         indicator: sector,
         current: `${sectorAsps.length} आकांक्षाएं`,
-        phase1: qty2030 > 0 ? `${fmt(qty2030)} आकांक्षाएं · 2030 तक` : `${accepted.length} स्वीकृत आकांक्षाएं`,
-        phase2,
-        phase2047: qty2047 > 0 ? `${fmt(qty2047)} आकांक्षाएं · ${topItem}` : `पूर्ण कवरेज`,
+        phase1: `${fmt(qty2030)} आकांक्षाएं`,
+        phase2: `${fmt(qty2035)} आकांक्षाएं`,
+        phase2047: `${fmt(qty2047)} आकांक्षाएं`,
       };
     });
 
