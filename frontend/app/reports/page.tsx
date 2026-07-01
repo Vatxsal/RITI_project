@@ -2549,11 +2549,11 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
       `, 'thematic-page');
     }).join('');
 
-    // For strategic table sector counts, use ALL aspirations (no exclusions).
-    // Exclusions apply only to per-page aspiration display tables, not summary counts.
-    const eligibleAspirations = (d.aspirations || []).filter((a: any) => {
+    // Strategic table sector counts must use the SAME sector-based exclusions
+    // (SECTOR_EXCLUDED_ITEMS via getEligibleAspirations) that the thematic pages use,
+    // so counts here match what's actually displayed per sector page.
+    const eligibleAspirations = getEligibleAspirations(d.aspirations || []).filter((a: any) => {
       const item = String(a.item || '').trim();
-      // Only exclude the global "अन्य" catch-all; keep everything else for counting
       return item.length > 0 && item !== 'अन्य';
     });
 
@@ -2618,7 +2618,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
         const funded = sectorAsps.filter((a: any) => a.status === 'FUNDED').length;
         const fastTrack = sectorAsps.filter((a: any) => a.fast_track).length;
         const statusLabel = 'नियोजन चरण';
-        const opportunity = `${sectorAsps.length} aspirations`;
+        const opportunity = `${sectorAsps.length} आकांक्षाएं`;
         return [sector, schemes || '—', opportunity, statusLabel];
       });
 
