@@ -572,8 +572,8 @@ export default function ReportsPage() {
             String(r.gram_panchayat || '').trim().toLowerCase() === String(scope.gpName || '').trim().toLowerCase()
           );
           const raw = gpRow?.gp_profile || gpRow?.gp_profiles || allGpProfiles[0] || '';
-          // Truncate to ~3-4 lines to fit the report box
-          return String(raw).slice(0, 1200);
+          // No truncation — show full profile text as entered
+          return String(raw);
         }
         // Block or district level: aggregate via Gemini later (return raw list for now)
         return '';
@@ -884,7 +884,7 @@ export default function ReportsPage() {
           // Just take the first row's profile text
           const raw = data.length > 0 ? getProfileText(data[0]) : (allWardProfiles[0] || '');
           console.log('[Ward Profile] raw text found:', raw.slice(0, 100));
-          return String(raw).slice(0, 1200);
+          return String(raw);
         }
         return '';
       })();
@@ -2227,6 +2227,8 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
         qty_2047: number;
         status: string;
         area_type: string;
+        scheme: string;
+        fast_track: boolean;
       }>();
 
       const statusOrder: Record<string, number> = { FUNDED: 0, ACCEPT: 1, REVIEW: 2 };
@@ -2247,6 +2249,8 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
             qty_2047: Number(asp.qty_2047) || 0,
             status: String(asp.status || ''),
             area_type: String(asp.area_type || ''),
+            scheme: String(asp.scheme || '').trim(),
+            fast_track: Boolean(asp.fast_track),
           });
         } else {
           existing.qty_2030 += Number(asp.qty_2030) || 0;
@@ -2258,6 +2262,11 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
           if ((statusOrder[newStatus] ?? 3) < (statusOrder[existing.status] ?? 3)) {
             existing.status = newStatus;
           }
+          if (!existing.scheme) {
+            const candidateScheme = String(asp.scheme || '').trim();
+            if (candidateScheme) existing.scheme = candidateScheme;
+          }
+          if (!existing.fast_track && asp.fast_track) existing.fast_track = true;
         }
       }
 
@@ -2549,13 +2558,25 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
       `, 'thematic-page');
     }).join('');
 
-    // Strategic table sector counts must use the SAME sector-based exclusions
-    // (SECTOR_EXCLUDED_ITEMS via getEligibleAspirations) that the thematic pages use,
-    // so counts here match what's actually displayed per sector page.
-    const eligibleAspirations = getEligibleAspirations(d.aspirations || []).filter((a: any) => {
-      const item = String(a.item || '').trim();
-      return item.length > 0 && item !== 'अन्य';
-    });
+    // Strategic page counts/tables must derive from EXACTLY the same aggregated,
+    // sector-exclusion-applied data the thematic pages display — not raw rows.
+    // Re-run getAspirationsForSector for every pageKey (same as thematicPages above)
+    // and union the aggregated results into one master list.
+    const allPageKeys = sectorPages.map((p) => p.pageKey);
+    const strategicAggregatedMap = new Map<string, any>();
+    for (const page of sectorPages) {
+      const pageAggregated = getAspirationsForSector(d.aspirations || [], page.aspirationKeywords, Infinity, page.pageKey);
+      for (const asp of pageAggregated) {
+        const item = String(asp.item || '').trim();
+        if (!item || item === 'अन्य') continue;
+        // Key by item+sector so identical item names under different sectors stay distinct
+        const key = `${item}||${asp.sector || ''}`;
+        if (!strategicAggregatedMap.has(key)) {
+          strategicAggregatedMap.set(key, asp);
+        }
+      }
+    }
+    const eligibleAspirations = Array.from(strategicAggregatedMap.values());
 
     const sectorCounts: Record<string, number> = {};
     eligibleAspirations.forEach((a: any) => {
@@ -2697,7 +2718,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>${escapeHtml(district)} — Viksit Rajasthan 2047</title>
+<title>${escapeHtml(district)} - ${escapeHtml(coverMainName)} (${escapeHtml(coverTypeLabel)}) - ${isRural ? 'Rural' : isUrban ? 'Urban' : 'District'} Report - Viksit Rajasthan 2047</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700;800&display=swap');
   :root {
