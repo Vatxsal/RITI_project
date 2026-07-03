@@ -91,6 +91,7 @@ export default function CommandCenterPage() {
   const [dashboard, setDashboard] = useState<DashboardKpiPayload>(getEmptyDashboardPayload());
   const [aspKpis, setAspKpis] = useState<any>(null);
   const [aspirationYearFilter, setAspirationYearFilter] = useState<'2030' | '2035' | '2047'>('2030');
+  const [sectorYearFilter, setSectorYearFilter] = useState<'2030' | '2035' | '2047'>('2030');
 
   useEffect(() => {
     fetchAspirationsKpis({ areaType: 'all', district: null }).catch(() => {});
@@ -200,11 +201,25 @@ export default function CommandCenterPage() {
       occurrences: number;
       rawRecordCount: number;
       districtList: string[];
+      locationSet: Set<string>;
     }>();
+
+    // A "location" is a distinct GP (rural) or Ward (urban) that reported
+    // this aspiration item, scoped by district + block/ulb to avoid collapsing
+    // two different GPs/Wards that happen to share the same name.
+    const locationKeyFor = (row: { area_type: string; district: string; block: string; gram_panchayat: string; ulb: string; city: string; ward: string }) => {
+      const areaTypeRow = String(row.area_type || '').trim().toLowerCase();
+      const isRuralRow = areaTypeRow !== 'urban';
+      return isRuralRow
+        ? ['rural', row.district, row.block, row.gram_panchayat].filter(Boolean).join('||')
+        : ['urban', row.district, row.ulb || row.city, row.ward].filter(Boolean).join('||');
+    };
 
     for (const row of p1Rows) {
       const key = String(row.item || '').trim().toLowerCase();
       if (!key) continue;
+
+      const locKey = locationKeyFor(row as any);
 
       const existing = groupMap.get(key);
       if (!existing) {
@@ -216,6 +231,7 @@ export default function CommandCenterPage() {
           occurrences: 1,
           rawRecordCount: Number((row as any).total_count || 0),
           districtList: row.district ? [row.district] : [],
+          locationSet: new Set(locKey ? [locKey] : []),
         });
       } else {
         existing.qty_2030 += Number(row.qty_2030 || 0);
@@ -233,6 +249,8 @@ export default function CommandCenterPage() {
         if (row.district && !existing.districtList.includes(row.district)) {
           existing.districtList.push(row.district);
         }
+
+        if (locKey) existing.locationSet.add(locKey);
       }
     }
 
@@ -241,6 +259,96 @@ export default function CommandCenterPage() {
         const recordsDiff = Number((right as any).rawRecordCount || 0) - Number((left as any).rawRecordCount || 0);
         if (recordsDiff !== 0) return recordsDiff;
         return statusRankForTable(left.status) - statusRankForTable(right.status);
+      })
+      .slice(0, urbanFilter === 'urban' ? 9 : 10);
+  })();
+
+  const aspirationSectorYearKey = `qty_${sectorYearFilter}` as 'qty_2030' | 'qty_2035' | 'qty_2047';
+
+  const sectorWiseTopAspirations = (() => {
+    const areaFiltered = ((aspKpis?.records || []) as Array<{
+      item: string;
+      dept: string;
+      sector: string;
+      district: string;
+      area_type: string;
+      qty_2030: number;
+      qty_2035: number;
+      qty_2047: number;
+      status: string;
+      fast_track: boolean;
+      total_count?: number;
+    }>).filter((row) => {
+      const areaType = String(row.area_type || '').trim().toLowerCase();
+      if (urbanFilter === 'urban') return areaType !== 'rural';
+      if (urbanFilter === 'rural') return areaType !== 'urban';
+      return true;
+    });
+
+    // Group by sector -> item, summing ONLY the selected year's quantity.
+    // An item only counts toward a sector's top item when its quantity for
+    // the active year is > 0.
+    const sectorItemMap = new Map<string, Map<string, {
+      item: string;
+      dept: string;
+      qtyYearTotal: number;
+      recordCount: number;
+      fast_track: boolean;
+      status: string;
+    }>>();
+
+    for (const row of areaFiltered) {
+      const qtyYear = Number((row as any)[aspirationSectorYearKey] || 0);
+      if (qtyYear <= 0) continue;
+
+      const sectorKey = String(row.sector || row.dept || 'Other').trim();
+      const itemKey = String(row.item || '').trim().toLowerCase();
+      if (!itemKey) continue;
+
+      if (!sectorItemMap.has(sectorKey)) sectorItemMap.set(sectorKey, new Map());
+      const itemMap = sectorItemMap.get(sectorKey)!;
+
+      const existing = itemMap.get(itemKey);
+      if (!existing) {
+        itemMap.set(itemKey, {
+          item: row.item,
+          dept: row.dept,
+          qtyYearTotal: qtyYear,
+          recordCount: Number((row as any).total_count || 1),
+          fast_track: Boolean(row.fast_track),
+          status: row.status,
+        });
+      } else {
+        existing.qtyYearTotal += qtyYear;
+        existing.recordCount += Number((row as any).total_count || 1);
+        if (row.fast_track) existing.fast_track = true;
+        if (statusRankForTable(row.status) < statusRankForTable(existing.status)) {
+          existing.status = row.status;
+        }
+      }
+    }
+
+    const cards = Array.from(sectorItemMap.entries()).map(([sector, itemMap]) => {
+      const items = Array.from(itemMap.values());
+      const topItem = items.slice().sort((a, b) => b.qtyYearTotal - a.qtyYearTotal)[0];
+      return {
+        sector,
+        dept: topItem?.dept || '',
+        topItem: topItem?.item || '—',
+        uniqueItems: items.length,
+        topItemCount: topItem?.recordCount || 0,
+        fast_track: topItem?.fast_track || false,
+        status: topItem?.status || '',
+      };
+    });
+
+    return cards
+      .filter((entry) => urbanFilter === 'urban' ? !isAgricultureSector(entry) : true)
+      .sort((a, b) => {
+        // Fast-track cards always come first, regardless of record count
+        if (a.fast_track !== b.fast_track) return a.fast_track ? -1 : 1;
+        // Within the same fast-track group, sort by highest record count
+        return b.topItemCount - a.topItemCount;
       })
       .slice(0, urbanFilter === 'urban' ? 9 : 10);
   })();
@@ -478,8 +586,8 @@ export default function CommandCenterPage() {
           </div>
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-2 items-start">
-          <div style={{ ...LIGHT_CARD_STYLE, minWidth: 0, padding: 20 }}>
+        <div className="grid gap-4 xl:grid-cols-2 items-stretch">
+          <div style={{ ...LIGHT_CARD_STYLE, minWidth: 0, padding: 20, display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
               <div>
                 <div className="ct" style={{ color: '#1a2744' }}>Top Strategic Aspirations</div>
@@ -487,70 +595,40 @@ export default function CommandCenterPage() {
               </div>
               <YearFilterPills value={aspirationYearFilter} onChange={setAspirationYearFilter} />
             </div>
-            <div style={{
-              marginBottom: 14,
-              padding: '8px 12px',
-              background: '#f8fafc',
-              border: '1px solid #e2e8f0',
-              borderRadius: 8,
-              fontSize: 10.5,
-              color: '#64748b',
-              lineHeight: 1.6,
-            }}>
-              <b style={{ color: '#475569' }}>Note:</b> "Locations" = distinct {urbanFilter === 'rural' ? 'Gram Panchayats (GP)' : urbanFilter === 'urban' ? 'Wards' : 'Gram Panchayats + Wards combined'} that reported this same aspiration item, across the district count shown alongside it.
-            </div>
+            
             {!aspKpis || aspirationTableRows.length === 0 ? (
               <div style={{ color: '#64748b', fontStyle: 'italic' }}>Loading data —</div>
             ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', flex: 1 }}>
                 <thead>
                   <tr style={{ background: '#f8fafc', color: '#475569', textTransform: 'uppercase', fontSize: 10, letterSpacing: '0.08em' }}>
-                    <th style={{ padding: '12px 10px', borderBottom: '1px solid #f1f5f9', textAlign: 'left', width: '34%' }}>Aspiration</th>
-                    <th style={{ padding: '12px 10px', borderBottom: '1px solid #f1f5f9', textAlign: 'left', width: '29%' }}>Area</th>
-                    <th style={{ padding: '12px 10px', borderBottom: '1px solid #f1f5f9', textAlign: 'left', width: '18%' }}>Sector</th>
-                    <th style={{ padding: '12px 10px', borderBottom: '1px solid #f1f5f9', textAlign: 'center', width: '7%' }}>P</th>
-                    <th style={{ padding: '12px 10px', borderBottom: '1px solid #f1f5f9', textAlign: 'right', width: '12%', whiteSpace: 'nowrap' }}>Records</th>
+                    <th style={{ padding: '8px 10px', borderBottom: '1px solid #f1f5f9', textAlign: 'left', width: '42%' }}>Aspiration</th>
+                    <th style={{ padding: '8px 10px', borderBottom: '1px solid #f1f5f9', textAlign: 'left', width: '32%' }}>Sector</th>
+                    <th style={{ padding: '8px 10px', borderBottom: '1px solid #f1f5f9', textAlign: 'center', width: '10%' }}>P</th>
+                    <th style={{ padding: '8px 10px', borderBottom: '1px solid #f1f5f9', textAlign: 'right', width: '16%', whiteSpace: 'nowrap' }}>Records</th>
                   </tr>
                 </thead>
                 <tbody>
                   {aspirationTableRows.map((entry, index) => {
-                      const areaType = String(entry.area_type || '').trim().toLowerCase();
-                      const isRural = areaType === 'rural';
-                      const occurrences = (entry as any).occurrences ?? 1;
-                      const districtList = (entry as any).districtList ?? [];
-                      const locationUnitLabel = urbanFilter === 'rural'
-                        ? 'GP'
-                        : urbanFilter === 'urban'
-                          ? 'वार्ड'
-                          : 'GP/वार्ड';
-                      const areaLabel = occurrences > 1
-                        ? `${districtList.length} जिलों में · ${occurrences} ${locationUnitLabel}`
-                        : isRural
-                          ? [entry.gram_panchayat, entry.block, entry.district].filter(Boolean).join(' · ') || entry.district || '—'
-                          : [entry.ward, entry.ulb || entry.city, entry.district].filter(Boolean).join(' · ') || entry.district || '—';
                       const aspirationLabel = [entry.item, entry.dept].filter(Boolean).join(' · ') || entry.item || entry.dept || '—';
                       const borderColor = SECTOR_PALETTE[index % SECTOR_PALETTE.length];
 
                       return (
                       <tr key={`${entry.sector}-${entry.item}-${index}`} className="asp-row" style={{ borderBottom: '1px solid #f1f5f9' }}>
-                          <td style={{ padding: '14px 10px', verticalAlign: 'top' }}>
+                          <td style={{ padding: '9px 10px', verticalAlign: 'top' }}>
                             <div style={{ fontSize: 14, fontWeight: 800, color: '#1a2744', lineHeight: 1.35 }}>{aspirationLabel}</div>
                           </td>
-                          <td style={{ padding: '14px 10px', verticalAlign: 'top' }}>
-                            <div style={{ fontSize: 12, fontWeight: 700, color: '#1a2744', lineHeight: 1.35 }}>{areaLabel}</div>
-                            <div style={{ marginTop: 4, fontSize: 10.5, color: '#64748b' }}>District · Locations</div>
-                          </td>
-                          <td style={{ padding: '14px 10px', verticalAlign: 'top' }}>
+                          <td style={{ padding: '9px 10px', verticalAlign: 'top' }}>
                             <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '100%', minHeight: 28, padding: '3px 8px', borderRadius: 4, border: `1px solid ${borderColor}33`, background: `${borderColor}10`, color: '#1a2744', fontSize: 10, fontWeight: 800, letterSpacing: '0.04em', lineHeight: 1.2, whiteSpace: 'normal', wordBreak: 'break-word', textAlign: 'center' }}>
                               {entry.sector || entry.dept || 'Other'}
                             </span>
                           </td>
-                          <td style={{ padding: '14px 10px', textAlign: 'center', verticalAlign: 'top' }}>
+                          <td style={{ padding: '9px 10px', textAlign: 'center', verticalAlign: 'top' }}>
                             <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 999, background: '#e85d04', color: '#fff', fontSize: 10.5, fontWeight: 800, lineHeight: 1.1, margin: '0 auto' }}>
                               P-{Number(entry.priority || 0)}
                             </span>
                           </td>
-                          <td style={{ padding: '14px 10px', textAlign: 'right', verticalAlign: 'top', color: '#1a2744', fontWeight: 800, whiteSpace: 'nowrap' }}>{formatCount((entry as any).rawRecordCount ?? (entry as any).occurrences ?? 1)}</td>
+                          <td style={{ padding: '9px 10px', textAlign: 'right', verticalAlign: 'top', color: '#1a2744', fontWeight: 800, whiteSpace: 'nowrap' }}>{formatCount((entry as any).rawRecordCount ?? (entry as any).occurrences ?? 1)}</td>
                       </tr>
                     );
                   })}
@@ -641,14 +719,15 @@ export default function CommandCenterPage() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
             <div>
               <div className="ct" style={{ color: '#1a2744' }}>Sector-wise Top Aspirations</div>
-              <div className="cs" style={{ color: '#64748b' }}>Top sub-indicator per sector · grouped quantities</div>
+              <div className="cs" style={{ color: '#64748b' }}>Top sub-indicator per sector · grouped quantities · {sectorYearFilter} view</div>
             </div>
+            <YearFilterPills value={sectorYearFilter} onChange={setSectorYearFilter} />
           </div>
-          {!aspKpis || visibleSectorRows.length === 0 ? (
+          {!aspKpis || sectorWiseTopAspirations.length === 0 ? (
             <div style={{ color: '#64748b', fontStyle: 'italic' }}>Loading data —</div>
           ) : (
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {visibleSectorRows.map((entry, index) => {
+              {sectorWiseTopAspirations.map((entry, index) => {
                 const borderColor = SECTOR_PALETTE[index % SECTOR_PALETTE.length];
                 const statusText = String(entry.status || '').trim().toUpperCase();
                 return (
@@ -670,11 +749,11 @@ export default function CommandCenterPage() {
                     <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8, fontSize: 11 }}>
                       <div>
                         <div style={{ color: '#64748b', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Sub-indicators</div>
-                        <div style={{ marginTop: 2, color: '#1a2744', fontWeight: 800 }}>{formatCount((entry as any).uniqueItems ?? entry.count)}</div>
+                        <div style={{ marginTop: 2, color: '#1a2744', fontWeight: 800 }}>{formatCount(entry.uniqueItems)}</div>
                       </div>
                       <div>
                         <div style={{ color: '#64748b', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Records</div>
-                        <div style={{ marginTop: 2, color: '#1a2744', fontWeight: 800 }}>{formatCount((entry as any).topItemCount ?? entry.count ?? 0)}</div>
+                        <div style={{ marginTop: 2, color: '#1a2744', fontWeight: 800 }}>{formatCount(entry.topItemCount)}</div>
                       </div>
                     </div>
                   </div>
