@@ -91,7 +91,6 @@ export default function CommandCenterPage() {
   const [dashboard, setDashboard] = useState<DashboardKpiPayload>(getEmptyDashboardPayload());
   const [aspKpis, setAspKpis] = useState<any>(null);
   const [aspirationYearFilter, setAspirationYearFilter] = useState<'2030' | '2035' | '2047'>('2030');
-  const [sectorYearFilter, setSectorYearFilter] = useState<'2030' | '2035' | '2047'>('2030');
 
   useEffect(() => {
     fetchAspirationsKpis({ areaType: 'all', district: null }).catch(() => {});
@@ -148,20 +147,7 @@ export default function CommandCenterPage() {
 
   const visibleSectorRows = ((aspKpis?.sectorBreakdown || []) as any[])
     .filter((entry: any) => urbanFilter === 'urban' ? !isAgricultureSector(entry) : true)
-    .slice(0, urbanFilter === 'urban' ? 9 : 10)
-    .map((entry: any) => ({
-      ...entry,
-      displayQty: sectorYearFilter === '2030'
-        ? (entry.topItemQty2030 ?? entry.qty2030 ?? 0)
-        : sectorYearFilter === '2035'
-          ? (entry.topItemQty2035 ?? entry.qty2035 ?? 0)
-          : (entry.topItemQty2047 ?? entry.qty2047 ?? 0),
-      displaySectorTotal: sectorYearFilter === '2030'
-        ? (entry.totalQty2030 ?? 0)
-        : sectorYearFilter === '2035'
-          ? (entry.totalQty2035 ?? 0)
-          : (entry.totalQty2047 ?? 0),
-    }));
+    .slice(0, urbanFilter === 'urban' ? 9 : 10);
 
   const aspirationQtyKey = `qty_${aspirationYearFilter}` as 'qty_2030' | 'qty_2035' | 'qty_2047';
 
@@ -501,6 +487,18 @@ export default function CommandCenterPage() {
               </div>
               <YearFilterPills value={aspirationYearFilter} onChange={setAspirationYearFilter} />
             </div>
+            <div style={{
+              marginBottom: 14,
+              padding: '8px 12px',
+              background: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              borderRadius: 8,
+              fontSize: 10.5,
+              color: '#64748b',
+              lineHeight: 1.6,
+            }}>
+              <b style={{ color: '#475569' }}>Note:</b> "Locations" = distinct {urbanFilter === 'rural' ? 'Gram Panchayats (GP)' : urbanFilter === 'urban' ? 'Wards' : 'Gram Panchayats + Wards combined'} that reported this same aspiration item, across the district count shown alongside it.
+            </div>
             {!aspKpis || aspirationTableRows.length === 0 ? (
               <div style={{ color: '#64748b', fontStyle: 'italic' }}>Loading data —</div>
             ) : (
@@ -520,8 +518,13 @@ export default function CommandCenterPage() {
                       const isRural = areaType === 'rural';
                       const occurrences = (entry as any).occurrences ?? 1;
                       const districtList = (entry as any).districtList ?? [];
+                      const locationUnitLabel = urbanFilter === 'rural'
+                        ? 'GP'
+                        : urbanFilter === 'urban'
+                          ? 'वार्ड'
+                          : 'GP/वार्ड';
                       const areaLabel = occurrences > 1
-                        ? `${districtList.length} जिलों में · ${occurrences} locations`
+                        ? `${districtList.length} जिलों में · ${occurrences} ${locationUnitLabel}`
                         : isRural
                           ? [entry.gram_panchayat, entry.block, entry.district].filter(Boolean).join(' · ') || entry.district || '—'
                           : [entry.ward, entry.ulb || entry.city, entry.district].filter(Boolean).join(' · ') || entry.district || '—';
@@ -532,36 +535,10 @@ export default function CommandCenterPage() {
                       <tr key={`${entry.sector}-${entry.item}-${index}`} className="asp-row" style={{ borderBottom: '1px solid #f1f5f9' }}>
                           <td style={{ padding: '14px 10px', verticalAlign: 'top' }}>
                             <div style={{ fontSize: 14, fontWeight: 800, color: '#1a2744', lineHeight: 1.35 }}>{aspirationLabel}</div>
-                            {occurrences > 1 && (
-                              <div style={{ marginTop: 4, fontSize: 10, color: '#64748b' }}>
-                                {occurrences} sub-indicators grouped
-                              </div>
-                            )}
                           </td>
                           <td style={{ padding: '14px 10px', verticalAlign: 'top' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                              <span
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  minWidth: 54,
-                                  padding: '4px 10px',
-                                  borderRadius: 4,
-                                  fontSize: 9.5,
-                                  fontWeight: 800,
-                                  letterSpacing: '0.1em',
-                                  textTransform: 'uppercase',
-                                  background: isRural ? '#dcfce7' : '#dbeafe',
-                                  color: isRural ? '#166534' : '#1d4ed8',
-                                  border: '1px solid rgba(148,163,184,.14)',
-                                }}
-                              >
-                                {isRural ? 'RURAL' : 'URBAN'}
-                              </span>
-                              <div style={{ fontSize: 12, fontWeight: 700, color: '#1a2744', lineHeight: 1.35 }}>{areaLabel}</div>
-                            </div>
-                            <div style={{ marginTop: 4, fontSize: 10.5, color: '#64748b' }}>{isRural ? 'GP · Block · District' : 'Ward · ULB · District'}</div>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: '#1a2744', lineHeight: 1.35 }}>{areaLabel}</div>
+                            <div style={{ marginTop: 4, fontSize: 10.5, color: '#64748b' }}>District · Locations</div>
                           </td>
                           <td style={{ padding: '14px 10px', verticalAlign: 'top' }}>
                             <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '100%', minHeight: 28, padding: '3px 8px', borderRadius: 4, border: `1px solid ${borderColor}33`, background: `${borderColor}10`, color: '#1a2744', fontSize: 10, fontWeight: 800, letterSpacing: '0.04em', lineHeight: 1.2, whiteSpace: 'normal', wordBreak: 'break-word', textAlign: 'center' }}>
@@ -664,9 +641,8 @@ export default function CommandCenterPage() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
             <div>
               <div className="ct" style={{ color: '#1a2744' }}>Sector-wise Top Aspirations</div>
-              <div className="cs" style={{ color: '#64748b' }}>Top sub-indicator per sector · grouped quantities · {sectorYearFilter} view</div>
+              <div className="cs" style={{ color: '#64748b' }}>Top sub-indicator per sector · grouped quantities</div>
             </div>
-            <YearFilterPills value={sectorYearFilter} onChange={setSectorYearFilter} />
           </div>
           {!aspKpis || visibleSectorRows.length === 0 ? (
             <div style={{ color: '#64748b', fontStyle: 'italic' }}>Loading data —</div>
@@ -681,9 +657,11 @@ export default function CommandCenterPage() {
                       <div style={{ minWidth: 0 }}>
                         <div style={{ fontSize: 11, fontWeight: 800, color: borderColor, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{entry.sector || entry.dept || 'Other'}</div>
                         <div style={{ marginTop: 6, fontSize: 14, fontWeight: 800, color: '#1a2744', lineHeight: 1.35 }}>{entry.topItem}</div>
-                        <div style={{ marginTop: 4, fontSize: 11, color: '#64748b' }}>
-                          {entry.dept || '—'}
-                        </div>
+                        {entry.dept ? (
+                          <div style={{ marginTop: 4, fontSize: 11, color: '#64748b' }}>
+                            {entry.dept}
+                          </div>
+                        ) : null}
                       </div>
                       {entry.fast_track ? (
                         <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 800, padding: '4px 8px', borderRadius: 999, background: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa' }}>⚡ Fast-track</span>
