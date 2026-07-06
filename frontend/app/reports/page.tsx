@@ -714,15 +714,42 @@ export default function ReportsPage() {
 
           ruralAspData = blockAllRows;
         } else {
-          // District-level: filter by district only
-          ruralAspQuery = ruralAspQuery.ilike('district', dbDistrict);
-          const { data: distData, error: distErr } = await ruralAspQuery;
-          if (distErr) {
-            console.warn('[Rural Asp] district fetch error:', distErr.message);
-            ruralAspData = [];
-          } else {
-            ruralAspData = distData || [];
+          // District-level: filter by district only — PAGINATED to avoid
+          // silent truncation at Supabase/PostgREST's default row cap.
+          // This mirrors the exact pagination pattern used by
+          // fetchAllAspirationRows() in the district-FULL fetch path,
+          // so District Rural reports show the same complete aspiration
+          // set as the District Full report's rural half.
+          const DISTRICT_RURAL_PAGE_SIZE = 1000;
+          let districtRuralAllRows: any[] = [];
+          let districtRuralFrom = 0;
+          let districtRuralKeepFetching = true;
+
+          while (districtRuralKeepFetching) {
+            const { data: pageData, error: pageError } = await supabase
+              .from('aspirations_rural')
+              .select(RURAL_ASP_SELECT)
+              .in('status', ['ACCEPT', 'FUNDED', 'REVIEW'])
+              .ilike('district', dbDistrict)
+              .range(districtRuralFrom, districtRuralFrom + DISTRICT_RURAL_PAGE_SIZE - 1);
+
+            if (pageError) {
+              console.warn('[Rural Asp] district fetch error:', pageError.message);
+              districtRuralKeepFetching = false;
+            } else if (!pageData || pageData.length === 0) {
+              districtRuralKeepFetching = false;
+            } else {
+              districtRuralAllRows = districtRuralAllRows.concat(pageData);
+              if (pageData.length < DISTRICT_RURAL_PAGE_SIZE) {
+                districtRuralKeepFetching = false;
+              } else {
+                districtRuralFrom += DISTRICT_RURAL_PAGE_SIZE;
+              }
+            }
           }
+
+          ruralAspData = districtRuralAllRows;
+          console.log(`[Rural Asp] District-level (paginated): ${ruralAspData.length} records for district "${dbDistrict}"`);
         }
       } catch (err) {
         console.warn('[Rural Asp] exception:', err);
@@ -983,15 +1010,43 @@ export default function ReportsPage() {
             console.log(`[Urban Asp] No ward match, returning empty`);
           }
         } else {
-          // District level
+          // District level — PAGINATED to avoid silent truncation at
+          // Supabase/PostgREST's default row cap. This mirrors the exact
+          // pagination pattern used by fetchAllAspirationRows() in the
+          // district-FULL fetch path, so District Urban reports show the
+          // same complete aspiration set as the District Full report's
+          // urban half.
           console.log(`[Urban Asp] District match: district="${dbDistrict}"`);
-          const { data: distData } = await supabase
-            .from('aspirations_urban')
-            .select(URBAN_ASP_SELECT)
-            .in('status', ['ACCEPT', 'FUNDED', 'REVIEW'])
-            .ilike('district', dbDistrict);
-          urbanAspData = distData || [];
-          console.log(`[Urban Asp] District-level: ${urbanAspData.length} records`);
+          const DISTRICT_URBAN_PAGE_SIZE = 1000;
+          let districtUrbanAllRows: any[] = [];
+          let districtUrbanFrom = 0;
+          let districtUrbanKeepFetching = true;
+
+          while (districtUrbanKeepFetching) {
+            const { data: pageData, error: pageError } = await supabase
+              .from('aspirations_urban')
+              .select(URBAN_ASP_SELECT)
+              .in('status', ['ACCEPT', 'FUNDED', 'REVIEW'])
+              .ilike('district', dbDistrict)
+              .range(districtUrbanFrom, districtUrbanFrom + DISTRICT_URBAN_PAGE_SIZE - 1);
+
+            if (pageError) {
+              console.warn('[Urban Asp] district fetch error:', pageError.message);
+              districtUrbanKeepFetching = false;
+            } else if (!pageData || pageData.length === 0) {
+              districtUrbanKeepFetching = false;
+            } else {
+              districtUrbanAllRows = districtUrbanAllRows.concat(pageData);
+              if (pageData.length < DISTRICT_URBAN_PAGE_SIZE) {
+                districtUrbanKeepFetching = false;
+              } else {
+                districtUrbanFrom += DISTRICT_URBAN_PAGE_SIZE;
+              }
+            }
+          }
+
+          urbanAspData = districtUrbanAllRows;
+          console.log(`[Urban Asp] District-level (paginated): ${urbanAspData.length} records for district "${dbDistrict}"`);
         }
       } catch (err) {
         console.warn('[Urban Asp] exception:', err);
@@ -1673,7 +1728,9 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
         ? kpiPill('शहरी वार्ड', fmt(d.meta?.wardCount || 0), `${scope.ulb || district} में`)
         : isDistrict
           ? kpiPill('FHTC · ग्रामीण / शहरी', `${fmtPct(d.water?.ruralFhtcAvg)} / ${fmtPct(d.water?.urbanFhtcAvg)}`, 'जल आपूर्ति · दोनों क्षेत्र')
-          : kpiPill('FHTC कवरेज', fmtPct(d.water?.urbanFhtcAvg), 'जल आपूर्ति स्थिति')
+          : isRural
+            ? kpiPill('FHTC कवरेज', fmtPct(d.water?.ruralFhtcAvg), 'जल आपूर्ति स्थिति')
+            : kpiPill('FHTC कवरेज', fmtPct(d.water?.urbanFhtcAvg), 'जल आपूर्ति स्थिति')
 }
       </div>
 
