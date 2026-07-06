@@ -353,6 +353,7 @@ export default function ReportsPage() {
             .select(selectCols)
             .in('status', ['ACCEPT', 'FUNDED', 'REVIEW'])
             .ilike('district', dbDistrict)
+            .order('id', { ascending: true })
             .range(from, from + PAGE_SIZE - 1);
 
           if (pageError) {
@@ -651,6 +652,7 @@ export default function ReportsPage() {
                   .in('status', ['ACCEPT', 'FUNDED', 'REVIEW'])
                   .ilike('district', dbDistrict)
                   .in('gram_panchayat', gpChunk)
+                  .order('id', { ascending: true })
                   .range(from, from + BLOCK_PAGE_SIZE - 1);
                 if (chunkErr || !chunkData || chunkData.length === 0) {
                   keepFetching = false;
@@ -675,6 +677,7 @@ export default function ReportsPage() {
                 .in('status', ['ACCEPT', 'FUNDED', 'REVIEW'])
                 .ilike('district', dbDistrict)
                 .ilike('block', scope.block)
+                .order('id', { ascending: true })
                 .range(from, from + BLOCK_PAGE_SIZE - 1);
               if (bErr || !bData || bData.length === 0) {
                 keepFetching = false;
@@ -731,6 +734,7 @@ export default function ReportsPage() {
               .select(RURAL_ASP_SELECT)
               .in('status', ['ACCEPT', 'FUNDED', 'REVIEW'])
               .ilike('district', dbDistrict)
+              .order('id', { ascending: true })
               .range(districtRuralFrom, districtRuralFrom + DISTRICT_RURAL_PAGE_SIZE - 1);
 
             if (pageError) {
@@ -964,6 +968,7 @@ export default function ReportsPage() {
               .select(URBAN_ASP_SELECT)
               .in('status', ['ACCEPT', 'FUNDED', 'REVIEW'])
               .ilike('ulb', scope.ulb.trim())
+              .order('id', { ascending: true })
               .range(ulbFrom, ulbFrom + ULB_PAGE_SIZE - 1);
 
             if (ulbPageErr) {
@@ -1028,6 +1033,7 @@ export default function ReportsPage() {
               .select(URBAN_ASP_SELECT)
               .in('status', ['ACCEPT', 'FUNDED', 'REVIEW'])
               .ilike('district', dbDistrict)
+              .order('id', { ascending: true })
               .range(districtUrbanFrom, districtUrbanFrom + DISTRICT_URBAN_PAGE_SIZE - 1);
 
             if (pageError) {
