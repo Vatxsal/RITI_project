@@ -1688,7 +1688,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
 
     const scopeMasterLabel = {
       gp:       `ग्राम पंचायत मास्टर प्लान`,
-      ward:     `वार्ड मास्टर प्लान`,
+      ward:     `शहरी वार्ड मास्टर प्लान`,
       block:    `समेकित खंड रिपोर्ट`,
       ulb:      `समेकित नगर निकाय रिपोर्ट`,
       district: `समेकित जिला रिपोर्ट`,
@@ -1878,8 +1878,10 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
           ${scopeLevel === 'ward'
   ? infoRow('वार्ड', scope.wardName || coverMainName) + '\n          ' + infoRow('नगर निकाय', scope.ulb || '—')
   : infoRow('नगर निकाय', fmt(d.meta?.ulbCount || 0)) + '\n          ' + infoRow('शहरी वार्ड', fmt(d.meta?.wardCount || 0))}
-          ${infoRow('सबसे बड़ा ULB', escapeHtml(largestUlb))}
-          ${infoRow('औसत वार्ड जनसंख्या', avgWardPopulation ? `~${fmt(avgWardPopulation)}` : '—')}
+          ${scopeLevel !== 'ward' ? infoRow('सबसे बड़ा ULB', escapeHtml(largestUlb)) : ''}
+          ${scopeLevel === 'ward'
+            ? infoRow('पक्के आवास कवरेज', `${puccaPct}%`)
+            : infoRow('औसत वार्ड जनसंख्या', avgWardPopulation ? `~${fmt(avgWardPopulation)}` : '—')}
         </div>
         ` : ''}
       </div>
