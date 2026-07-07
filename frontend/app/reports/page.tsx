@@ -2727,7 +2727,6 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
         <thead>
           <tr>
             <th>संकेतक</th>
-            <th>वर्तमान आधार</th>
             <th>2030 तक · चरण-1</th>
             <th>2030-35 · चरण-2</th>
             <th>2047 तक · विकसित स्तर</th>
@@ -2737,7 +2736,6 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
           ${strategicRows.map((row) => `
             <tr>
               <td>${escapeHtml(row.indicator)}</td>
-              <td>${escapeHtml(row.current)}</td>
               <td>${escapeHtml(row.phase1)}</td>
               <td>${escapeHtml(row.phase2)}</td>
               <td>${escapeHtml(row.phase2047)}</td>
