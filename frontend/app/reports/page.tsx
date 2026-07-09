@@ -1712,7 +1712,9 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
         ${scopeLevel === 'district'
   ? (isUrban
     ? kpiPill('वार्ड · नगर निकाय', `${fmt(d.meta?.wardCount || 0)} · ${fmt(d.meta?.ulbCount || 0)}`, 'शहरी प्रशासनिक ढांचा')
-    : kpiPill('ग्राम पंचायतें · Blocks', `${fmt(d.meta?.gpCount || 0)} · ${fmt(d.meta?.blockCount || 0)}`, 'ग्रामीण प्रशासनिक ढांचा'))
+    : isDistrict
+      ? kpiPill('ग्राम पंचायतें · Blocks', `${fmt(d.meta?.gpCount || 0)} · ${fmt(d.meta?.blockCount || 0)}`, `${fmt(d.meta?.ulbCount || 0)} नगर निकाय · ${fmt(d.meta?.wardCount || 0)} वार्ड`)
+      : kpiPill('ग्राम पंचायतें · Blocks', `${fmt(d.meta?.gpCount || 0)} · ${fmt(d.meta?.blockCount || 0)}`, 'ग्रामीण प्रशासनिक ढांचा'))
   : scopeLevel === 'block'
     ? kpiPill('ग्राम पंचायतें', `${fmt(d.meta?.gpCount || 0)} ग्राम पंचायतें`, 'चयनित खंड कवरेज')
     : scopeLevel === 'gp'
@@ -2579,7 +2581,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
           { value: fmt(d.environment?.govtNurseries || 0), label: 'सरकारी नर्सरी', sub: 'हरित पहल' },
           { value: fmt(d.environment?.nurserySaplingsAvailable || 0), label: 'नर्सरी पौधे', sub: 'उपलब्ध पौधे' },
           { value: fmt(d.tourism?.heritageSites || 0), label: 'सांस्कृतिक स्थल', sub: 'पर्यटन संसाधन' },
-          { value: fmt(d.tourism?.avgFairFootfallDaily || d.tourism?.dailyFootfall || 0), label: 'मेले में आगंतुक/दिन', sub: 'पर्यटन प्रवाह' },
+          { value: fmt(Math.round(Number(d.tourism?.avgFairFootfallDaily || d.tourism?.dailyFootfall || 0))), label: 'मेले में आगंतुक/दिन', sub: 'पर्यटन प्रवाह' },
           { value: fmtKm(d.governance?.distEmitraKm || d.governance?.urbanEmitraKm || 0), label: 'ई-मित्र दूरी', sub: 'डिजिटल पहुंच' },
           { value: fmtKm(d.governance?.distPoliceKm || d.governance?.urbanPoliceKm || 0), label: 'थाना दूरी', sub: 'सुरक्षा पहुंच' },
           { value: fmt(d.environment?.suryaGharHomes || 0), label: 'PM Surya Ghar', sub: 'Solar homes' },
