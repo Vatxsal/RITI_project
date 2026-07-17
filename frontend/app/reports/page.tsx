@@ -1409,7 +1409,7 @@ Generate ONLY valid JSON, no markdown, no preamble, no trailing commas:
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { temperature: 0.3, maxOutputTokens: 2000 }
+                generationConfig: { temperature: 0.3, maxOutputTokens: 6000 }
               })
             }
           );
